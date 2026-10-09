@@ -45,6 +45,9 @@ OPENAI_API_KEY=              # OpenAI TTS + GPT Image 2 images
 XAI_API_KEY=                 # xAI Grok image generation/editing + Grok video generation
 DOUBAO_SPEECH_API_KEY=       # Volcengine Doubao Speech TTS (strong Mandarin narration)
 DOUBAO_SPEECH_VOICE_TYPE=    # Default Doubao speaker/voice type
+VBEE_APP_ID=                 # Vbee AIVoice application ID (studio.vbee.vn/apps)
+VBEE_ACCESS_TOKEN=           # Vbee AIVoice access token (Bearer token)
+VBEE_VOICE_CODE=             # Default Vbee voice (e.g. hn_female_ngochuyen_full_48k-fhg)
 DASHSCOPE_API_KEY=           # Alibaba DashScope (Qwen image gen, TTS, ASR with word timestamps)
 
 # AZURE AI SPEECH (optional cloud STT + TTS; one key unlocks both directions)
@@ -578,6 +581,44 @@ Start with `speech_rate: 0` for natural Mandarin delivery. If the approved forma
 #### Pricing
 
 Doubao Speech 2.0 is billed by character package or usage in Volcengine. OpenMontage estimates cost from text length and prefers provider-returned usage metadata when available.
+
+---
+
+### Vbee AIVoice — Vietnamese TTS
+
+> **Specialized Vietnamese neural narration.** Vbee (vbee.vn) provides high-quality Vietnamese text-to-speech with natural regional accents (North, South, Central).
+
+**Tools unlocked:** `vbee_tts`
+**Env vars:** `VBEE_APP_ID`, `VBEE_ACCESS_TOKEN` (or `VBEE_API_KEY`), `VBEE_VOICE_CODE` (optional), `VBEE_API_URL` (optional)
+
+#### Setup
+
+1. Register at [vbee.vn](https://vbee.vn) and access [studio.vbee.vn/apps](https://studio.vbee.vn/apps).
+2. Create an App to obtain your **App ID** and generate an **Access Token**.
+3. (Optional) Choose a default voice code from the Vbee Voice Library, such as `hn_female_ngochuyen_full_48k-fhg`.
+4. Add to `.env`:
+   ```bash
+   VBEE_APP_ID=your-vbee-app-id
+   VBEE_ACCESS_TOKEN=your-vbee-access-token
+   VBEE_VOICE_CODE=hn_female_ngochuyen_full_48k-fhg
+   ```
+
+#### Popular Voice Aliases
+
+OpenMontage maps friendly voice names directly to Vbee's voice codes:
+- **Northern (Bắc):** `ngochuyen` / `hn_female` (Ngọc Huyền - standard explainer), `manhdung` / `hn_male` (Mạnh Dũng - news/corporate), `maiphuong`, `thutrang`, `ducanh`.
+- **Southern (Nam):** `thaotrinh` / `sg_female` (Thảo Trinh - expressive), `minhhoang` / `sg_male` (Minh Hoàng - warm tone), `lanhuong`.
+- **Central (Trung):** `huonggiang` / `hue_female` (Hương Giang), `duyphuong` / `hue_male` (Duy Phương).
+
+#### What It Is Best For
+
+- Natural Vietnamese narration across all three major regional accents.
+- Vietnamese educational, explainer, corporate, and social media videos.
+- Standard async generation (`POST /api/v1/tts` followed by status polling).
+
+#### Pricing
+
+Vbee bills by character count / credit packages (~0.000008 USD / ~0.2 VND per character).
 
 ---
 
@@ -1446,7 +1487,7 @@ How many providers cover each capability:
 |-----------|----------------|-----------------|--------------|
 | **Image Generation** | FLUX, Kling Official, Grok, Google Imagen, GPT Image 2, Recraft | Local Diffusion | Pexels, Pixabay (stock) |
 | **Video Generation** | Grok, Kling Official, fal.ai, Seedance via Volcengine Ark, Runway, Veo, Gemini Omni, Higgsfield, MiniMax, HeyGen, Tencent Hunyuan, ComfyUI Partner Nodes | WAN, Hunyuan, CogVideo, LTX, ComfyUI WAN, ComfyUI MiniMax H3 | Pexels, Pixabay (stock) |
-| **Text-to-Speech** | Azure AI Speech, ElevenLabs, fish.audio, Google TTS, Kling Official, OpenAI | Piper | Piper, Google free tier, ElevenLabs free tier, Azure free tier, fish.audio s2.1-pro-free |
+| **Text-to-Speech** | Azure AI Speech, Doubao, ElevenLabs, fish.audio, Google TTS, Kling Official, OpenAI, Vbee | Piper | Piper, Google free tier, ElevenLabs free tier, Azure free tier, fish.audio s2.1-pro-free |
 | **Music Generation** | ElevenLabs, Suno, Google Lyria | — | ElevenLabs free tier |
 | **Post-Production** | — | FFmpeg (compose, stitch, trim, mix, enhance, grade) | All free |
 | **Analysis** | — | WhisperX, Scene Detect, Frame Sampler, CLIP/BLIP-2 | All free |

@@ -1,4 +1,4 @@
-﻿# OpenMontage â€" Skill Index
+# OpenMontage â€" Skill Index
 
 > For the full agent onboarding guide, see [`AGENT_GUIDE.md`](../AGENT_GUIDE.md) in the project root.
 
@@ -90,6 +90,7 @@ Key capability families to look for in the output:
 | WhisperX | `core/whisperx.md` | Transcription with word-level timestamps — default STT (offline, free) | `speech-to-text` |
 | Azure STT | (tool: `azure_stt`) | Optional cloud speech-to-text, word-level timestamps — preferred when `AZURE_SPEECH_KEY` is set | `azure-speech-to-text` |
 | Azure TTS | (tool: `azure_tts`) | Optional cloud neural narration (SSML prosody, express-as styles) — same Speech key as `azure_stt` | `azure-text-to-speech` |
+| Vbee TTS | (tool: `vbee_tts`) | Vietnamese neural narration across regional accents (North, South, Central) | `vbee-tts`, `text-to-speech` |
 | Subtitle Sync | `core/subtitle-sync.md` | Subtitle timing and alignment | `remotion-best-practices` |
 | Color Grading | `core/color-grading.md` | FFmpeg color profiles, LUT workflow, accessibility | `ffmpeg` |
 

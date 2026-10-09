@@ -61,9 +61,36 @@
             "type": "string",
             "description": "Backing color used behind this cut by composition runtimes"
           },
-          "reason": { "type": "string" }
+          "reason": { "type": "string" },
+          "type": { "type": "string", "description": "Remotion scene type (e.g. hero_title, stat_card, callout, comparison, text_card, terminal_scene)" },
+          "text": { "type": "string" },
+          "subtitle": { "type": "string" },
+          "heroSubtitle": { "type": "string" },
+          "stat": { "type": "string" },
+          "title": { "type": "string" },
+          "callout_type": { "type": "string", "enum": ["info", "warning", "tip", "quote"] },
+          "leftLabel": { "type": "string" },
+          "leftValue": { "type": "string" },
+          "rightLabel": { "type": "string" },
+          "rightValue": { "type": "string" },
+          "chartData": { "type": "array" },
+          "chartSeries": { "type": "array" },
+          "progress": { "type": "number" },
+          "progressLabel": { "type": "string" },
+          "progressColor": { "type": "string" },
+          "steps": { "type": "array" },
+          "prompt": { "type": "string" },
+          "terminalTitle": { "type": "string" },
+          "accentColor": { "type": "string" },
+          "color": { "type": "string" },
+          "fontSize": { "type": "number" },
+          "cardBackgroundColor": { "type": "string" },
+          "backgroundImage": { "type": "string" },
+          "backgroundVideo": { "type": "string" },
+          "backgroundVideoStart": { "type": "number" },
+          "backgroundOverlay": { "type": "number" }
         },
-        "additionalProperties": false
+        "additionalProperties": true
       }
     },
     "overlays": {
@@ -98,6 +125,8 @@
         "narration": {
           "type": "object",
           "properties": {
+            "src": { "type": "string" },
+            "volume": { "type": "number" },
             "segments": {
               "type": "array",
               "items": {
@@ -116,10 +145,15 @@
         "music": {
           "type": "object",
           "properties": {
+            "src": { "type": "string" },
             "asset_id": { "type": "string" },
             "volume": { "type": "number", "minimum": 0, "maximum": 1 },
             "fade_in_seconds": { "type": "number", "minimum": 0 },
             "fade_out_seconds": { "type": "number", "minimum": 0 },
+            "fadeInSeconds": { "type": "number", "minimum": 0 },
+            "fadeOutSeconds": { "type": "number", "minimum": 0 },
+            "offsetSeconds": { "type": "number" },
+            "loop": { "type": "boolean" },
             "ducking": {
               "oneOf": [
                 { "type": "boolean" },
@@ -230,6 +264,10 @@
         "average": { "type": "number" },
         "verdict": { "type": "string", "enum": ["strong", "acceptable", "revise", "fail"] }
       }
+    },
+    "captions": {
+      "type": "array",
+      "description": "Word-level captions for Remotion CaptionOverlay component"
     },
     "metadata": { "type": "object" }
   },

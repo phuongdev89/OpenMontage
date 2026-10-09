@@ -228,6 +228,26 @@ class TTSSelector(BaseTool):
     def _adapt_inputs(tool: BaseTool, inputs: dict[str, Any]) -> dict[str, Any]:
         """Translate capability-level controls to provider-native inputs."""
         adapted = dict(inputs)
+        if tool.name == "vbee_tts" or tool.provider == "vbee":
+            if inputs.get("voice_id") and not inputs.get("voice_code"):
+                adapted["voice_code"] = inputs["voice_id"]
+            elif inputs.get("voice") and not inputs.get("voice_code"):
+                adapted["voice_code"] = inputs["voice"]
+
+            speed = inputs.get("speaking_rate", inputs.get("speed"))
+            if speed is not None and "speed_rate" not in inputs:
+                try:
+                    adapted["speed_rate"] = float(speed)
+                except (ValueError, TypeError):
+                    pass
+
+            output_format = str(inputs.get("output_format", "")).lower()
+            if output_format.startswith("wav") and "audio_type" not in inputs:
+                adapted["audio_type"] = "wav"
+            elif output_format.startswith("mp3") and "audio_type" not in inputs:
+                adapted["audio_type"] = "mp3"
+            return adapted
+
         if tool.name != "azure_tts":
             return adapted
 
