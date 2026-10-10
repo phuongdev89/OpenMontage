@@ -194,18 +194,24 @@ At script review and final video review, verify the verbatim English reading, co
 
 All math problem-solving videos MUST also follow the full rule set in:
 
-**[`skills/pipelines/math/voice-text-rules.md`](skills/pipelines/math/voice-text-rules.md)**
+**[`skills/pipelines/math/voice-text-rules.md`](skills/pipelines/math/voice-text-rules.md)** — persona, `voiceText` encoding, hook, EN-TTS blocker, closing wish, `solutionMode` text rules.
 
-That file is the authoritative source for:
+**[`skills/pipelines/math/script-director.md`](skills/pipelines/math/script-director.md)** — grade detection, `solutionMode` UI, phase sequences, per-phase rules, guided answer-leak checklist, template table.
 
-- **Persona (HARD):** Male teacher only. Address viewers as "các em / các con / các bạn nhỏ". Self-address as "thầy". The word "cô" is forbidden in scripts, `voiceText`, subtitles, and all on-screen text.
-- **`voiceText` encoding:** Write all digits and math symbols as spoken Vietnamese words (e.g. `2x + 5 = 17` → "hai nhân x cộng năm bằng mười bảy"). No LaTeX, no emoji, no Markdown in `voiceText`. Full conversion table and competition-name phonetics in the skill file.
-- **Hook rule:** Open with the problem's own challenge as the hook. Declare it in `math-intro.hookQuestion`. Never open with generic praise ("bài toán rất thú vị") or audience labels.
-- **English-problem sequence:** vi-greeting → announce EN reading → read EN verbatim (`VBEE_VOICE_CODE_EN`, 0.9×, `language="en"`) → read full VI translation → solution. Missing EN TTS config is a **blocker** — stop, do not substitute a VI voice.
-- **Closing:** CTA (if any) before the closing wish. Last line is always a closing wish appropriate for students (e.g. "Thầy chúc các em học tốt và luôn tự tin khi giải toán.").
-- **`solutionMode`:** Ask the user to choose between `answer` (full solution) and `guided` (method only, final answer withheld) before production begins.
+Summary of binding rules:
 
-Do not re-implement these rules inline. Reference the skill file; keep this section as a summary only.
+- **Persona (HARD):** Male teacher only. Self-address as "thầy". Viewers = "các em / các con / các bạn nhỏ". "Cô" forbidden everywhere.
+- **`voiceText` encoding:** Digits and math symbols → spoken Vietnamese. No LaTeX/emoji/Markdown in `voiceText`.
+- **Hook:** Problem's own challenge; declare in `math-intro.hookQuestion`. No generic openers.
+- **Grade detection:** Analyse the problem, ask the user to confirm grade before solving. Save to `grade-selection.json`.
+- **`solutionMode`:** Ask the user (`answer` vs `guided`) before solving. Wait for real input — no defaults, no timeouts.
+- **Phase sequence (VI / `answer`):** `introduction → problem → [strategy] → solution → check → answer → closing`
+- **Phase sequence (VI / `guided`):** `introduction → problem → strategy → solution → check → practice → closing` (`strategy` mandatory; one `practice`; no `math-answer`)
+- **Phase sequence (EN problem):** Insert `read-english → read-translation` after `introduction`, before `strategy`. `read-english` uses `englishText` + empty `voiceText`; TTS = Vbee EN `0.9×`. Missing EN config = **blocker**.
+- **Guided leak check:** Before TTS — scan every `voiceText`, title, equation, note, diagram annotation for answer leakage.
+- **Closing:** CTA before wish; closing wish mandatory as last line.
+
+Do not re-implement these rules inline. Reference the skill files; keep this section as a summary only.
 
 ## Orchestrator
 
