@@ -32,6 +32,10 @@ If `research_brief` is available, also extract:
 - **Audience misconceptions** — address them directly in the script
 - **Mathematical accuracy notes** — constraints on what can and cannot be simplified
 
+### English Math Problems Explained in Vietnamese (Binding)
+
+Apply `AGENT_GUIDE.md` → **Math Problem Videos — English Prompt, Vietnamese Explanation** when the problem is in English and the requested explanation is Vietnamese. Start with separate consecutive sections: verbatim English problem reading → complete Vietnamese translation reading → solution walkthrough in Vietnamese. Preserve the problem's wording and mathematical information, budget time for both readings, and do not let hooks or text-length limits skip or shorten them. Verify this sequence at the script quality gate and carry it into the scene plan and narration.
+
 ### 2. Write in Animation Beats
 
 Each section should express ONE clear visual idea:

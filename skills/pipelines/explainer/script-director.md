@@ -50,6 +50,10 @@ The Research Director has already done the heavy lifting — you have a `researc
 
 **Do NOT duplicate the Research Director's work.** If the research_brief already has 6 data points, you don't need to find 6 more. Focus on script-level needs: the right word, the right analogy, the right sequence.
 
+### English Math Problems Explained in Vietnamese (Binding)
+
+Apply `AGENT_GUIDE.md` → **Math Problem Videos — English Prompt, Vietnamese Explanation** when the problem is in English and the requested explanation is Vietnamese. Start with separate consecutive sections: verbatim English problem reading → complete Vietnamese translation reading → solution walkthrough in Vietnamese. Preserve the problem's wording and mathematical information, budget time for both readings, and do not let the generic hook arc or brevity rules skip, shorten, or reorder them. Verify this sequence at script review and carry it into the scene plan and narration.
+
 ### Step 3: Plan the Narrative Arc
 
 Before writing prose, plan the structure. Every explainer script follows a dramatic arc:

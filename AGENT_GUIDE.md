@@ -178,6 +178,18 @@ This applies especially to:
 - prompt-only substitutes for reference-driven generation,
 - still-image animatics in place of true motion.
 
+## Math Problem Videos — English Prompt, Vietnamese Explanation
+
+When making a math problem-solving video where the supplied problem is in English and the user requests a Vietnamese explanation, the script and final video MUST follow this order:
+
+1. **Read the original English problem aloud, verbatim.** Preserve the supplied wording, numbers, units, conditions, and question; do not paraphrase or skip it. Mathematical notation may be spoken naturally in English without changing its meaning.
+2. **Read a complete Vietnamese translation aloud.** Translate every part of the problem faithfully, preserving all mathematical information and what is being asked.
+3. **Only then begin the solution walkthrough in Vietnamese.** Do not introduce solution steps, hints, or the answer before both readings finish.
+
+Keep these as separate, consecutive script sections and scene/audio segments. Show the original English problem during its reading and the Vietnamese translation during its reading; long problems may span multiple readable screens. Reserve time for both readings before budgeting the solution. Generic hook, brevity, and on-screen word limits must not shorten or reorder the problem and translation.
+
+At script review and final video review, verify the verbatim English reading, complete and accurate Vietnamese translation, and the English → Vietnamese translation → Vietnamese solution order in both narration and visuals. This rule applies across pipelines and render runtimes.
+
 ## Orchestrator
 
 The agent itself orchestrates the production state machine:
