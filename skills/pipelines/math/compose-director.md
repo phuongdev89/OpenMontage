@@ -74,17 +74,17 @@ Trước khi báo hoàn tất:
 ## 6. `formats.json`
 
 Ghi đường dẫn và kích thước cả hai bản vào
-`projects/<project-id>/artifacts/formats.json`:
+`projects/YYYY-MM-DD_HH-MM-SS_<project-id>/artifacts/formats.json`:
 
 ```json
 {
   "portrait": {
-    "path": "projects/<project-id>/renders/video-portrait.mp4",
+    "path": "projects/YYYY-MM-DD_HH-MM-SS_<project-id>/renders/video-portrait.mp4",
     "width": 1080,
     "height": 1920
   },
   "landscape": {
-    "path": "projects/<project-id>/renders/video-landscape.mp4",
+    "path": "projects/YYYY-MM-DD_HH-MM-SS_<project-id>/renders/video-landscape.mp4",
     "width": 1920,
     "height": 1080
   }

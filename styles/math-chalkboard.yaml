@@ -1,0 +1,133 @@
+identity:
+  name: "Math — Bảng Phấn"
+  visual_concept: "chalkboard"
+  category: math-video
+  mood: classic, educational, warm
+  pace: steady
+  best_for: "Mọi cấp lớp, đặc biệt tiểu học và THCS; bài hình học, đại số cơ bản"
+
+visual_language:
+  color_palette:
+    primary: ["#E8E8E8", "#F5F5F0"]   # phấn trắng, phấn ngà
+    accent: ["#FFD700", "#FF9500"]    # phấn vàng highlight, phấn cam
+    background: "#2D4A3E"             # bảng xanh đen
+    background_alt: "#243B32"         # bảng tối hơn cho contrast
+    text: "#E8E8E8"                   # phấn trắng
+    muted: "#9BB5A8"
+    equation_highlight: "#FFD700"     # phấn vàng cho bước quan trọng
+    chalk_dust: "#C8D8C8"             # màu bụi phấn mờ
+    border_chalk: "#B0C4B8"           # viền phấn
+  composition: "full-width blackboard, lines appear left-to-right as written, title at top-center"
+  texture: "subtle chalk texture on dark green board, slight grain"
+
+typography:
+  headings:
+    font: "Caveat"
+    fallback: "Comic Sans MS, cursive"
+    weight: 700
+    tracking: "0.01em"
+  body:
+    font: "Caveat"
+    fallback: "Comic Sans MS, cursive"
+    weight: 400
+    line_height: 1.9
+  equation:
+    font: "KaTeX"
+    size_multiplier: 1.4
+    color: "#E8E8E8"
+  annotation:
+    font: "Caveat"
+    weight: 400
+    color: "#FFD700"
+    style: italic
+  scale_system: "perfect_fourth"
+  weight_matrix:
+    title: 700
+    heading: 600
+    body: 400
+    caption: 400
+
+motion:
+  transitions: [fade, wipe-left]
+  animation_style: "deliberate, hand-written feel, no sharp mechanical motion"
+  pacing_rules:
+    min_scene_hold_seconds: 3.0
+    max_scene_hold_seconds: 16
+    text_card_hold_seconds: 4.0
+    stat_card_hold_seconds: 3.5
+    transition_duration_seconds: 0.4
+  entrance: "dòng chữ/công thức xuất hiện từ trái sang phải như đang viết, tốc độ đều"
+  exit: "xóa từ phải sang trái nhẹ, hoặc fade"
+  equation_reveal: "viết từng ký tự/từng dòng từ trái theo lời đọc; highlight bằng phấn vàng"
+  underline: "gạch chân phấn vàng cho kết quả quan trọng"
+
+audio:
+  voice_style: "nam, ấm áp, kiên nhẫn, nhịp vừa phải — như thầy đang giảng trên bảng"
+  music_mood: "piano nhẹ, acoustic, không lấn át"
+  music_volume: 0.04
+  sfx_style: "tiếng phấn viết nhẹ, tiếng xóa bảng khi chuyển cảnh"
+  ducking_threshold_db: -4
+
+asset_generation:
+  image_prompt_prefix: "chalkboard illustration, dark green board, white chalk drawing, educational, Vietnamese math, hand-drawn style, "
+  image_negative_prompt: "digital flat, neon, photorealistic, white background, bright colors, 3d render"
+  diagram_style: "chalk sketch on dark green, white lines, yellow highlights for key elements"
+  consistency_anchors:
+    - "Nền bảng xanh đen (#2D4A3E) xuyên suốt"
+    - "Chữ và công thức màu phấn trắng (#E8E8E8)"
+    - "Highlight quan trọng dùng phấn vàng (#FFD700)"
+    - "Cảm giác handwritten — không dùng font sắc nét"
+    - "Bụi phấn nhẹ làm texture, không che nội dung"
+
+overlays:
+  stat_card:
+    bg: "#243B32"
+    border: "#B0C4B8"
+    border_style: "dashed"       # viền nét đứt như khung phấn
+    radius: 4
+    shadow: "none"
+  key_term:
+    bg: "transparent"
+    text: "#FFD700"
+    underline: true              # gạch chân phấn vàng
+    radius: 0
+  equation_box:
+    bg: "transparent"
+    border: "#B0C4B8"
+    border_style: "solid"
+    radius: 0
+  chalk_box:
+    bg: "#243B32"
+    border: "#B0C4B8"
+    radius: 4
+
+math_scene_defaults:
+  math_intro:
+    background: "#2D4A3E"
+    title_color: "#E8E8E8"
+    subtitle_color: "#9BB5A8"
+    texture: "chalk"
+  math_problem:
+    background: "#2D4A3E"
+    text_color: "#E8E8E8"
+    border_accent: "#B0C4B8"
+    write_animation: true       # viết từ trái sang phải
+  math_step:
+    background: "#2D4A3E"
+    equation_highlight: "#FFD700"
+    note_color: "#FF9500"
+    write_animation: true
+  math_answer:
+    background: "#243B32"
+    answer_color: "#FFD700"
+    underline: true
+  math_closing:
+    background: "#2D4A3E"
+
+quality_rules:
+  - "Contrast ratio tối thiểu 4.5:1 — phấn trắng trên nền bảng xanh"
+  - "Highlight chỉ dùng phấn vàng (#FFD700) — không dùng màu neon"
+  - "Animation viết từ trái sang phải, tốc độ khớp lời đọc"
+  - "Không dùng shadow box hay border sắc — giữ cảm giác phấn viết"
+  - "Tối đa 2 màu phấn trên màn hình cùng lúc (trắng + 1 màu highlight)"
+  - "Text đọc được ở 720p với nền bảng"

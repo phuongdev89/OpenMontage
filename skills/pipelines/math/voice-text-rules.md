@@ -19,9 +19,17 @@
   Gọi người học là **các em**, **các con** hoặc **các bạn nhỏ**.
 - **Từ cấm:** Không dùng **cô** trong kịch bản, `voiceText`, phụ đề
   hoặc bất kỳ nội dung hiển thị nào.
-- **Vbee:** Lời Việt dùng `VBEE_VOICE_CODE_VI`; đề gốc tiếng Anh dùng
-  `VBEE_VOICE_CODE_EN` (mặc định `am_echo`). Cả hai giọng đều theo
-  persona nam; xem mục 3 về blocker khi thiếu config EN.
+- **Routing bắt buộc theo ngôn ngữ (agent phải làm đúng thứ tự này):**
+  1. Lời tiếng Việt: **ưu tiên sử dụng skill `vieneu-tts`** để tạo audio
+     bằng VieNeu-TTS local và preset giọng nam đã chọn.
+  2. Nếu skill `vieneu-tts` không khả dụng (thiếu package, model hoặc lỗi
+     runtime), **dùng API `vbee` làm fallback cho tiếng Việt** với
+     `VBEE_VOICE_CODE_VI`.
+  3. Lời tiếng Anh: **luôn sử dụng API `vbee`**, với
+     `VBEE_VOICE_CODE_EN` (mặc định `am_echo`). Không dùng VieNeu để đọc
+     tiếng Anh.
+  Không tự đổi thứ tự ưu tiên hoặc provider; ghi provider thực tế và lý do
+  fallback vào asset manifest. Cả hai giọng đều theo persona nam.
 
 ---
 
@@ -121,8 +129,9 @@ giải phương trình."*
 1. Chào bằng tiếng Việt
 2. Nói hôm nay học/giải bài gì
 3. Thông báo sẽ đọc nguyên văn tiếng Anh
-4. Đọc toàn bộ đề = Vbee VBEE_VOICE_CODE_EN (am_echo), tốc độ 0.85×; khi mix, tăng gain riêng đoạn tiếng Anh lên 1.20 và kiểm tra không clipping. Thiếu cấu hình Vbee tiếng Anh = blocker; chỉ thay provider khi người dùng duyệt.
-5. Đọc bản dịch Việt đầy đủ, chính xác = giọng nam Việt
+4. Đọc toàn bộ đề = Vbee API với `VBEE_VOICE_CODE_EN` (mặc định `am_echo`), tốc độ 0.85×; khi mix, tăng gain riêng đoạn tiếng Anh lên 1.20 và kiểm tra không clipping. Thiếu cấu hình Vbee tiếng Anh = blocker; chỉ thay provider khi người dùng duyệt.
+5. Đọc bản dịch Việt đầy đủ, chính xác = ưu tiên skill `vieneu-tts`; nếu
+   skill không khả dụng thì dùng API `vbee` với `VBEE_VOICE_CODE_VI`.
 6. Bắt đầu lời giải / hướng dẫn (SAU KHI đọc cả đề gốc và bản dịch)
 ```
 
@@ -133,6 +142,9 @@ giải phương trình."*
   Quy tắc viết số bằng chữ tiếng Việt **không áp dụng** cho đoạn nguyên văn Anh.
 - Tạo audio tiếng Anh riêng bằng `vbee_tts` với `language="en"`, ghép đúng timeline.
   **Không** đưa nguyên văn tiếng Anh qua giọng Việt.
+- Tạo các đoạn tiếng Việt bằng skill `vieneu-tts` trước; chỉ khi skill không
+  khả dụng mới gọi API `vbee` tiếng Việt. Ghi rõ provider thực tế, lý do
+  fallback, preset/voice, tốc độ và đường dẫn audio vào asset manifest.
 - **Blocker:** Thiếu `VBEE_VOICE_CODE_EN` / `VBEE_APP_ID` / `VBEE_ACCESS_TOKEN`
   phải dừng và báo lỗi **trước** khi chạy TTS Việt. Không tự đổi provider.
   Không tự đặt `language="vi"` cho đoạn đề Anh.

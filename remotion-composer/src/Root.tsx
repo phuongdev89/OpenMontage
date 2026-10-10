@@ -16,6 +16,7 @@ import { ProductReveal, ProductRevealProps } from "./components/ProductReveal";
 import { CaptionOverlay, WordCaption } from "./components/CaptionOverlay";
 import { CollageBurst, CollageBurstProps } from "./CollageBurst";
 import { LyricOverlay, LyricOverlayProps } from "./LyricOverlay";
+import { MathCoinsPortrait, MathCoinsLandscape } from "./math/MathCoins";
 
 // ---------------------------------------------------------------------------
 // Theme System — prevents every video from looking like dark fintech
@@ -329,6 +330,22 @@ export const Root: React.FC = () => {
           fadeOutSeconds: 1.5,
           overlay: true,
         } as EndTagProps}
+      />
+      <Composition
+        id="MathCoinsPortrait"
+        component={MathCoinsPortrait}
+        durationInFrames={4206}
+        fps={30}
+        width={1080}
+        height={1920}
+      />
+      <Composition
+        id="MathCoinsLandscape"
+        component={MathCoinsLandscape}
+        durationInFrames={4206}
+        fps={30}
+        width={1920}
+        height={1080}
       />
     </>
   );

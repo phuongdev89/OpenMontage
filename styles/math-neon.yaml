@@ -1,0 +1,130 @@
+identity:
+  name: "Math — Neon Lab"
+  visual_concept: "neon"
+  category: math-video
+  mood: futuristic, precise, scientific
+  pace: crisp
+  best_for: "Bài toán nâng cao, THPT, Olympic, bài nhiều công thức, hình học không gian"
+
+visual_language:
+  color_palette:
+    primary: ["#00D4FF", "#7B2FFF"]   # cyan neon, tím neon
+    accent: ["#00FF88", "#FF6B35"]    # xanh lá neon, cam
+    background: "#0A0A0F"             # nền lab tối
+    background_alt: "#12121A"
+    text: "#E8F4FD"                   # trắng xanh nhạt
+    muted: "#4A5568"
+    equation_highlight: "#00D4FF"
+    grid_line: "#1A1A2E"              # lưới mờ như màn hình lab
+    border_glow: "#00D4FF"
+  composition: "grid-based, data boxes with glow borders, equation flow left-to-right, dual-column for two-side equations"
+  texture: "dark glass, subtle grid overlay, no grain"
+
+typography:
+  headings:
+    font: "Space Grotesk"
+    fallback: "Inter, sans-serif"
+    weight: 700
+    tracking: "-0.01em"
+  body:
+    font: "Space Grotesk"
+    fallback: "Inter, sans-serif"
+    weight: 400
+    line_height: 1.6
+  equation:
+    font: "KaTeX"
+    size_multiplier: 1.5
+    color: "#00D4FF"
+  monospace:
+    font: "JetBrains Mono"
+    weight: 400
+  scale_system: "major_third"
+  weight_matrix:
+    title: 700
+    heading: 600
+    body: 400
+    caption: 300
+
+motion:
+  transitions: [fade, scan-line]
+  animation_style: "crisp, precise, spring on numbers"
+  pacing_rules:
+    min_scene_hold_seconds: 2.5
+    max_scene_hold_seconds: 14
+    text_card_hold_seconds: 3.5
+    stat_card_hold_seconds: 3.0
+    transition_duration_seconds: 0.3
+  entrance: "scan từ trái sang phải như màn hình khởi động"
+  exit: "dissolve với grid flicker nhẹ"
+  equation_reveal: "hai vế hiện đồng thời với glow pulse, đường biến đổi vẽ theo lời đọc"
+  glow_pulse: "border glow nhấp nhẹ khi element được nhắc đến trong lời đọc"
+
+audio:
+  voice_style: "nam, rõ ràng, tốc độ vừa, tự tin — như trình bày thí nghiệm"
+  music_mood: "electronic ambient, lo-fi lab, không có beat mạnh"
+  music_volume: 0.05
+  sfx_style: "beep nhẹ khi equation hiện, hum điện tử nền"
+  ducking_threshold_db: -4
+
+asset_generation:
+  image_prompt_prefix: "futuristic lab aesthetic, dark background, neon cyan accents, holographic math equations, flat vector, "
+  image_negative_prompt: "warm colors, paper texture, photorealistic, cluttered, hand-drawn"
+  diagram_style: "dark background, neon cyan lines, glowing nodes, minimal labels"
+  consistency_anchors:
+    - "Nền tối (#0A0A0F) xuyên suốt"
+    - "Màu chính cyan (#00D4FF) cho equation và border"
+    - "Tím (#7B2FFF) dùng cho tiêu đề và accent phụ"
+    - "Glow effect trên element quan trọng"
+    - "Grid lưới mờ (#1A1A2E) làm texture nền"
+
+overlays:
+  stat_card:
+    bg: "#12121A"
+    border: "#00D4FF"
+    border_glow: "0 0 8px #00D4FF"
+    radius: 6
+    shadow: "0 0 16px rgba(0,212,255,0.15)"
+  key_term:
+    bg: "#0A1628"
+    text: "#00D4FF"
+    radius: 4
+  equation_box:
+    bg: "#0D1117"
+    border: "#00D4FF"
+    glow: "0 0 12px rgba(0,212,255,0.3)"
+    radius: 6
+  data_node:
+    bg: "#12121A"
+    border: "#7B2FFF"
+    radius: 8
+
+math_scene_defaults:
+  math_intro:
+    background: "#0A0A0F"
+    title_color: "#E8F4FD"
+    subtitle_color: "#00D4FF"
+    grid_overlay: true
+  math_problem:
+    background: "#12121A"
+    text_color: "#E8F4FD"
+    border_accent: "#00D4FF"
+    glow: true
+  math_step:
+    background: "#0A0A0F"
+    equation_highlight: "#00D4FF"
+    note_color: "#00FF88"
+    dual_column: true           # hai vế hiển thị song song
+  math_answer:
+    background: "#0A1628"
+    answer_color: "#00FF88"
+    border: "#00D4FF"
+  math_closing:
+    background: "#0A0A0F"
+
+quality_rules:
+  - "Contrast ratio tối thiểu 4.5:1 — text sáng (#E8F4FD) trên nền tối"
+  - "Glow effect chỉ dùng màu cyan (#00D4FF) — không dùng màu khác cho glow"
+  - "Hai vế equation hiện đồng thời khi có phép biến đổi hai vế"
+  - "Lưới nền (#1A1A2E) luôn mờ, không che nội dung"
+  - "Tối đa 3 màu neon trên màn hình cùng lúc"
+  - "Text đọc được ở 720p dù có glow effect"

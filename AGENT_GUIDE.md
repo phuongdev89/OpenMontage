@@ -193,8 +193,8 @@ At script review and final video review, verify the verbatim English reading, co
 ### Narration defaults (all new renders)
 
 - **Readable pace:** Unless the user explicitly chooses another pace, generate narration at `0.85x` (or the closest supported slower rate) and extend scene timing to fit the resulting audio. Never speed narration up to force it into the old timing.
-- **English problem reading:** Use Vbee with the configured `VBEE_VOICE_CODE_EN` (`am_echo`), render it at `0.85x`, then apply a `1.20` gain to that English segment during the mix. Verify the gain with an audio probe/FFmpeg measurement and confirm that it does not clip. Missing Vbee English configuration is a blocker; provider changes require user approval.
-- **Other narration:** Apply the same `0.85x` default unless a user-approved voice setting says otherwise. Record the chosen speed and per-language gain in the asset manifest and render report.
+- **Vietnamese narration routing:** First use the `vieneu-tts` skill to generate Vietnamese audio locally with the selected male preset voice. If that skill is unavailable because the package, model, or runtime fails, fall back to the Vbee API using `VBEE_VOICE_CODE_VI`. Do not silently choose another provider; record the actual provider and fallback reason in the asset manifest and render report.
+- **English problem reading:** Use the Vbee API with the configured `VBEE_VOICE_CODE_EN` (`am_echo`), render it at `0.85x`, then apply a `1.20` gain to that English segment during the mix. Verify the gain with an audio probe/FFmpeg measurement and confirm that it does not clip. Missing Vbee English configuration is a blocker; provider changes require user approval.
 
 ## Math Video — Extended Rules
 
@@ -209,6 +209,8 @@ All math problem-solving videos MUST also follow the full rule set in:
 **[`skills/pipelines/math/compose-director.md`](skills/pipelines/math/compose-director.md)** — hai video bắt buộc (portrait 1080×1920 + landscape 1920×1080), layout, audio dùng chung, `formats.json`, kiểm tra sau render.
 
 **[`skills/pipelines/math/creator-review.md`](skills/pipelines/math/creator-review.md)** — phần duyệt nội bộ cho người tạo: lời giải đầy đủ + audit result hiển thị trong chat trước TTS/render; `solution.md` không chia sẻ cho học sinh.
+
+**[`skills/pipelines/math/visual-concepts.md`](skills/pipelines/math/visual-concepts.md)** — 6 visual concept (`news`, `detective`, `neon`, `chalkboard`, `notebook`, `manipulatives`), khi nào hỏi người dùng, cách map sang `styles/math-*.yaml` và Remotion/HyperFrames fields.
 
 Summary of binding rules:
 
@@ -226,6 +228,7 @@ Summary of binding rules:
 - **`teachingAid`:** Design custom manipulatives per problem. Declare `problem.requiresIllustration: true` and `needsIllustration: true` per scene where needed. Illustration appears from the first scene that uses it — not deferred to conclusions.
 - **Render:** Always produce both portrait (1080×1920) and landscape (1920×1080). Do not mark complete with only one video. Shared audio — do not re-call TTS for a ratio change.
 - **Creator Review:** After audit, display full solution + audit result in chat before TTS/render. `solution.md` is internal only — never served to students.
+- **Visual concept:** After Creator Review, ask the user to choose one of 6 concepts (`news`, `detective`, `neon`, `chalkboard`, `notebook`, `manipulatives`). Load the matching `styles/math-*.yaml` playbook. Do not default silently. See `visual-concepts.md`.
 
 Do not re-implement these rules inline. Reference the skill files; keep this section as a summary only.
 
@@ -256,7 +259,7 @@ Infrastructure files:
 Every production run creates a project workspace under `projects/`. This directory is gitignored — all generated assets are regenerable.
 
 ```
-projects/<project-name>/
+projects/YYYY-MM-DD_HH-MM-SS_<project-name>/
 ├── artifacts/          # JSON artifacts from each stage (research_brief, script, scene_plan, etc.)
 ├── assets/
 │   ├── images/         # Generated images (PNG)
@@ -268,16 +271,16 @@ projects/<project-name>/
     └── final.mp4       # Final rendered video (the deliverable)
 ```
 
-**Naming convention**: Use kebab-case derived from the video title (e.g., `hidden-math-of-nature`, `how-music-rewires-brain`).
+**Naming convention**: `YYYY-MM-DD_HH-MM-SS_<kebab-title>` — timestamp prefix (local time, hyphens as separators) followed by kebab-case title (e.g., `2026-10-10_14-30-00_hidden-math-of-nature`).
 
 At pipeline initialization, before any stage runs:
 
-1. **Initialize the workspace**: `python -c "from lib.checkpoint import init_project; init_project('<project-id>', title='<Title>', pipeline_type='<pipeline>')"` — creates the layout above and writes `project.json` (the marker the Backlot board reads).
+1. **Initialize the workspace**: `python -c "from lib.checkpoint import init_project; init_project('<project-id>', title='<Title>', pipeline_type='<pipeline>')"` — `init_project` prepends `YYYY-MM-DD_HH-MM-SS_` automatically; creates the layout above and writes `project.json` (the marker the Backlot board reads).
 2. **Open the board immediately**: run `python -m backlot open <project-id>` and verify that the Backlot server is listening before entering the first stage. This starts the Backlot server if needed and opens the user's browser at the project's live board. Do this for every production run; do not wait for the user to ask for a progress link. If the command fails, report the exact URL/startup error immediately and continue the production — the board is an observer, never a blocker. This is the agent's ONLY board duty; the board derives everything else from disk.
 
-All tools and agents must write outputs to these paths — **always pass an explicit `output_path` under `projects/<project-id>/`**. Assets written to the repo root, cwd, or temp dirs are invisible to the user's board and violate the workspace contract.
+All tools and agents must write outputs to these paths — **always pass an explicit `output_path` under `projects/YYYY-MM-DD_HH-MM-SS_<project-id>/`**. Assets written to the repo root, cwd, or temp dirs are invisible to the user's board and violate the workspace contract.
 
-**This applies to atelier and HyperFrames-skill runs too**: hand-authored compositions still write the canonical artifacts they have (script or beats-plan, scene_plan-equivalent, asset manifest) plus checkpoints into `projects/<project-id>/`. The board is runtime-agnostic; only runs that skip the artifacts get a degraded board.
+**This applies to atelier and HyperFrames-skill runs too**: hand-authored compositions still write the canonical artifacts they have (script or beats-plan, scene_plan-equivalent, asset manifest) plus checkpoints into `projects/YYYY-MM-DD_HH-MM-SS_<project-id>/`. The board is runtime-agnostic; only runs that skip the artifacts get a degraded board.
 
 ## Music Library
 
@@ -661,12 +664,12 @@ Primary files:
 
 Checkpoint rules:
 
-- Checkpoints live at `projects/<project_id>/checkpoint_<stage>.json` (the project workspace — this is what the Backlot board watches).
+- Checkpoints live at `projects/YYYY-MM-DD_HH-MM-SS_<project_id>/checkpoint_<stage>.json` (the project workspace — this is what the Backlot board watches).
 - `status` may be `completed`, `failed`, `awaiting_human`, or `in_progress`.
 - Write an `in_progress` checkpoint on entering each stage; during `assets`/`compose`, refresh `metadata.partial_progress` after each completed scene/asset unit — this powers live progress on the board.
 - `completed` and `awaiting_human` checkpoints must include the canonical artifact.
 - A gated stage (`human_approval_default: true`) can only be written `completed` with `human_approved=True` — the writer raises a GATE VIOLATION otherwise.
-- Superseded checkpoints are archived automatically to `projects/<project_id>/history/` — stage re-runs never destroy run history.
+- Superseded checkpoints are archived automatically to `projects/YYYY-MM-DD_HH-MM-SS_<project_id>/history/` — stage re-runs never destroy run history.
 - Invalid checkpoints or invalid canonical artifacts are contract violations and should fail fast.
 
 Pipeline manifest rules:

@@ -191,8 +191,27 @@ def validate_checkpoint(checkpoint: dict[str, Any]) -> None:
         raise CheckpointValidationError(f"Checkpoint failed schema validation: {exc.message}") from exc
 
 
-def _checkpoint_path(pipeline_dir: Path, project_id: str, stage: str) -> Path:
-    return pipeline_dir / project_id / f"checkpoint_{stage}.json"
+def _resolve_project_dir(pipeline_dir: Path, project_id: str) -> Path:
+    """Resolve the timestamped project directory for a given project_id.
+
+    Looks for an existing directory matching ``*_<project_id>`` under
+    ``pipeline_dir``. Falls back to ``pipeline_dir / project_id`` for
+    legacy (non-timestamped) directories and for callers that pass a fully
+    resolved path as ``project_id``.
+    """
+    # Fast path: exact match (legacy layout or already resolved).
+    exact = pipeline_dir / project_id
+    if exact.exists():
+        return exact
+    # Glob for timestamped layout: YYYY-MM-DD_HH-MM-SS_<project_id>
+    matches = sorted(pipeline_dir.glob(f"*_{project_id}"))
+    if matches:
+        return matches[-1]  # Latest timestamp wins if multiple exist.
+    return exact  # Will not exist yet; callers handle mkdir.
+
+
+def _checkpoint_path(project_dir: Path, stage: str) -> Path:
+    return project_dir / f"checkpoint_{stage}.json"
 
 
 def init_project(
@@ -205,16 +224,18 @@ def init_project(
 ) -> Path:
     """Initialize a project workspace with the canonical layout + marker file.
 
-    Creates projects/<project_id>/ with the standard subdirectories and writes
-    project.json — the marker the Backlot board uses to render a project's
-    identity and stage rail before the first checkpoint exists.
+    Creates projects/YYYY-MM-DD_HH-MM-SS_<project_id>/ with the standard
+    subdirectories and writes project.json — the marker the Backlot board uses
+    to render a project's identity and stage rail before the first checkpoint
+    exists.
 
     Idempotent: re-running preserves the original created_at and merges fields.
     Returns the project directory.
     """
     _validate_style_playbook(style_playbook)
     base = pipeline_dir or PROJECTS_DIR
-    project_dir = base / project_id
+    ts = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    project_dir = base / f"{ts}_{project_id}"
     for sub in (
         "artifacts",
         "assets/images",
@@ -306,8 +327,9 @@ def _enforce_stage_prerequisites(
 
     incomplete: list[str] = []
     unapproved: list[str] = []
+    project_dir = _resolve_project_dir(pipeline_dir, project_id)
     for predecessor in stages[: stages.index(stage)]:
-        path = _checkpoint_path(pipeline_dir, project_id, predecessor)
+        path = _checkpoint_path(project_dir, predecessor)
         if not path.exists():
             incomplete.append(predecessor)
             continue
@@ -385,8 +407,8 @@ def _archive_superseded_checkpoint(path: Path, stage: str) -> None:
         )
 
 
-def _decision_log_path(pipeline_dir: Path, project_id: str) -> Path:
-    return pipeline_dir / project_id / "decision_log.json"
+def _decision_log_path(project_dir: Path) -> Path:
+    return project_dir / "decision_log.json"
 
 
 def _merge_decision_log(
@@ -398,7 +420,7 @@ def _merge_decision_log(
     single cumulative file so reviewers and the bench can inspect the
     full audit trail.
     """
-    path = _decision_log_path(pipeline_dir, project_id)
+    path = _decision_log_path(_resolve_project_dir(pipeline_dir, project_id))
     if path.exists():
         with open(path, encoding="utf-8") as f:
             existing = json.load(f)
@@ -440,7 +462,8 @@ def write_checkpoint(
     # Backfill identity fields from the project marker so omitted kwargs
     # cannot bypass either gate enforcement or style validation.
     marker = None
-    marker_path = pipeline_dir / project_id / PROJECT_MARKER_FILENAME
+    project_dir = _resolve_project_dir(pipeline_dir, project_id)
+    marker_path = project_dir / PROJECT_MARKER_FILENAME
     if marker_path.exists() and (not pipeline_type or not style_playbook):
         try:
             with open(marker_path, encoding="utf-8") as f:
@@ -529,7 +552,7 @@ def write_checkpoint(
     # reference back into relevant artifacts so downstream consumers can find it.
     if "decision_log" in artifacts and isinstance(artifacts["decision_log"], dict):
         _merge_decision_log(pipeline_dir, project_id, artifacts["decision_log"])
-        log_ref = str(_decision_log_path(pipeline_dir, project_id))
+        log_ref = str(_decision_log_path(project_dir))
 
         # Write decision_log_ref into proposal_packet and render_report
         # artifacts if they are present in this checkpoint.
@@ -546,7 +569,7 @@ def write_checkpoint(
 
     validate_checkpoint(checkpoint)
 
-    path = _checkpoint_path(pipeline_dir, project_id, stage)
+    path = _checkpoint_path(project_dir, stage)
     path.parent.mkdir(parents=True, exist_ok=True)
     # Serialize to a temp file first so a mid-write failure (disk full,
     # unserializable metadata) can never leave the stage with a truncated
@@ -568,7 +591,7 @@ def read_checkpoint(
     pipeline_dir: Path, project_id: str, stage: str
 ) -> Optional[dict[str, Any]]:
     """Read a checkpoint file. Returns None if not found."""
-    path = _checkpoint_path(pipeline_dir, project_id, stage)
+    path = _checkpoint_path(_resolve_project_dir(pipeline_dir, project_id), stage)
     if not path.exists():
         return None
     with open(path, encoding="utf-8") as f:
@@ -581,7 +604,7 @@ def get_latest_checkpoint(
     pipeline_dir: Path, project_id: str
 ) -> Optional[dict[str, Any]]:
     """Find the most recent checkpoint for a project (by file mtime)."""
-    project_dir = pipeline_dir / project_id
+    project_dir = _resolve_project_dir(pipeline_dir, project_id)
     if not project_dir.exists():
         return None
 

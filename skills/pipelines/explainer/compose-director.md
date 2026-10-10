@@ -219,10 +219,10 @@ Subtitles are mandatory for all explainer content. Generate them from the narrat
    ```python
    from tools.analysis.transcriber import Transcriber
    result = Transcriber().execute({
-       'input_path': 'projects/<project>/assets/audio/narration_full.mp3',
+       'input_path': 'projects/YYYY-MM-DD_HH-MM-SS_<project>/assets/audio/narration_full.mp3',
        'model_size': 'base',
        'language': 'en',
-       'output_dir': 'projects/<project>/assets/audio'
+       'output_dir': 'projects/YYYY-MM-DD_HH-MM-SS_<project>/assets/audio'
    })
    # result.data contains segments with word-level timestamps
    ```
@@ -263,7 +263,7 @@ If Remotion is not available, fall back to SRT generation + FFmpeg burn:
    SubtitleGen().execute({
        'segments': transcription_data['segments'],
        'format': 'srt',
-       'output_path': 'projects/<project>/assets/subtitles.srt',
+       'output_path': 'projects/YYYY-MM-DD_HH-MM-SS_<project>/assets/subtitles.srt',
        'max_words_per_cue': 8,
        'max_chars_per_line': 42
    })

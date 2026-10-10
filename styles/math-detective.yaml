@@ -1,0 +1,126 @@
+identity:
+  name: "Math — Thám Tử"
+  visual_concept: "detective"
+  category: math-video
+  mood: mysterious, investigative, engaging
+  pace: deliberate
+  best_for: "Bài toán logic, chứng minh, tìm ẩn, bài nhiều bước suy luận"
+
+visual_language:
+  color_palette:
+    primary: ["#F5E6C8", "#E8D5A3"]   # giấy hồ sơ ngả vàng
+    accent: ["#C0392B", "#E67E22"]    # đỏ ghim, cam highlight
+    background: "#1C1C1E"             # nền tối như bàn thám tử
+    background_alt: "#2C2C2E"
+    text: "#F5E6C8"                   # chữ giấy vàng trên nền tối
+    muted: "#8E8E93"
+    equation_highlight: "#E67E22"
+    clue_line: "#C0392B"              # đường nối manh mối
+    folder_bg: "#3A2E1E"              # bìa hồ sơ
+  composition: "folder/document layout, clue lines connecting elements, notebook-style annotations"
+  texture: "aged paper for content blocks, dark linen for background"
+
+typography:
+  headings:
+    font: "Courier Prime"
+    fallback: "Courier New, monospace"
+    weight: 700
+    tracking: "0.02em"
+  body:
+    font: "Courier Prime"
+    fallback: "Courier New, monospace"
+    weight: 400
+    line_height: 1.8
+  equation:
+    font: "KaTeX"
+    size_multiplier: 1.3
+  annotation:
+    font: "Courier Prime"
+    weight: 400
+    style: italic
+    color: "#E67E22"
+  scale_system: "major_second"
+  weight_matrix:
+    title: 700
+    heading: 600
+    body: 400
+    caption: 400
+
+motion:
+  transitions: [fade, reveal-stamp]
+  animation_style: "deliberate, tension-building, slight delay before reveal"
+  pacing_rules:
+    min_scene_hold_seconds: 3.5
+    max_scene_hold_seconds: 18
+    text_card_hold_seconds: 4.5
+    stat_card_hold_seconds: 4.0
+    transition_duration_seconds: 0.5
+  entrance: "stamp/appear từ trên xuống, như tài liệu được đặt lên bàn"
+  exit: "fade to dark"
+  equation_reveal: "xuất hiện từng dòng với delay 0.3s, đường nối ghim vào hai vế cùng lúc"
+  clue_connection: "đường đỏ vẽ nối từ dữ kiện đến bước suy luận khi lời đọc đến"
+
+audio:
+  voice_style: "nam, trầm, chậm rãi, thận trọng — như đang phân tích manh mối"
+  music_mood: "jazz tối nhẹ, strings căng thẳng vừa phải"
+  music_volume: 0.04
+  sfx_style: "tiếng máy đánh chữ nhẹ, tiếng giấy lật"
+  ducking_threshold_db: -5
+
+asset_generation:
+  image_prompt_prefix: "noir detective aesthetic, aged paper documents, dark background, Vietnamese math, flat illustration, "
+  image_negative_prompt: "bright colors, photorealistic, 3d render, cheerful, white background"
+  diagram_style: "aged paper blocks connected by red string lines, handwritten annotations in orange"
+  consistency_anchors:
+    - "Nền tối (#1C1C1E) xuyên suốt"
+    - "Block nội dung dùng màu giấy cũ (#3A2E1E hoặc #F5E6C8)"
+    - "Đường nối dùng màu đỏ (#C0392B)"
+    - "Annotation/highlight dùng cam (#E67E22)"
+    - "Font monospace xuyên suốt"
+
+overlays:
+  stat_card:
+    bg: "#3A2E1E"
+    border: "#C0392B"
+    radius: 4
+    shadow: "0 4px 12px rgba(0,0,0,0.4)"
+  key_term:
+    bg: "#2C1810"
+    text: "#E67E22"
+    radius: 3
+  equation_box:
+    bg: "#F5E6C8"
+    text: "#1C1C1E"
+    border: "#C0392B"
+    radius: 4
+  clue_pin:
+    color: "#C0392B"
+    size: 12
+
+math_scene_defaults:
+  math_intro:
+    background: "#1C1C1E"
+    title_color: "#F5E6C8"
+    subtitle_color: "#8E8E93"
+  math_problem:
+    background: "#3A2E1E"
+    text_color: "#F5E6C8"
+    border_accent: "#C0392B"
+  math_step:
+    background: "#2C2C2E"
+    equation_highlight: "#E67E22"
+    note_color: "#C0392B"
+  math_answer:
+    background: "#1C1C1E"
+    answer_color: "#E67E22"
+    border: "#C0392B"
+  math_closing:
+    background: "#1C1C1E"
+
+quality_rules:
+  - "Contrast ratio tối thiểu 4.5:1 — text sáng trên nền tối"
+  - "Đường nối chỉ dùng màu đỏ (#C0392B)"
+  - "Không dùng màu sáng rực trên nền tối — giữ palette cổ điển"
+  - "Equation box dùng nền giấy sáng (#F5E6C8) để nổi bật trên nền tối"
+  - "Tối đa 3 màu trên màn hình cùng lúc"
+  - "Text đọc được ở 720p"

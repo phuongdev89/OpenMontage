@@ -54,7 +54,7 @@ Sau phân tích, hỏi người dùng:
 
 ### 2c. Lưu kết quả
 
-Lưu vào `projects/<project-id>/artifacts/grade-selection.json`:
+Lưu vào `projects/YYYY-MM-DD_HH-MM-SS_<project-id>/artifacts/grade-selection.json`:
 
 ```json
 {
@@ -201,7 +201,7 @@ Trước khi chạy TTS, rà soát **toàn bộ**:
 
 **Không** chỉ bỏ cảnh `answer` sau khi đã đọc nghiệm ở bước `solution` trước đó.
 
-Lời giải đầy đủ lưu trong `projects/<project-id>/artifacts/solution.md` — **nội bộ**, không đưa vào video, phụ đề hay bất kỳ nội dung trả cho người xem.
+Lời giải đầy đủ lưu trong `projects/YYYY-MM-DD_HH-MM-SS_<project-id>/artifacts/solution.md` — **nội bộ**, không đưa vào video, phụ đề hay bất kỳ nội dung trả cho người xem.
 
 ---
 

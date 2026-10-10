@@ -1,0 +1,149 @@
+identity:
+  name: "Math — Đồ Vật Trực Quan"
+  visual_concept: "manipulatives"
+  category: math-video
+  mood: playful, concrete, hands-on
+  pace: moderate-slow
+  best_for: "Tiểu học; bài đếm, phân chia, tỉ lệ, bài toán đồ vật cụ thể (táo, cây, cốc…)"
+
+visual_language:
+  color_palette:
+    primary: ["#2E7D32", "#1B5E20"]   # xanh lá chủ đạo
+    accent: ["#F57C00", "#1976D2"]    # cam, xanh dương cho các nhóm
+    background: "#FFFFFF"             # nền trắng sạch
+    background_alt: "#F8F9FA"
+    group_colors:                     # màu cho từng nhóm vật đếm
+      - "#4CAF50"                     # nhóm 1 — xanh lá
+      - "#FF9800"                     # nhóm 2 — cam
+      - "#2196F3"                     # nhóm 3 — xanh dương
+    text: "#212121"
+    muted: "#757575"
+    equation_highlight: "#F57C00"
+    card_bg: "#F5F5F5"                # thẻ bo góc
+    card_border: "#E0E0E0"
+  composition: "centered, object groups with clear labels, equation cards below objects, generous spacing"
+  texture: "clean flat, light shadow on object groups, no grain"
+  object_style:
+    shape: "rounded square"           # khối đếm bo góc
+    shadow: "0 2px 4px rgba(0,0,0,0.12)"
+    scale_on_appear: true             # xuất hiện với scale nhẹ 0.8 -> 1.0
+
+typography:
+  headings:
+    font: "Nunito"
+    fallback: "Rounded Mplus 1c, sans-serif"
+    weight: 800
+    tracking: "-0.01em"
+  body:
+    font: "Nunito"
+    fallback: "Rounded Mplus 1c, sans-serif"
+    weight: 600
+    line_height: 1.7
+  equation:
+    font: "KaTeX"
+    size_multiplier: 1.3
+  label:
+    font: "Nunito"
+    weight: 700
+    color: "#212121"
+  scale_system: "major_third"
+  weight_matrix:
+    title: 800
+    heading: 700
+    body: 600
+    caption: 500
+
+motion:
+  transitions: [fade, scale-up]
+  animation_style: "bouncy, friendly, spring on object appearance"
+  pacing_rules:
+    min_scene_hold_seconds: 3.5
+    max_scene_hold_seconds: 16
+    text_card_hold_seconds: 4.0
+    stat_card_hold_seconds: 4.0
+    transition_duration_seconds: 0.4
+  entrance: "vật xuất hiện với scale nhẹ (0.8 -> 1.0) và fade, từng nhóm lần lượt"
+  exit: "fade out nhẹ"
+  object_action:
+    cut: "đường cắt SVG vẽ rồi hai phần tách ra"
+    group: "highlight viền nhóm, count badge hiện"
+    move: "di chuyển đồng thời các vật cùng nhóm"
+    count: "số đếm hiện bên trên từng vật/nhóm"
+  equation_reveal: "thẻ equation xuất hiện dưới vật sau khi thao tác hoàn tất"
+
+audio:
+  voice_style: "nam, vui tươi, rõ ràng, tốc độ chậm — như thầy đang chỉ vào đồ vật"
+  music_mood: "xylophone nhẹ, upbeat nhưng không loạn"
+  music_volume: 0.05
+  sfx_style: "pop nhẹ khi vật xuất hiện, swoosh khi di chuyển nhóm"
+  ducking_threshold_db: -3
+
+asset_generation:
+  image_prompt_prefix: "flat vector math manipulatives, colorful counting blocks, white background, Vietnamese elementary math, clean minimal, "
+  image_negative_prompt: "dark background, realistic photo, 3d render, neon, cluttered, text-heavy"
+  diagram_style: "flat colored blocks with rounded corners, clean labels, white background"
+  consistency_anchors:
+    - "Nền trắng (#FFFFFF) xuyên suốt"
+    - "Vật đếm dùng màu theo nhóm (xanh lá / cam / xanh dương)"
+    - "Thẻ equation bo góc, nền xám nhạt (#F5F5F5)"
+    - "Font Nunito rounded cho label và tiêu đề"
+    - "Không dùng ảnh AI hay clip art — chỉ dùng SVG path do agent khai báo"
+
+overlays:
+  stat_card:
+    bg: "#F5F5F5"
+    border: "#E0E0E0"
+    radius: 12
+    shadow: "0 2px 8px rgba(0,0,0,0.08)"
+  key_term:
+    bg: "#E8F5E9"
+    text: "#2E7D32"
+    radius: 8
+  equation_box:
+    bg: "#F5F5F5"
+    border: "#E0E0E0"
+    radius: 12
+    shadow: "0 2px 4px rgba(0,0,0,0.06)"
+  count_badge:
+    bg: "#212121"
+    text: "#FFFFFF"
+    radius: 99              # pill shape
+    size: 24
+
+math_scene_defaults:
+  math_intro:
+    background: "#FFFFFF"
+    title_color: "#212121"
+    subtitle_color: "#757575"
+    show_objects: true      # hiện icon đại diện cho đề ngay từ đầu
+  math_problem:
+    background: "#F8F9FA"
+    text_color: "#212121"
+    border_accent: "#E0E0E0"
+  math_step:
+    background: "#FFFFFF"
+    equation_highlight: "#F57C00"
+    note_color: "#1976D2"
+    objects_visible: true   # vật đếm hiển thị cạnh equation
+  math_answer:
+    background: "#E8F5E9"   # xanh lá nhạt — cảm giác đúng rồi
+    answer_color: "#2E7D32"
+  math_closing:
+    background: "#FFFFFF"
+
+# Ràng buộc đặc biệt cho concept này
+manipulatives_rules:
+  - "Tự thiết kế giáo cụ riêng cho mỗi bài từ dữ kiện và lời giải — không dùng bộ cố định"
+  - "Số lượng: tối đa 3 nhóm, mỗi nhóm 1–20 vật, tổng tối đa 30 vật/cảnh"
+  - "Khai báo đủ: ý nghĩa toán học, hình học (nodes SVG), số lượng, nhãn, cue animation"
+  - "Không suy ra số lượng từ LaTeX — agent phải khai báo rõ trong templateData"
+  - "Guided mode: kiểm tra nhãn, số vật, sơ đồ không tiết lộ đáp án cuối"
+  - "Bài nâng cao (THPT, Olympic): dùng sơ đồ hoặc công thức thay vì ép vào hình đếm"
+  - "Kiểm tra frame thực tế cả portrait và landscape trước khi render"
+
+quality_rules:
+  - "Contrast ratio tối thiểu 4.5:1"
+  - "Vật đếm đủ lớn để đọc được ở 720p — tối thiểu 40px mỗi vật"
+  - "Mỗi nhóm vật phải có label rõ ràng"
+  - "Di chuyển nhóm vật phải đồng thời — không tách icon trong cùng một nhóm"
+  - "Không dùng ảnh AI hay clip art cho vật đếm"

@@ -1,0 +1,139 @@
+identity:
+  name: "Math — Vở Ô Ly"
+  visual_concept: "notebook"
+  category: math-video
+  mood: familiar, studious, approachable
+  pace: gentle
+  best_for: "Tiểu học, THCS; bài toán đời sống, số học, phân số, bảng tính"
+
+visual_language:
+  color_palette:
+    primary: ["#1565C0", "#0D47A1"]   # mực xanh học sinh
+    accent: ["#D32F2F", "#E64A19"]    # mực đỏ gạch chân, cam lề
+    background: "#FAFAFA"             # giấy vở trắng
+    background_alt: "#F5F5F5"
+    grid_line: "#C5CAE9"              # đường kẻ ô ly xanh nhạt
+    margin_line: "#EF9A9A"            # lề đỏ
+    text: "#1A237E"                   # mực xanh đậm
+    muted: "#78909C"
+    equation_highlight: "#1565C0"
+    underline: "#D32F2F"              # gạch chân đỏ cho kết quả
+    sticker_bg: "#FFF9C4"             # màu nhãn dán vàng
+  composition: "notebook page with red margin line, blue grid, content fills right of margin, title underlined"
+  texture: "ruled paper with subtle grid, red margin on left, slight paper texture"
+
+typography:
+  headings:
+    font: "Caveat"
+    fallback: "Comic Sans MS, cursive"
+    weight: 700
+    tracking: "0.01em"
+    color: "#1A237E"
+  body:
+    font: "Caveat"
+    fallback: "Comic Sans MS, cursive"
+    weight: 400
+    line_height: 2.0              # line-height rộng như vở kẻ dòng
+  equation:
+    font: "KaTeX"
+    size_multiplier: 1.3
+    color: "#1565C0"
+  annotation:
+    font: "Caveat"
+    weight: 400
+    color: "#D32F2F"
+    style: italic
+  scale_system: "major_second"
+  weight_matrix:
+    title: 700
+    heading: 600
+    body: 400
+    caption: 400
+
+motion:
+  transitions: [fade, slide-up]
+  animation_style: "gentle, upward reveal like turning a page from bottom"
+  pacing_rules:
+    min_scene_hold_seconds: 3.0
+    max_scene_hold_seconds: 15
+    text_card_hold_seconds: 4.0
+    stat_card_hold_seconds: 3.5
+    transition_duration_seconds: 0.45
+  entrance: "nội dung xuất hiện từ dưới lên theo dòng kẻ, như đang viết vào vở"
+  exit: "fade nhẹ hoặc slide xuống"
+  equation_reveal: "viết từng dòng từ dưới lên theo thứ tự; gạch chân đỏ xuất hiện sau khi dòng hoàn thành"
+  page_turn: "chuyển cảnh có hiệu ứng lật trang nhẹ"
+
+audio:
+  voice_style: "nam, nhẹ nhàng, kiên nhẫn, thân thiện — như thầy ngồi hướng dẫn bên cạnh"
+  music_mood: "acoustic guitar nhẹ, lo-fi study"
+  music_volume: 0.05
+  sfx_style: "tiếng lật trang khi chuyển cảnh, tiếng bút viết nhẹ"
+  ducking_threshold_db: -4
+
+asset_generation:
+  image_prompt_prefix: "notebook paper illustration, ruled lines, red margin, blue ink, Vietnamese elementary math, hand-drawn, "
+  image_negative_prompt: "dark background, neon, photorealistic, 3d render, cluttered, digital"
+  diagram_style: "blue ink on ruled paper, red underlines, hand-drawn geometric shapes"
+  consistency_anchors:
+    - "Nền giấy trắng (#FAFAFA) với đường kẻ ô ly (#C5CAE9)"
+    - "Lề đỏ (#EF9A9A) luôn hiện bên trái"
+    - "Chữ và công thức màu mực xanh (#1565C0)"
+    - "Gạch chân và annotation màu đỏ (#D32F2F)"
+    - "Cảm giác handwritten thân thiện"
+
+overlays:
+  stat_card:
+    bg: "#FFF9C4"               # nhãn dán vàng
+    border: "#F9A825"
+    radius: 4
+    shadow: "1px 2px 4px rgba(0,0,0,0.12)"
+  key_term:
+    bg: "transparent"
+    text: "#1565C0"
+    underline: true
+    underline_color: "#D32F2F"
+    radius: 0
+  equation_box:
+    bg: "#EEF2FF"               # xanh nhạt như highlight bút dạ quang
+    border: "#C5CAE9"
+    radius: 4
+  margin_note:
+    font: "Caveat"
+    color: "#D32F2F"
+    style: italic
+
+math_scene_defaults:
+  math_intro:
+    background: "#FAFAFA"
+    grid: true
+    margin_line: true
+    title_color: "#1A237E"
+    title_underline: true
+  math_problem:
+    background: "#FAFAFA"
+    text_color: "#1A237E"
+    border_accent: "#EF9A9A"
+    grid: true
+    margin_line: true
+  math_step:
+    background: "#FAFAFA"
+    equation_highlight: "#1565C0"
+    note_color: "#D32F2F"
+    slide_up: true              # mỗi dòng xuất hiện từ dưới lên
+    grid: true
+  math_answer:
+    background: "#FFF9C4"       # nhãn dán vàng cho đáp án
+    answer_color: "#D32F2F"
+    underline: true
+  math_closing:
+    background: "#FAFAFA"
+    grid: true
+
+quality_rules:
+  - "Contrast ratio tối thiểu 4.5:1 — mực xanh trên giấy trắng"
+  - "Lề đỏ luôn hiển thị bên trái — không dùng toàn màn hình không có lề"
+  - "Gạch chân chỉ dùng cho kết quả và từ khóa quan trọng"
+  - "Nội dung xuất hiện từ dưới lên theo từng dòng"
+  - "Tối đa 2 màu mực (xanh + đỏ) trên màn hình cùng lúc"
+  - "Text đọc được ở 720p"
