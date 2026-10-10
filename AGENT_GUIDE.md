@@ -198,6 +198,12 @@ All math problem-solving videos MUST also follow the full rule set in:
 
 **[`skills/pipelines/math/script-director.md`](skills/pipelines/math/script-director.md)** — grade detection, `solutionMode` UI, phase sequences, per-phase rules, guided answer-leak checklist, template table.
 
+**[`skills/pipelines/math/pedagogy-rules.md`](skills/pipelines/math/pedagogy-rules.md)** — 7 sư phạm nguyên tắc, ví dụ đạt/chưa đạt, `teachingAid` design, `requiresIllustration` / `needsIllustration`, rà soát trước TTS.
+
+**[`skills/pipelines/math/compose-director.md`](skills/pipelines/math/compose-director.md)** — hai video bắt buộc (portrait 1080×1920 + landscape 1920×1080), layout, audio dùng chung, `formats.json`, kiểm tra sau render.
+
+**[`skills/pipelines/math/creator-review.md`](skills/pipelines/math/creator-review.md)** — phần duyệt nội bộ cho người tạo: lời giải đầy đủ + audit result hiển thị trong chat trước TTS/render; `solution.md` không chia sẻ cho học sinh.
+
 Summary of binding rules:
 
 - **Persona (HARD):** Male teacher only. Self-address as "thầy". Viewers = "các em / các con / các bạn nhỏ". "Cô" forbidden everywhere.
@@ -210,6 +216,10 @@ Summary of binding rules:
 - **Phase sequence (EN problem):** Insert `read-english → read-translation` after `introduction`, before `strategy`. `read-english` uses `englishText` + empty `voiceText`; TTS = Vbee EN `0.9×`. Missing EN config = **blocker**.
 - **Guided leak check:** Before TTS — scan every `voiceText`, title, equation, note, diagram annotation for answer leakage.
 - **Closing:** CTA before wish; closing wish mandatory as last line.
+- **Pedagogy:** Explain *why* each step works (not just the formula). Match method to the confirmed grade. No shortcut tricks without explaining the basis. See `pedagogy-rules.md` for all 7 principles + "đạt/chưa đạt" examples.
+- **`teachingAid`:** Design custom manipulatives per problem. Declare `problem.requiresIllustration: true` and `needsIllustration: true` per scene where needed. Illustration appears from the first scene that uses it — not deferred to conclusions.
+- **Render:** Always produce both portrait (1080×1920) and landscape (1920×1080). Do not mark complete with only one video. Shared audio — do not re-call TTS for a ratio change.
+- **Creator Review:** After audit, display full solution + audit result in chat before TTS/render. `solution.md` is internal only — never served to students.
 
 Do not re-implement these rules inline. Reference the skill files; keep this section as a summary only.
 
