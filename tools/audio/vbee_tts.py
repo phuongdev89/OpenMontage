@@ -41,7 +41,8 @@ class VbeeTTS(BaseTool):
     install_instructions = (
         "Set VBEE_ACCESS_TOKEN (or VBEE_API_KEY) to your Vbee access token.\n"
         "Set VBEE_APP_ID to your Vbee application ID from https://studio.vbee.vn/apps.\n"
-        "Optional: set VBEE_VOICE_CODE to override the default voice.\n"
+        "Optional: set VBEE_VOICE_CODE_VI to override the default Vietnamese voice.\n"
+        "Optional: set VBEE_VOICE_CODE_EN to set the English-reading voice (defaults to am_echo).\n"
         "Optional: set VBEE_API_URL to override the endpoint (defaults to https://vbee.vn/api/v1/tts)."
     )
     fallback = "google_tts"
@@ -72,7 +73,10 @@ class VbeeTTS(BaseTool):
     ]
 
     DEFAULT_API_URL = "https://vbee.vn/api/v1/tts"
-    DEFAULT_VOICE = "hn_female_ngochuyen_full_48k-fhg"
+    DEFAULT_VOICE_VI = "hn_female_ngochuyen_full_48k-fhg"
+    DEFAULT_VOICE_EN = "am_echo"
+    # Legacy alias kept for backward compat
+    DEFAULT_VOICE = DEFAULT_VOICE_VI
 
     VOICE_ALIASES: dict[str, str] = {
         # Northern (Hà Nội)
@@ -111,7 +115,8 @@ class VbeeTTS(BaseTool):
                 "type": "string",
                 "description": (
                     "Vbee speaker voice code or alias (e.g. ngochuyen, manhdung, thaotrinh, "
-                    "or full code hn_female_ngochuyen_full_48k-fhg). Defaults to VBEE_VOICE_CODE."
+                    "or full code hn_female_ngochuyen_full_48k-fhg). Defaults to VBEE_VOICE_CODE_VI "
+                    "(Vietnamese) or VBEE_VOICE_CODE_EN (English text)."
                 ),
             },
             "voice_id": {
@@ -121,6 +126,15 @@ class VbeeTTS(BaseTool):
             "voice": {
                 "type": "string",
                 "description": "Alias for voice_code.",
+            },
+            "language": {
+                "type": "string",
+                "enum": ["vi", "en"],
+                "default": "vi",
+                "description": (
+                    "Language of the text: 'vi' (default) picks VBEE_VOICE_CODE_VI, "
+                    "'en' picks VBEE_VOICE_CODE_EN. Ignored when voice_code is supplied explicitly."
+                ),
             },
             "audio_type": {
                 "type": "string",
@@ -227,13 +241,28 @@ class VbeeTTS(BaseTool):
         return round(len(text) * 0.000008, 6)
 
     def _resolve_voice(self, inputs: dict[str, Any]) -> str:
-        raw_voice = (
+        explicit = (
             inputs.get("voice_code")
             or inputs.get("voice_id")
             or inputs.get("voice")
-            or os.environ.get("VBEE_VOICE_CODE")
-            or self.DEFAULT_VOICE
         )
+        if explicit:
+            normalized = str(explicit).strip().lower()
+            return self.VOICE_ALIASES.get(normalized, str(explicit).strip())
+
+        language = str(inputs.get("language") or "vi").strip().lower()
+        if language == "en":
+            raw_voice = (
+                os.environ.get("VBEE_VOICE_CODE_EN")
+                or self.DEFAULT_VOICE_EN
+            )
+        else:
+            raw_voice = (
+                os.environ.get("VBEE_VOICE_CODE_VI")
+                # Backward compat: old env var name
+                or os.environ.get("VBEE_VOICE_CODE")
+                or self.DEFAULT_VOICE_VI
+            )
         normalized = str(raw_voice).strip().lower()
         return self.VOICE_ALIASES.get(normalized, str(raw_voice).strip())
 

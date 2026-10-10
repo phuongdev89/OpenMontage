@@ -615,7 +615,7 @@ Doubao Speech 2.0 is billed by character package or usage in Volcengine. OpenMon
 > **Specialized Vietnamese neural narration.** Vbee (vbee.vn) provides high-quality Vietnamese text-to-speech with natural regional accents (North, South, Central).
 
 **Tools unlocked:** `vbee_tts`
-**Env vars:** `VBEE_APP_ID`, `VBEE_ACCESS_TOKEN` (or `VBEE_API_KEY`), `VBEE_VOICE_CODE` (optional), `VBEE_API_URL` (optional)
+**Env vars:** `VBEE_APP_ID`, `VBEE_ACCESS_TOKEN` (or `VBEE_API_KEY`), `VBEE_VOICE_CODE_VI` (optional, Vietnamese voice), `VBEE_VOICE_CODE_EN` (optional, English-reading voice), `VBEE_API_URL` (optional)
 
 #### Setup
 
@@ -626,7 +626,8 @@ Doubao Speech 2.0 is billed by character package or usage in Volcengine. OpenMon
    ```bash
    VBEE_APP_ID=your-vbee-app-id
    VBEE_ACCESS_TOKEN=your-vbee-access-token
-   VBEE_VOICE_CODE=hn_female_ngochuyen_full_48k-fhg
+   VBEE_VOICE_CODE_VI=hn_female_ngochuyen_full_48k-fhg
+   VBEE_VOICE_CODE_EN=am_echo
    ```
 
 #### Popular Voice Aliases

@@ -52,6 +52,9 @@ def vbee_env(monkeypatch):
     monkeypatch.setenv("VBEE_ACCESS_TOKEN", "fake-token-12345")
     monkeypatch.setenv("VBEE_APP_ID", "fake-app-67890")
     monkeypatch.delenv("VBEE_API_KEY", raising=False)
+    monkeypatch.delenv("VBEE_VOICE_CODE_VI", raising=False)
+    monkeypatch.delenv("VBEE_VOICE_CODE_EN", raising=False)
+    # Also clear the legacy var so it doesn't interfere
     monkeypatch.delenv("VBEE_VOICE_CODE", raising=False)
     monkeypatch.delenv("VBEE_API_URL", raising=False)
 
@@ -137,7 +140,9 @@ class TestStatus:
 # ---- Voice & Parameter Resolution ----
 
 class TestParameterResolution:
-    def test_voice_alias_resolution(self):
+    def test_voice_alias_resolution(self, monkeypatch):
+        monkeypatch.delenv("VBEE_VOICE_CODE_VI", raising=False)
+        monkeypatch.delenv("VBEE_VOICE_CODE", raising=False)
         tool = VbeeTTS()
         assert tool._resolve_voice({"voice_code": "ngochuyen"}) == "hn_female_ngochuyen_full_48k-fhg"
         assert tool._resolve_voice({"voice_id": "HN_FEMALE"}) == "hn_female_ngochuyen_full_48k-fhg"
@@ -147,8 +152,36 @@ class TestParameterResolution:
         assert tool._resolve_voice({"voice": "huonggiang"}) == "hue_female_huonggiang_48k-fhg"
         # Full or custom codes pass through untouched
         assert tool._resolve_voice({"voice": "custom_voice_48k"}) == "custom_voice_48k"
-        # Default voice when empty
-        assert tool._resolve_voice({}) == VbeeTTS.DEFAULT_VOICE
+        # Default Vietnamese voice when empty
+        assert tool._resolve_voice({}) == VbeeTTS.DEFAULT_VOICE_VI
+
+    def test_voice_language_vi_uses_voice_code_vi(self, monkeypatch):
+        monkeypatch.setenv("VBEE_VOICE_CODE_VI", "hn_male_manhdung_news_48k-fhg")
+        monkeypatch.delenv("VBEE_VOICE_CODE", raising=False)
+        tool = VbeeTTS()
+        assert tool._resolve_voice({"language": "vi"}) == "hn_male_manhdung_news_48k-fhg"
+
+    def test_voice_language_en_uses_voice_code_en(self, monkeypatch):
+        monkeypatch.setenv("VBEE_VOICE_CODE_EN", "am_echo")
+        tool = VbeeTTS()
+        assert tool._resolve_voice({"language": "en"}) == "am_echo"
+
+    def test_voice_language_en_default_when_env_missing(self, monkeypatch):
+        monkeypatch.delenv("VBEE_VOICE_CODE_EN", raising=False)
+        tool = VbeeTTS()
+        assert tool._resolve_voice({"language": "en"}) == VbeeTTS.DEFAULT_VOICE_EN
+
+    def test_explicit_voice_code_overrides_language(self, monkeypatch):
+        monkeypatch.setenv("VBEE_VOICE_CODE_EN", "am_echo")
+        tool = VbeeTTS()
+        # Explicit voice_code beats language
+        assert tool._resolve_voice({"voice_code": "ngochuyen", "language": "en"}) == "hn_female_ngochuyen_full_48k-fhg"
+
+    def test_legacy_voice_code_env_fallback(self, monkeypatch):
+        monkeypatch.delenv("VBEE_VOICE_CODE_VI", raising=False)
+        monkeypatch.setenv("VBEE_VOICE_CODE", "sg_female_thaotrinh_48k-fhg")
+        tool = VbeeTTS()
+        assert tool._resolve_voice({}) == "sg_female_thaotrinh_48k-fhg"
 
     def test_speed_resolution_and_clamping(self):
         tool = VbeeTTS()

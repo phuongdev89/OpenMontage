@@ -10,7 +10,8 @@ Vbee (vbee.vn) provides specialized Vietnamese neural text-to-speech with natura
 Requires `VBEE_ACCESS_TOKEN` (or `VBEE_API_KEY`) and `VBEE_APP_ID` in `.env`.
 
 Optional:
-- `VBEE_VOICE_CODE`: Default speaker voice code (defaults to `hn_female_ngochuyen_full_48k-fhg`).
+- `VBEE_VOICE_CODE_VI`: Default Vietnamese speaker voice code (defaults to `hn_female_ngochuyen_full_48k-fhg`).
+- `VBEE_VOICE_CODE_EN`: Voice code for English-language text (defaults to `am_echo`). Set `language="en"` in the tool call to activate.
 - `VBEE_API_URL`: Custom endpoint override (defaults to `https://vbee.vn/api/v1/tts`).
 
 ## Popular Voices and Aliases
