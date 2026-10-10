@@ -190,6 +190,23 @@ Keep these as separate, consecutive script sections and scene/audio segments. Sh
 
 At script review and final video review, verify the verbatim English reading, complete and accurate Vietnamese translation, and the English → Vietnamese translation → Vietnamese solution order in both narration and visuals. This rule applies across pipelines and render runtimes.
 
+## Math Video — Extended Rules
+
+All math problem-solving videos MUST also follow the full rule set in:
+
+**[`skills/pipelines/math/voice-text-rules.md`](skills/pipelines/math/voice-text-rules.md)**
+
+That file is the authoritative source for:
+
+- **Persona (HARD):** Male teacher only. Address viewers as "các em / các con / các bạn nhỏ". Self-address as "thầy". The word "cô" is forbidden in scripts, `voiceText`, subtitles, and all on-screen text.
+- **`voiceText` encoding:** Write all digits and math symbols as spoken Vietnamese words (e.g. `2x + 5 = 17` → "hai nhân x cộng năm bằng mười bảy"). No LaTeX, no emoji, no Markdown in `voiceText`. Full conversion table and competition-name phonetics in the skill file.
+- **Hook rule:** Open with the problem's own challenge as the hook. Declare it in `math-intro.hookQuestion`. Never open with generic praise ("bài toán rất thú vị") or audience labels.
+- **English-problem sequence:** vi-greeting → announce EN reading → read EN verbatim (`VBEE_VOICE_CODE_EN`, 0.9×, `language="en"`) → read full VI translation → solution. Missing EN TTS config is a **blocker** — stop, do not substitute a VI voice.
+- **Closing:** CTA (if any) before the closing wish. Last line is always a closing wish appropriate for students (e.g. "Thầy chúc các em học tốt và luôn tự tin khi giải toán.").
+- **`solutionMode`:** Ask the user to choose between `answer` (full solution) and `guided` (method only, final answer withheld) before production begins.
+
+Do not re-implement these rules inline. Reference the skill file; keep this section as a summary only.
+
 ## Orchestrator
 
 The agent itself orchestrates the production state machine:
