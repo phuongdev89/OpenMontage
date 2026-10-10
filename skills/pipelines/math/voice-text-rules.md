@@ -121,7 +121,7 @@ giải phương trình."*
 1. Chào bằng tiếng Việt
 2. Nói hôm nay học/giải bài gì
 3. Thông báo sẽ đọc nguyên văn tiếng Anh
-4. Đọc toàn bộ đề = Vbee VBEE_VOICE_CODE_EN (am_echo), tốc độ 0.9×
+4. Đọc toàn bộ đề = Vbee VBEE_VOICE_CODE_EN (am_echo), tốc độ 0.85×; khi mix, tăng gain riêng đoạn tiếng Anh lên 1.20 và kiểm tra không clipping. Thiếu cấu hình Vbee tiếng Anh = blocker; chỉ thay provider khi người dùng duyệt.
 5. Đọc bản dịch Việt đầy đủ, chính xác = giọng nam Việt
 6. Bắt đầu lời giải / hướng dẫn (SAU KHI đọc cả đề gốc và bản dịch)
 ```

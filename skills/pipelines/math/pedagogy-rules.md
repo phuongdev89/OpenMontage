@@ -196,4 +196,5 @@ Trả lời các câu hỏi sau trước khi chạy TTS:
 
 - Phase sequence và solutionMode: [`script-director.md`](script-director.md)
 - Persona + voiceText: [`voice-text-rules.md`](voice-text-rules.md)
+- Tài liệu nguồn sư phạm: [`references/math-pedagogy/SOURCES.md`](references/math-pedagogy/SOURCES.md)
 - Audit toán học: *(sẽ bổ sung trong `workflow-director.md`)*

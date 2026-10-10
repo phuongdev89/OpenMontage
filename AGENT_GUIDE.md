@@ -190,6 +190,12 @@ Keep these as separate, consecutive script sections and scene/audio segments. Sh
 
 At script review and final video review, verify the verbatim English reading, complete and accurate Vietnamese translation, and the English → Vietnamese translation → Vietnamese solution order in both narration and visuals. This rule applies across pipelines and render runtimes.
 
+### Narration defaults (all new renders)
+
+- **Readable pace:** Unless the user explicitly chooses another pace, generate narration at `0.85x` (or the closest supported slower rate) and extend scene timing to fit the resulting audio. Never speed narration up to force it into the old timing.
+- **English problem reading:** Use Vbee with the configured `VBEE_VOICE_CODE_EN` (`am_echo`), render it at `0.85x`, then apply a `1.20` gain to that English segment during the mix. Verify the gain with an audio probe/FFmpeg measurement and confirm that it does not clip. Missing Vbee English configuration is a blocker; provider changes require user approval.
+- **Other narration:** Apply the same `0.85x` default unless a user-approved voice setting says otherwise. Record the chosen speed and per-language gain in the asset manifest and render report.
+
 ## Math Video — Extended Rules
 
 All math problem-solving videos MUST also follow the full rule set in:
@@ -213,7 +219,7 @@ Summary of binding rules:
 - **`solutionMode`:** Ask the user (`answer` vs `guided`) before solving. Wait for real input — no defaults, no timeouts.
 - **Phase sequence (VI / `answer`):** `introduction → problem → [strategy] → solution → check → answer → closing`
 - **Phase sequence (VI / `guided`):** `introduction → problem → strategy → solution → check → practice → closing` (`strategy` mandatory; one `practice`; no `math-answer`)
-- **Phase sequence (EN problem):** Insert `read-english → read-translation` after `introduction`, before `strategy`. `read-english` uses `englishText` + empty `voiceText`; TTS = Vbee EN `0.9×`. Missing EN config = **blocker**.
+- **Phase sequence (EN problem):** Insert `read-english → read-translation` after `introduction`, before `strategy`. `read-english` uses `englishText` + empty `voiceText`; TTS = Vbee EN `0.85×`, English segment gain `1.20`. Missing EN config = **blocker**.
 - **Guided leak check:** Before TTS — scan every `voiceText`, title, equation, note, diagram annotation for answer leakage.
 - **Closing:** CTA before wish; closing wish mandatory as last line.
 - **Pedagogy:** Explain *why* each step works (not just the formula). Match method to the confirmed grade. No shortcut tricks without explaining the basis. See `pedagogy-rules.md` for all 7 principles + "đạt/chưa đạt" examples.
@@ -267,7 +273,7 @@ projects/<project-name>/
 At pipeline initialization, before any stage runs:
 
 1. **Initialize the workspace**: `python -c "from lib.checkpoint import init_project; init_project('<project-id>', title='<Title>', pipeline_type='<pipeline>')"` — creates the layout above and writes `project.json` (the marker the Backlot board reads).
-2. **Open the board**: run `python -m backlot open <project-id>`. This starts the Backlot server if needed and opens the user's browser at the project's live board. If the command fails, continue the production — the board is an observer, never a blocker. This is the agent's ONLY board duty; the board derives everything else from disk.
+2. **Open the board immediately**: run `python -m backlot open <project-id>` and verify that the Backlot server is listening before entering the first stage. This starts the Backlot server if needed and opens the user's browser at the project's live board. Do this for every production run; do not wait for the user to ask for a progress link. If the command fails, report the exact URL/startup error immediately and continue the production — the board is an observer, never a blocker. This is the agent's ONLY board duty; the board derives everything else from disk.
 
 All tools and agents must write outputs to these paths — **always pass an explicit `output_path` under `projects/<project-id>/`**. Assets written to the repo root, cwd, or temp dirs are invisible to the user's board and violate the workspace contract.
 
