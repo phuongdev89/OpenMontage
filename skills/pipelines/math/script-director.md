@@ -138,8 +138,8 @@ introduction → read-english → read-translation → strategy → solution →
 ### `introduction`
 
 - Lời chào theo [`voice-text-rules.md`](voice-text-rules.md) mục 3b.
-- Hook = thử thách cụ thể của bài toán (mục 3a trong voice-text-rules).
-- Khai báo `math-intro.hookQuestion`; đọc nguyên câu trong `voiceText`.
+- Hook phải nêu mâu thuẫn/dữ kiện lạ của bài toán bằng ngôn ngữ của `visualConcept`, tạo tò mò rồi đặt câu hỏi cụ thể; không dùng lời chào hoặc tên kỳ thi làm hook thay thế (mục 3a trong voice-text-rules và mẫu tại `visual-concepts.md`).
+- Khai báo câu hỏi thử thách cuối hook trong `math-intro.hookQuestion`; đọc nguyên câu trong `voiceText`. Chỉ dẫn SFX/visual không được đưa vào lời đọc nếu không chủ ý cho TTS đọc.
 
 ### `read-english` (chỉ đề Anh)
 

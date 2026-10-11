@@ -56,12 +56,12 @@ Apply `AGENT_GUIDE.md` → **Math Problem Videos — English Prompt, Vietnamese 
 
 <!-- Added 2026-10-10 by phuongdev89: ref to math voice-text rules
      Reason: voice-text-rules.md ported from Auto-Create-Video covers
-     persona, voiceText encoding, hook, EN-TTS blocker and solutionMode
+     narration persona, voiceText encoding, hook, EN-TTS blocker and solutionMode
      that this explainer director does not. Math videos must follow both. -->
 For **all math problem-solving videos** (regardless of language), also read and apply
 [`skills/pipelines/math/voice-text-rules.md`](../math/voice-text-rules.md) **before**
 writing any `voiceText` or planning the script structure. That file governs:
-persona (male teacher / "thầy"), digit-to-word encoding, hook structure,
+non-first-person narration, digit-to-word encoding, hook structure,
 EN TTS blocker, closing wish order, and `solutionMode` selection.
 
 ### Step 3: Plan the Narrative Arc

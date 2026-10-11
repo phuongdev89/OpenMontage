@@ -14,7 +14,7 @@
 
 | `visualConcept` | Tên hiển thị | Playbook | Dùng tốt cho |
 |-----------------|-------------|----------|--------------|
-| `news` | Giấy Note | `styles/math-news.yaml` | Mọi cấp, bài đại số, đề thi — cần layout rõ ràng |
+| `news` | Bản tin Thời sự | `styles/math-news.yaml` | Mọi cấp, bài đại số, đề thi — cần layout rõ ràng |
 | `detective` | Thám Tử | `styles/math-detective.yaml` | Bài logic, chứng minh, tìm ẩn, nhiều bước suy luận |
 | `neon` | Neon Lab | `styles/math-neon.yaml` | THPT, Olympic, nhiều công thức, hình học không gian |
 | `chalkboard` | Bảng Phấn | `styles/math-chalkboard.yaml` | Mọi cấp, thân thiện, hình học, đại số cơ bản |
@@ -40,7 +40,7 @@ Dùng `AskUserQuestion` (Claude Code) hoặc `request_user_input_async` (Codex):
 
 > **Bạn muốn video trông theo phong cách nào?**
 >
-> - 📄 **Giấy Note** — sạch, rõ ràng, dễ theo dõi
+> - 📰 **Bản tin Thời sự** — headline, bản tin và tường thuật vụ việc
 > - 🔍 **Thám Tử** — hồ sơ bí ẩn, đường nối manh mối
 > - 💡 **Neon Lab** — futuristic, nhiều công thức
 > - 🖊️ **Bảng Phấn** — bảng đen phấn trắng, cổ điển
@@ -88,6 +88,69 @@ Các field Remotion nhận từ playbook:
 
 Với HyperFrames: map palette sang CSS variables; dùng `motion.animation_style`
 để chọn GSAP easing.
+
+### 3d. Hook theo visual concept
+
+Sau khi concept được chọn, hook phải mang đúng chất liệu và cách gọi khán giả
+của concept đó. Giữ nguyên quan hệ toán học và đơn vị của đề; không tự thêm
+đơn vị, kết quả, giới hạn thời gian hoặc sự kiện không có trong brief. Lời
+thoại do agent viết không được tự xưng hay dùng ngôi thứ nhất theo
+[`voice-text-rules.md`](voice-text-rules.md). Chỉ dẫn âm thanh trong ngoặc là
+chỉ dẫn sản xuất, không đưa vào `voiceText` trừ khi cần đọc thành lời.
+
+Các ví dụ dưới đây cùng dựa trên AMO lớp 2 năm 2022: một số sau khi nhân với
+10 lớn hơn số ban đầu 63 đơn vị. Đây là mẫu để hiểu cách đổi sắc thái theo
+concept, không phải câu chữ cố định cho bài khác.
+
+#### `detective` — Thám tử / Phá án
+
+*(Tiếng máy đánh chữ lách cách; con dấu "TOP SECRET" đóng xuống.)*
+
+> Hồ sơ mật kỳ thi Olympic AMO vừa ghi nhận một manh mối kỳ lạ: một con số bí
+> ẩn sau khi nhân với mười bỗng lớn hơn chính nó đúng sáu mươi ba đơn vị.
+> Chào các thám tử nhí! Liệu các bạn có bẻ khóa được con số này trước khi hồ
+> sơ khép lại? Cùng giải mã ngay!
+
+#### `chalkboard` — Bảng đen phấn trắng
+
+*(Tiếng gõ phấn cộc cộc trên bảng.)*
+
+> Một câu đố thoạt nhìn tưởng hóc búa trong đề thi AMO: nhân một số với mười,
+> kết quả vọt lên hơn số ban đầu sáu mươi ba đơn vị. Chào các bạn học sinh
+> đến với lớp học giải đố! Nhìn lên bảng xem, phương pháp sơ đồ đoạn thẳng sẽ
+> giúp giải bài này nhanh đến mức nào!
+
+#### `manipulatives` — Đồ chơi tư duy / Khối xếp hình
+
+*(Tiếng khối gỗ hoặc LEGO va vào nhau lách cách.)*
+
+> Trên sơ đồ khối, thanh dài gấp mười lần thanh ban đầu nhưng chỉ hơn đúng
+> sáu mươi ba đơn vị! Chào các bạn nhỏ yêu toán tư duy! Hãy quan sát các mảnh
+> ghép xem con số bí ẩn là bao nhiêu nhé?
+
+#### `neon` — Neon / Cyber Glow
+
+*(Âm thanh radar quét; hiệu ứng laser kích hoạt.)*
+
+> Cảnh báo thử thách cấp độ Olympic: hệ thống nhân mười vừa tạo ra một con số
+> vượt giá trị ban đầu đúng sáu mươi ba đơn vị. Chào các chiến binh toán
+> học! Sẵn sàng bẻ khóa mật mã này chưa? Đếm ngược bắt đầu!
+
+#### `notebook` — Sổ tay vẽ chì
+
+*(Tiếng ngòi chì sột soạt vẽ trên mặt giấy.)*
+
+> Trang sổ tay hôm nay có một câu đố Olympic cực kỳ tinh quái: một số nhân
+> với mười thì nhảy vọt thêm sáu mươi ba đơn vị. Chào các bạn nhỏ! Chuẩn bị
+> bút chì và thước kẻ, cùng vẽ nhanh một sơ đồ để tìm ra con số bí ẩn này nhé!
+
+#### `news` — Bản tin Thời sự
+
+*(Nhạc hiệu thời sự dồn dập; headline đỏ chạy ngang.)*
+
+> Bản tin nóng kỳ thi Olympic AMO: một con số sau khi nhân với mười vừa được
+> phát hiện vượt giá trị ban đầu đúng sáu mươi ba đơn vị! Chào các bạn nhỏ
+> đến với bản tin hôm nay. Manh mối vụ việc sẽ được làm sáng tỏ ngay sau đây!
 
 ---
 

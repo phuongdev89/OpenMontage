@@ -183,7 +183,10 @@ When all scenes are Remotion component types (hero_title, stat_card, bar_chart, 
 pie_chart, kpi_grid, comparison, callout, progress_bar, text_card), render the entire video
 as a single Remotion composition using the Explainer entry point. No FFmpeg assembly needed.
 The edit_decisions cuts array maps directly to Remotion props. See `skills/core/remotion.md`
-for the proven formula — especially the all-dark-background rule for visual consistency.
+for the proven formula. Derive the background family, colors, typography, and effects
+from the active style playbook and approved storyboard; never impose a universal dark
+background. Run the Style Fidelity Gate in `AGENT_GUIDE.md` against the complete
+composition source before rendering.
 
 ### Step 5: Audio Post-Processing
 

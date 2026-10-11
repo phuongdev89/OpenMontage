@@ -64,6 +64,7 @@ Every production task MUST execute this sequence before calling any generation t
 
 ## 5. TTS Routing (Tiếng Việt & Tiếng Anh)
 
+- **Lời thoại:** Không tự xưng thầy/cô hoặc vai trò người dẫn; loại bỏ toàn bộ ngôi thứ nhất số ít và số nhiều trong lời thoại do agent viết. Dùng cách nói trực tiếp với người xem hoặc câu trung tính/mệnh lệnh như "hãy cùng..."; giữ nguyên nội dung nguồn bắt buộc đọc/trích nguyên văn. Chi tiết áp dụng tại `AGENT_GUIDE.md` và skill lời thoại theo pipeline.
 - **Với tiếng Việt:**
   - Bắt buộc kiểm tra và thử skill `vieneu-tts` (VieNeu-TTS local) trước.
   - Chỉ dùng API Vbee tiếng Việt khi VieNeu thật sự không khả dụng vì thiếu package, model hoặc runtime failure.
@@ -73,6 +74,22 @@ Every production task MUST execute this sequence before calling any generation t
     - Provider thực tế (`vbee`).
     - Lý do fallback (`fallback_reason`).
     - Lỗi cụ thể hoặc điều kiện khiến VieNeu không dùng được.
+
+### VieNeu voice default
+
+Khi sử dụng VieNeu-TTS cho tiếng Việt:
+
+1. Giọng mặc định bắt buộc là `Minh Quân`.
+2. Luôn truyền rõ tham số `voice="Minh Quân"`.
+3. Không được dùng `Anh Khôi`, `Đoan Trang` hoặc giọng khác nếu người dùng chưa yêu cầu rõ.
+4. Không được suy ra giọng từ tên project, artifact cũ, biến môi trường hoặc giá trị mặc định của package.
+5. Trước khi tạo audio, phải ghi nhận:
+   - `provider: vieneu`
+   - `voice: Minh Quân`
+   - `voice_source: AGENTS.md`
+6. Sau khi tạo audio, phải kiểm tra metadata/audio manifest xác nhận đúng `Minh Quân`.
+7. Nếu VieNeu không hỗ trợ hoặc không xác định được preset `Minh Quân`, phải dừng và báo lỗi; không tự đổi sang giọng khác.
+
 - **Với tiếng Anh (đọc đề toán):**
   - Luôn dùng API Vbee (`VBEE_VOICE_CODE_EN`, mặc định `am_echo`) với tốc độ `0.85x`, áp gain `1.20` khi mix âm thanh theo math rules hiện hành.
 
@@ -85,6 +102,12 @@ Every production task MUST execute this sequence before calling any generation t
   - Stage `assets` (storyboard / filmstrip) phải được duyệt trước khi gọi render video ở stage `compose`. Không render video draft/full ở stage `assets` để thay thế storyboard.
 - **Nếu lỡ gọi tool trước approval:** Phải dừng ngay lập tức, báo cáo vi phạm gate cho người dùng và không tiếp tục âm thầm.
 - **Lưu ý:** Checkpoint không tự động ngăn chặn việc gọi tool phát sinh trước đó trong code Python; đây là ràng buộc quy trình nghiêm ngặt mà agent phải tự giác tuân thủ.
+
+### Xuất hội thoại sau compose và publish
+
+- Sau khi stage `compose` hoàn tất thành công và checkpoint đã ghi `completed`, bắt buộc dùng skill `export-conversation` xuất hội thoại hiện tại ở cả Markdown và JSON (`-f all`) vào session directory của skill.
+- Ghi nhớ conversation ID và đúng output base path của hai tệp. Sau khi người dùng cho phép publish và stage `publish` hoàn tất thành công, chạy lại skill cho cùng conversation ID và cùng base path để ghi đè hai tệp cũ bằng hội thoại đã cập nhật. Truyền đường dẫn base file, không chỉ truyền thư mục, vì truyền thư mục sẽ tạo tên tệp timestamp mới.
+- Tuân thủ source selection và output rules của skill; không tự chép hoặc dựng lại transcript.
 
 ---
 
@@ -106,3 +129,14 @@ Every production task MUST execute this sequence before calling any generation t
 12. **Fallback Vbee phải ghi `provider` thực tế + `fallback_reason`** vào `asset_manifest` và `render_report` (lưu ý: schema không bắt buộc các trường này — nghĩa kỷ luật, xem section 5).
 13. **Điều kiện chưa xác minh → không gọi generation tool.** Ví dụ: package `vieneu` đã cài nhưng chưa từng infer thành công ⇒ coi là UNVERIFIED khi cân nhắc fallback.
 14. **Phát hiện artifact/media do agent khác tạo trước checkpoint hợp lệ:** báo trạng thái lệch governance cho user, không tự sửa hay xóa dữ liệu cũ.
+
+---
+
+## 8. Visual Style Contract
+
+- `styles/<style_playbook>.yaml` là authority cho ngôn ngữ hình ảnh tổng thể: nền, palette, typography, hình khối, texture, shadow và motion. Storyboard đã duyệt triển khai các nguyên tắc đó theo từng cảnh; storyboard không tự động cho phép đổi playbook.
+- Trước render, đối chiếu composition source với cả playbook và storyboard đã duyệt. Kiểm tra mọi CSS rule, inline style, SVG fill/stroke, component theme và preset; không chỉ kiểm tra màu nền hoặc một frame.
+- Không tự thêm theme, font, màu nhấn hay hiệu ứng trái playbook dựa trên tên project, gu cá nhân, template/runtime mặc định hoặc artifact cũ. Chỉ dùng biến thể khi storyboard đã duyệt mô tả rõ và biến thể vẫn nằm trong giới hạn của playbook.
+- Xác minh tương phản chữ/nền và giới hạn số màu theo `quality_rules` của playbook; bảo đảm hai tỷ lệ khung hình dùng cùng visual language.
+- Nếu phát hiện lệch, sửa composition source trước khi render. Nếu cần thay đổi vượt quá playbook hoặc storyboard đã duyệt, dừng ở source draft và xin duyệt lại storyboard; không tự render để thử.
+- Sau render, kiểm tra frame đại diện ở các cảnh và cả hai tỷ lệ khung hình để xác nhận output thực sự giữ đúng style. Source-only edits không cập nhật MP4 đã publish; chỉ render lại khi người dùng yêu cầu hoặc pipeline đang ở compose với approval còn hiệu lực.

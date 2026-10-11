@@ -15,10 +15,15 @@
 - **Giới tính:** Luôn dùng giọng **nam** của provider đang cấu hình.
   Không tự suy đoán giới tính từ voice ID không có mô tả.
   Không tự thay giọng người dùng đã cấu hình.
-- **Xưng hô:** Khi giảng hoặc nói với người xem, luôn xưng **thầy**.
-  Gọi người học là **các em**, **các con** hoặc **các bạn nhỏ**.
-- **Từ cấm:** Không dùng **cô** trong kịch bản, `voiceText`, phụ đề
-  hoặc bất kỳ nội dung hiển thị nào.
+- **Không tự xưng/ngôi thứ nhất:** Trong lời thoại do agent viết, tuyệt đối
+  không tự xưng **thầy**, **cô** hay vai trò nào khác; không dùng ngôi thứ
+  nhất số ít hoặc số nhiều, gồm `tôi`, `mình`, `ta`, `chúng tôi`, `chúng ta`
+  và `chúng mình`. Áp dụng cho kịch bản, `voiceText`, phụ đề và nội dung
+  hiển thị do người dẫn thuật lại.
+- Gọi người học trực tiếp là **các em**, **các con** hoặc **các bạn nhỏ**;
+  có thể dùng câu trung tính hoặc mệnh lệnh như **"hãy cùng..."**.
+- Không dùng **cô** để tự xưng. Không sửa nội dung nguồn phải đọc/trích
+  nguyên văn; quy tắc này áp dụng cho lời dẫn do agent soạn.
 - **Routing bắt buộc theo ngôn ngữ (agent phải làm đúng thứ tự này):**
   1. Lời tiếng Việt: **ưu tiên sử dụng skill `vieneu-tts`** để tạo audio
      bằng VieNeu-TTS local và preset giọng nam đã chọn.
@@ -82,7 +87,7 @@ Nếu TTS đọc sai tên kỳ thi, ghi theo cách đọc vào `voiceText`:
 
 ```json
 {
-  "voiceText": "Thầy trừ năm ở cả hai vế để giữ phương trình tương đương.",
+  "voiceText": "Trừ năm ở cả hai vế để giữ phương trình tương đương.",
   "templateData": {
     "template": "math-step",
     "title": "Trừ 5 ở hai vế",
@@ -97,18 +102,29 @@ Nếu TTS đọc sai tên kỳ thi, ghi theo cách đọc vào `voiceText`:
 
 ### 3a. Hook bằng thử thách cụ thể
 
-Video phải mở bằng lời chào ngắn, nói nhiệm vụ hôm nay **dưới dạng thử thách
-của chính bài toán**, nhắc điều kiện quan trọng và hỏi một câu khiến người học
-muốn thử ngay.
+Video phải mở bằng một hook giữ chân người xem, không chỉ là lời chào rồi
+đọc lại đề. Hook phải nêu mâu thuẫn hoặc dữ kiện lạ nhất của chính bài toán,
+diễn đạt theo `visualConcept` đã chọn, rồi đặt câu hỏi cụ thể khiến người xem
+muốn tìm đáp án. Có thể mở bằng một âm thanh/hình ảnh đặc trưng của concept,
+nhưng hiệu ứng sân khấu phải nằm ngoài `voiceText` nếu không được đọc thành lời.
 
 **Cấm:**
-- Dùng lời giới thiệu chung chung như *"bài toán rất thú vị"*.
-- Đọc đối tượng/lớp học thay cho hook.
+- Mở đầu chỉ bằng lời chào, tên lớp/kỳ thi, hoặc câu dẫn chung chung như
+  *"Hôm nay chúng ta sẽ học một bài toán rất thú vị"*.
+- Chỉ đọc lại nguyên văn đề mà chưa tạo mâu thuẫn, hình ảnh hoặc câu hỏi gợi tò mò.
+- Dùng concept không liên quan tới ngôn ngữ hình ảnh của video.
 - Tiết lộ đáp án hay bước giải trong hook.
 - Ở chế độ `guided`: minh họa thao tác làm lộ bước quyết định hoặc đáp án.
+- Tự xưng hoặc dùng ngôi thứ nhất trong hook; xem mục 1.
+
+**Khung hook:** tín hiệu đặc trưng của concept → dữ kiện/mâu thuẫn chính xác
+của bài toán → gọi người xem theo concept → câu hỏi mở hoặc lời mời bắt đầu.
+Không bắt buộc đủ bốn nhịp nếu làm hook dài dòng; ưu tiên vào thử thách sớm.
+Các ví dụ theo từng concept nằm trong
+[`visual-concepts.md`](visual-concepts.md#3d-hook-theo-visual-concept).
 
 **Khai báo:**
-- Đặt câu hook vào `math-intro.hookQuestion` (viết số bằng chữ, kết thúc `?`).
+- Đặt câu hỏi thử thách cuối hook vào `math-intro.hookQuestion` (viết số bằng chữ, kết thúc `?`).
 - Đọc nguyên câu hook trong `voiceText` của scene mở đầu.
 - Dùng `math-intro.teachingAid` cho icon/hình phù hợp đề ngay đầu video.
 - Script schema kiểm tra `hookQuestion` có trong `voiceText`; kịch bản cũ thiếu
@@ -117,11 +133,13 @@ muốn thử ngay.
 ### 3b. Trình tự bắt buộc — đề tiếng Việt
 
 ```
-lời chào → nói hôm nay học/làm gì → nội dung → lời chúc
+cue theo concept (nếu có) → hook nêu thử thách → đề bài đầy đủ → lời giải → lời chúc
 ```
 
-Ví dụ lời chào: *"Thầy chào các em. Hôm nay thầy cùng các em tìm hiểu cách
-giải phương trình."*
+Hook được mở bằng mâu thuẫn hoặc dữ kiện gợi tò mò của bài toán; lời chào và
+cách gọi người xem được lồng tự nhiên vào hook, không đặt một đoạn chào chung
+chung lên trước để trì hoãn thử thách. Không đọc lặp lại cùng một dữ kiện dài
+dòng ở cả hook và phần đề bài đầy đủ.
 
 ### 3c. Trình tự bắt buộc — đề tiếng Anh
 
@@ -155,7 +173,7 @@ giải phương trình."*
 
 - CTA (nếu có) đặt **trước** lời chúc.
 - Câu cuối cùng **bắt buộc** là lời chúc phù hợp với lứa tuổi học sinh.
-  Ví dụ: *"Thầy chúc các em học tốt và luôn tự tin khi giải toán."*
+  Ví dụ: *"Chúc các con học tốt và luôn tự tin khi giải toán."*
 
 ---
 

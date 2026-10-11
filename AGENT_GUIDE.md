@@ -193,6 +193,7 @@ At script review and final video review, verify the verbatim English reading, co
 ### Narration defaults (all new renders)
 
 - **Readable pace:** Unless the user explicitly chooses another pace, generate narration at `0.85x` (or the closest supported slower rate) and extend scene timing to fit the resulting audio. Never speed narration up to force it into the old timing.
+- **No first-person narrator:** In all agent-authored dialogue and narration, never self-identify as a teacher, host, or guide and never use first-person forms such as "I", "we", "tôi", "mình", "ta", or "chúng ta". Address viewers directly or use neutral/imperative phrasing (for example, "Chào các con. Hôm nay hãy cùng đến với một thử thách..."). Apply this to `voiceText`, subtitles, and visible dialogue. Preserve source material that must be quoted or read verbatim.
 - **Vietnamese narration routing:** First use the `vieneu-tts` skill to generate Vietnamese audio locally with the selected male preset voice. If that skill is unavailable because the package, model, or runtime fails, fall back to the Vbee API using `VBEE_VOICE_CODE_VI`. Do not silently choose another provider; record the actual provider and fallback reason in the asset manifest and render report.
 - **English problem reading:** Use the Vbee API with the configured `VBEE_VOICE_CODE_EN` (`am_echo`), render it at `0.85x`, then apply a `1.20` gain to that English segment during the mix. Verify the gain with an audio probe/FFmpeg measurement and confirm that it does not clip. Missing Vbee English configuration is a blocker; provider changes require user approval.
 
@@ -214,9 +215,9 @@ All math problem-solving videos MUST also follow the full rule set in:
 
 Summary of binding rules:
 
-- **Persona (HARD):** Male teacher only. Self-address as "thầy". Viewers = "các em / các con / các bạn nhỏ". "Cô" forbidden everywhere.
+- **Narration (HARD):** Do not self-identify as "thầy", "cô", or any other role; remove first-person singular and plural forms. Address viewers as "các em / các con / các bạn nhỏ" or use neutral/imperative phrasing. Preserve verbatim source quotations.
 - **`voiceText` encoding:** Digits and math symbols → spoken Vietnamese. No LaTeX/emoji/Markdown in `voiceText`.
-- **Hook:** Problem's own challenge; declare in `math-intro.hookQuestion`. No generic openers.
+- **Hook:** Open with a concrete puzzle contradiction shaped by the selected visual concept; build curiosity and ask a specific question without self-reference or answer leakage. Keep production sound cues outside `voiceText`. Declare the final challenge question in `math-intro.hookQuestion`.
 - **Grade detection:** Analyse the problem, ask the user to confirm grade before solving. Save to `grade-selection.json`.
 - **`solutionMode`:** Ask the user (`answer` vs `guided`) before solving. Wait for real input — no defaults, no timeouts.
 - **Phase sequence (VI / `answer`):** `introduction → problem → [strategy] → solution → check → answer → closing`
@@ -646,6 +647,12 @@ The checkpoint protocol meta skill (`skills/meta/checkpoint-protocol.md`) teache
 - **Approval is per-gate.** An early "go ahead" never covers later gates; explicit full-run pre-authorization must be recorded as a `decision_log` entry (`category: "approval_policy"`) to count.
 - Wait for human to approve, request revision, or abort.
 
+### Conversation Export After Compose and Publish
+
+- After the `compose` stage is successfully completed, use the `export-conversation` skill to export the current conversation in both Markdown and JSON (`-f all`) to its session directory. Do this after the completed compose checkpoint is written; do not treat an `in_progress` or `awaiting_human` checkpoint as completion.
+- Keep the conversation ID and exact output base path for both files. After the user authorizes publishing and the `publish` stage successfully completes, run `export-conversation` again for the same conversation and base path so the existing `.md` and `.json` files are overwritten with the updated conversation. Pass the file base path, not only its directory, because directory output creates new timestamped files.
+- Follow the skill's source selection and output rules; do not manually reconstruct or copy the conversation transcript.
+
 ## Communication Protocol
 
 Agents coordinate through canonical JSON artifacts, checkpoints, pipeline manifests, and the tool registry.
@@ -695,6 +702,14 @@ Tool rules:
 | `ink-sketch` (Ink Theater) | Hand-drawn ink-on-white doodle animation; a character that draws itself, walks, dances; contraption explainers |
 
 For custom, atelier, brand, launch, or hero work, read `skills/meta/taste-direction.md` before choosing a playbook. Carry its `taste_profile` into the proposal so later stages can preserve the design read, visual variance, motion intensity, information density, reference strategy, and anti-patterns.
+
+### Style Fidelity Gate
+
+The selected `styles/<style_playbook>.yaml` is the authority for the composition's overall visual language: background family, palette, typography, shapes, texture, shadows, and motion. The human-approved storyboard translates that contract into scene-level treatments; it does not silently replace the playbook. A scene-specific variation is allowed only when the approved storyboard explicitly calls for it and the variation stays within the playbook's `quality_rules`.
+
+Before rendering, audit the complete composition source against both artifacts. Inspect global and scene-level CSS, inline styles, SVG fills/strokes, component themes, and runtime presets. Verify typography, every foreground/background pairing, color contrast, color-count limits, shadow/gradient/texture use, motion treatment, and consistency between portrait and landscape. A matching background alone is not a pass. Do not infer a dark, neon, branded, or other theme from a project name, template, renderer default, or older artifact.
+
+Fix source-level deviations before render. If compliance would require changing the approved visual direction, stop and obtain storyboard approval before rendering. After an approved render, inspect representative frames across scenes and both aspect ratios for actual style fidelity. A source-only correction does not change an already published MP4; rerender only when the user requests it or the active compose stage has valid approval.
 
 ### Hand-drawn "doodle" animation → Ink Theater / Ink Puppet
 
