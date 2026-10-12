@@ -292,4 +292,4 @@ Approval is per-gate — an earlier "go ahead" does not cover this gate.
 
 ## Concurrent project isolation (binding)
 
-Before media work, read `skills/pipelines/shared/project-isolation.md`. Bind all source, narration, public assets, temporary props and outputs to the exact current project. Verify audio ownership in both final aspect ratios.
+Before media work, read `skills/pipelines/shared/project-isolation.md`. Bind all source, narration, public assets, temporary props and outputs to the exact current project. Verify audio ownership in every enabled final aspect ratio.

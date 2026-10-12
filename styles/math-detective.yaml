@@ -1,44 +1,37 @@
 identity:
   name: "Math — Thám Tử"
-  visual_concept: "detective"
-  category: math-video
+  category: custom
   mood: mysterious, investigative, engaging
   pace: deliberate
   best_for: "Bài toán logic, chứng minh, tìm ẩn, bài nhiều bước suy luận"
+
+visual_concept: "detective"
 
 visual_language:
   color_palette:
     primary: ["#F5E6C8", "#E8D5A3"]   # giấy hồ sơ ngả vàng
     accent: ["#C0392B", "#E67E22"]    # đỏ ghim, cam highlight
     background: "#1C1C1E"             # nền tối như bàn thám tử
-    background_alt: "#2C2C2E"
     text: "#F5E6C8"                   # chữ giấy vàng trên nền tối
     muted: "#8E8E93"
-    equation_highlight: "#E67E22"
-    clue_line: "#C0392B"              # đường nối manh mối
-    folder_bg: "#3A2E1E"              # bìa hồ sơ
   composition: "folder/document layout, clue lines connecting elements, notebook-style annotations"
   texture: "aged paper for content blocks, dark linen for background"
+
+math_colors:
+  background_alt: "#2C2C2E"
+  equation_highlight: "#E67E22"
+  clue_line: "#C0392B"              # đường nối manh mối
+  folder_bg: "#3A2E1E"              # bìa hồ sơ
 
 typography:
   headings:
     font: "Courier Prime"
-    fallback: "Courier New, monospace"
     weight: 700
     tracking: "0.02em"
   body:
     font: "Courier Prime"
-    fallback: "Courier New, monospace"
     weight: 400
     line_height: 1.8
-  equation:
-    font: "KaTeX"
-    size_multiplier: 1.3
-  annotation:
-    font: "Courier Prime"
-    weight: 400
-    style: italic
-    color: "#E67E22"
   scale_system: "major_second"
   weight_matrix:
     title: 700
@@ -57,6 +50,8 @@ motion:
     transition_duration_seconds: 0.5
   entrance: "stamp/appear từ trên xuống, như tài liệu được đặt lên bàn"
   exit: "fade to dark"
+
+math_motion:
   equation_reveal: "xuất hiện từng dòng với delay 0.3s, đường nối ghim vào hai vế cùng lúc"
   clue_connection: "đường đỏ vẽ nối từ dữ kiện đến bước suy luận khi lời đọc đến"
 
@@ -88,6 +83,8 @@ overlays:
     bg: "#2C1810"
     text: "#E67E22"
     radius: 3
+
+math_overlays:
   equation_box:
     bg: "#F5E6C8"
     text: "#1C1C1E"

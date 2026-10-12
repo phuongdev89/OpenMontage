@@ -11,22 +11,27 @@
 
 ---
 
-## 1. Hai video bắt buộc (mục #22)
+## 1. Tỷ lệ xuất theo cấu hình
 
-Mọi video giải toán phải xuất **cả hai bản**:
+Video kênh Toán Olympic Cùng Con: đọc `skills/pipelines/shared/channel-branding.md`.
+Thêm watermark logo gốc cố định ở góc trên trái, cách mỗi cạnh kề tối đa 5%;
+QA bản đã có watermark trước khi ghi checkpoint compose completed.
+
+Đọc `skills/pipelines/shared/output-formats.md`. Chỉ dựng và xuất các bản trong
+`project.json.output_video_formats`, được chụp từ `.env` khi init project:
 
 | Bản | Kích thước | File |
 |-----|-----------|------|
 | Dọc (Portrait) | 1080 × 1920 | `video-portrait.mp4` |
 | Ngang (Landscape) | 1920 × 1080 | `video-landscape.mp4` |
 
-`video.mp4` vẫn là bản dọc để tương thích ngược.
+`video.mp4`, nếu dùng, là alias của bản dọc khi được bật, nếu không là bản ngang.
 
 **Quy tắc bắt buộc:**
 
-- Chỉ báo hoàn tất sau khi **cả hai** render thành công.
-- Nếu một bản lỗi: báo thiếu bản đó, chưa giao đủ đầu ra — không báo xong.
-- `--no-render` chỉ xuất composition/audio để preview; **không** được gọi là đã giao hai video.
+- Chỉ báo hoàn tất sau khi **mọi bản được bật** render thành công.
+- Nếu một bản được bật lỗi: báo thiếu bản đó, chưa giao đủ đầu ra — không báo xong.
+- `--no-render` chỉ xuất composition/audio để preview; **không** được gọi là đã giao đủ các bản được bật.
 
 ---
 
@@ -65,8 +70,8 @@ Không gọi TTS thêm chỉ vì đổi tỷ lệ.
 
 Trước khi báo hoàn tất:
 
-- Mở cả hai HTML trên browser, seek timeline, kiểm tra layout.
-- `ffprobe` cả hai MP4 để xác nhận kích thước và duration.
+- Mở HTML của mọi bản được bật trên browser, seek timeline, kiểm tra layout.
+- `ffprobe` mọi MP4 được bật để xác nhận kích thước và duration.
 - Kiểm tra đáp án, chữ, độ đọc được và audio trên MP4 cuối.
 - Báo riêng bằng chứng: schema/test, Vbee English TTS, provider TTS, render.
 - Mock không chứng minh TTS thật.
@@ -75,7 +80,7 @@ Trước khi báo hoàn tất:
 
 ## 6. `formats.json`
 
-Ghi đường dẫn và kích thước cả hai bản vào
+Ghi đường dẫn và kích thước CHỈ các bản được bật vào
 `projects/YYYY-MM-DD_HH-MM-SS_<project-id>/artifacts/formats.json`:
 
 ```json
@@ -93,9 +98,9 @@ Ghi đường dẫn và kích thước cả hai bản vào
 }
 ```
 
-These are the two required source renders for publish packaging. The publish
-director must include both in the project's `exports/video/`; a single
-`output.mp4` from `export_bundle` does not satisfy the two-format requirement.
+The JSON above illustrates both formats enabled. Omit disabled entries. The
+publish director must include every enabled render in `exports/video/`; a single
+generic `output.mp4` does not replace the enabled named outputs.
 See [`skills/pipelines/explainer/publish-director.md`](../explainer/publish-director.md).
 
 ---
@@ -114,11 +119,11 @@ See [`skills/pipelines/explainer/publish-director.md`](../explainer/publish-dire
 
 - Dùng font hỗ trợ đầy đủ dấu tiếng Việt ở đúng weight/style; kiểm tra chuỗi có ă â ê ô ơ ư đ và dấu kép. Nạp font local hoặc font đã xác minh, không dựa vào fallback trên máy preview.
 - Trước capture/render phải chờ font tải xong (`document.fonts.ready` với HTML/browser). Xác minh font thực tế và ảnh raster tiếng Việt; chỉ khai báo font-family không đủ bằng chứng.
-- Kiểm tra mọi text container ở cả portrait và landscape, gồm tiêu đề, đề bài, labels, phụ đề và CTA. Với HTML kiểm tra scrollWidth/clientWidth và scrollHeight/clientHeight, sau đó kiểm tra ảnh thật để bắt dấu bị cắt hoặc glyph lỗi; runtime khác dùng kiểm tra bounding box tương đương.
+- Kiểm tra mọi text container ở mọi tỷ lệ được bật (portrait/landscape), gồm tiêu đề, đề bài, labels, phụ đề và CTA. Với HTML kiểm tra scrollWidth/clientWidth và scrollHeight/clientHeight, sau đó kiểm tra ảnh thật để bắt dấu bị cắt hoặc glyph lỗi; runtime khác dùng kiểm tra bounding box tương đương.
 - Chữ và dấu phải nằm trong border với padding an toàn. Sửa bằng wrap, chia trang, tăng vùng chữ hoặc giảm cỡ chữ trong giới hạn dễ đọc của playbook. Cấm dùng overflow:hidden/ellipsis để che mất nội dung hay bóp chữ méo.
 - Ghi bằng chứng font, frame/ảnh review, tỷ lệ khung hình và kết quả containment vào review/render_report. Font lỗi hoặc chữ tràn = critical: sửa source trước render; auto-approval không bỏ qua kiểm tra này.
 
 
 ## Concurrent project isolation (binding)
 
-Before media work, read `skills/pipelines/shared/project-isolation.md`. Bind all source, narration, public assets, temporary props and outputs to the exact current project. Verify audio ownership in both final aspect ratios.
+Before media work, read `skills/pipelines/shared/project-isolation.md`. Bind all source, narration, public assets, temporary props and outputs to the exact current project. Verify audio ownership in every enabled final aspect ratio.

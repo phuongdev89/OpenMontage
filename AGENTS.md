@@ -91,7 +91,7 @@ Every production task MUST execute this sequence before calling any generation t
 
 - **Lời thoại:** Không tự xưng thầy/cô hoặc vai trò người dẫn; loại bỏ toàn bộ ngôi thứ nhất số ít và số nhiều trong lời thoại do agent viết. Dùng cách nói trực tiếp với người xem hoặc câu trung tính/mệnh lệnh như "hãy cùng..."; giữ nguyên nội dung nguồn bắt buộc đọc/trích nguyên văn. Chi tiết áp dụng tại `AGENT_GUIDE.md` và skill lời thoại theo pipeline.
 - **Tốc độ lời đọc VI và EN:** Cố định tốc độ hiệu dụng ở `0.90×` so với tốc độ native `1.0×` của provider cho cả tiếng Việt và tiếng Anh. Không nhân với tốc độ cũ và không áp thêm mức giảm 10%. Với Vbee truyền rõ `speed_rate=0.90`; nếu adapter dùng `speed` thì truyền `speed=0.90`. Với VieNeu không hỗ trợ speed, tạo audio native rồi áp time-stretch giữ cao độ `atempo=0.90` đúng một lần. Audio đã ở `0.90×` phải giữ nguyên tốc độ khi compose/mix; không time-stretch lần nữa. Ghi `baseline_speed=1.0`, `target_speed=0.90`, `effective_speed=0.90` và filter thực tế trong `voice_performance.provider_settings`; nếu tái sử dụng audio phải kiểm tra metadata, không mặc định coi là native. Điều chỉnh thời lượng cảnh theo audio.
-- **Publish video toán:** `exports/video/` phải có `video-portrait.mp4` (1080×1920) và `video-landscape.mp4` (1920×1080); rà thumbnail cuối để đảm bảo không có đáp án hoặc phép giải đã hoàn tất. Theo `skills/pipelines/explainer/publish-director.md`.
+- **Publish video toán:** Đọc `skills/pipelines/shared/output-formats.md`; `.env` chọn tỷ lệ cho project mới, `project.json.output_video_formats` giữ lựa chọn khi resume. `exports/video/` chỉ bắt buộc mọi bản được bật: ngang 1920×1080, dọc 1080×1920; rà thumbnail cuối để đảm bảo không có đáp án hoặc phép giải đã hoàn tất. Theo `skills/pipelines/explainer/publish-director.md`.
 - **Với tiếng Việt:**
   - Bắt buộc kiểm tra và thử skill `vieneu-tts` (VieNeu-TTS local) trước.
   - Chỉ dùng API Vbee tiếng Việt khi VieNeu thật sự không khả dụng vì thiếu package, model hoặc runtime failure.
@@ -161,6 +161,11 @@ Khi sử dụng VieNeu-TTS cho tiếng Việt:
 
 ## 8. Visual Style Contract
 
+### Toán Olympic Cùng Con channel branding
+
+- Đọc `skills/pipelines/shared/channel-branding.md` trước assets/compose cho video kênh này. Logo gốc tại `branding/toan-olympic-cung-con/logo.png`; không thay bằng chữ hoặc vẽ lại.
+- Watermark cố định ở góc trên trái suốt video, không đổi góc. Khoảng cách từ bounding box logo tới mỗi cạnh kề không vượt 5% của chiều khung tương ứng (mặc định 2%). Chỉ logo watermark thỉnh thoảng xoay quanh trục dọc; logo credit không xoay. Lưu lịch xoay theo đúng project để render lại nhất quán.
+
 ### Full concept selection
 
 - Trước khi hỏi concept/style, đọc `skills/meta/concept-selection.md` và kiểm tra catalog hiện có. Hiển thị TOÀN BỘ concept có sẵn với tên dễ hiểu và mô tả ngắn trong danh sách chọn.
@@ -175,14 +180,14 @@ Khi sử dụng VieNeu-TTS cho tiếng Việt:
 - Remotion atelier requires explicit `bespoke.public_dir` under the current project and `--public-dir` on every render. Use project-local source and a render-specific snapshot/props path. Never silently fall back to the shared composer public directory when a directory is missing.
 - Before compose, resolve every narration path against the current project, verify file hash, script/scene identity, duration and speed metadata. Record project directory, source path and SHA-256 in the asset manifest/render report. Compare the rendered audio with that project's approved narration, including EN/VI readings; stream presence and volume alone are not sufficient.
 - Keep conversation ID/source bound to the current chat; do not borrow an ID from another checkpoint or pick the newest global conversation when runs overlap. Validate the exported transcript actually contains the current project/source problem before copying it to exports.
-- Read `skills/pipelines/shared/project-isolation.md` before assets and compose, and `skills/pipelines/shared/posting-package.md` before publish. Complete the posting package (title, YouTube description, distinct Facebook/TikTok caption, generated thumbnail and both video variants) before publish completion. Dedicated thumbnail creation uses the installed `image-generate` skill: built-in first, configured API fallback with evidence; never extract a frame from the video.
+- Read `skills/pipelines/shared/project-isolation.md` before assets and compose, and `skills/pipelines/shared/posting-package.md` before publish. Complete the posting package (title, YouTube description, distinct Facebook/TikTok caption, concept-led generated thumbnail and every enabled video variant) before publish completion. Dedicated thumbnail creation uses the installed `image-generate` skill: built-in first, configured API fallback with evidence; never extract a frame from the video.
 
 - `styles/<style_playbook>.yaml` là authority cho ngôn ngữ hình ảnh tổng thể: nền, palette, typography, hình khối, texture, shadow và motion. Storyboard đã duyệt triển khai các nguyên tắc đó theo từng cảnh; storyboard không tự động cho phép đổi playbook.
 - Trước render, đối chiếu composition source với cả playbook và storyboard đã duyệt. Kiểm tra mọi CSS rule, inline style, SVG fill/stroke, component theme và preset; không chỉ kiểm tra màu nền hoặc một frame.
 - Không tự thêm theme, font, màu nhấn hay hiệu ứng trái playbook dựa trên tên project, gu cá nhân, template/runtime mặc định hoặc artifact cũ. Chỉ dùng biến thể khi storyboard đã duyệt mô tả rõ và biến thể vẫn nằm trong giới hạn của playbook.
-- Xác minh tương phản chữ/nền và giới hạn số màu theo `quality_rules` của playbook; bảo đảm hai tỷ lệ khung hình dùng cùng visual language.
+- Xác minh tương phản chữ/nền và giới hạn số màu theo `quality_rules` của playbook; bảo đảm các tỷ lệ được bật dùng cùng visual language.
 - Nếu phát hiện lệch, sửa composition source trước khi render. Nếu cần thay đổi vượt quá playbook hoặc storyboard đã duyệt, dừng ở source draft và xin duyệt lại storyboard; không tự render để thử.
-- Sau render, kiểm tra frame đại diện ở các cảnh và cả hai tỷ lệ khung hình để xác nhận output thực sự giữ đúng style. Source-only edits không cập nhật MP4 đã publish; chỉ render lại khi người dùng yêu cầu hoặc pipeline đang ở compose với approval còn hiệu lực.
+- Sau render, kiểm tra frame đại diện ở các cảnh và mọi tỷ lệ khung hình được bật để xác nhận output thực sự giữ đúng style. Source-only edits không cập nhật MP4 đã publish; chỉ render lại khi người dùng yêu cầu hoặc pipeline đang ở compose với approval còn hiệu lực.
 
 ### Portrait-first layout rules
 
@@ -205,7 +210,7 @@ Khi sử dụng VieNeu-TTS cho tiếng Việt:
 
 - Dùng font hỗ trợ đầy đủ dấu tiếng Việt ở đúng weight/style; kiểm tra chuỗi có ă â ê ô ơ ư đ và dấu kép. Nạp font local hoặc font đã xác minh, không dựa vào fallback trên máy preview.
 - Trước capture/render phải chờ font tải xong (`document.fonts.ready` với HTML/browser). Xác minh font thực tế và ảnh raster tiếng Việt; chỉ khai báo font-family không đủ bằng chứng.
-- Kiểm tra mọi text container ở cả portrait và landscape, gồm tiêu đề, đề bài, labels, phụ đề và CTA. Với HTML kiểm tra scrollWidth/clientWidth và scrollHeight/clientHeight, sau đó kiểm tra ảnh thật để bắt dấu bị cắt hoặc glyph lỗi; runtime khác dùng kiểm tra bounding box tương đương.
+- Kiểm tra mọi text container ở mọi tỷ lệ được bật (portrait/landscape), gồm tiêu đề, đề bài, labels, phụ đề và CTA. Với HTML kiểm tra scrollWidth/clientWidth và scrollHeight/clientHeight, sau đó kiểm tra ảnh thật để bắt dấu bị cắt hoặc glyph lỗi; runtime khác dùng kiểm tra bounding box tương đương.
 - Chữ và dấu phải nằm trong border với padding an toàn. Sửa bằng wrap, chia trang, tăng vùng chữ hoặc giảm cỡ chữ trong giới hạn dễ đọc của playbook. Cấm dùng overflow:hidden/ellipsis để che mất nội dung hay bóp chữ méo.
 - Ghi bằng chứng font, frame/ảnh review, tỷ lệ khung hình và kết quả containment vào review/render_report. Font lỗi hoặc chữ tràn = critical: sửa source trước render; auto-approval không bỏ qua kiểm tra này.
 

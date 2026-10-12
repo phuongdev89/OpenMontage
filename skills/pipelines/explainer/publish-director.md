@@ -52,7 +52,7 @@ Collect everything needed for metadata:
 Describe a thumbnail that:
 1. Uses the playbook's visual style
 2. Features the video's core concept visually
-3. Includes 3-5 words of text (the hook or key stat)
+3. Builds a character/prop/setting curiosity scene; optional 3-5 word hook
 4. Has high contrast and is readable at small sizes
 5. Uses the playbook's accent colors for text
 
@@ -117,19 +117,18 @@ exports/
       concept.json          # Thumbnail concept (or the copied thumbnail image)
 ```
 
-**Math-video package requirement (binding):** Math compose produces both
-`video-portrait.mp4` and `video-landscape.mp4`, recorded in `artifacts/formats.json`.
+**Math-video package requirement (binding):** Read
+`skills/pipelines/shared/output-formats.md`. Math compose produces only enabled
+formats, recorded in `artifacts/formats.json`.
 `export_bundle` accepts only one `video_path` and writes it as `video/output.mp4`,
 so for a math project:
 
-1. Confirm both final renders exist and pass `ffprobe` using their recorded dimensions.
-2. Call `export_bundle` with the portrait render as the primary video.
-3. In that same export's `video/` directory, preserve the bundle's `output.mp4`
-   and place copies of both final renders named `video-portrait.mp4` and
-   `video-landscape.mp4`.
-4. Verify the two named files exist, are non-empty, and have dimensions
-   `1080x1920` and `1920x1080`, respectively. Do not mark publish complete if
-   either variant is missing or invalid.
+1. Confirm every enabled final render exists and passes `ffprobe`.
+2. Call `export_bundle` with an enabled render as the primary video.
+3. Copy every enabled final render into that export's `video/` directory as
+   `video-<ratio>.mp4`. Do not generate disabled formats.
+4. Verify enabled named outputs are nonempty and have the required dimensions.
+   Missing or invalid enabled variants block publish; disabled variants do not.
 
 The required directory is `projects/<project-id>/exports/video/` when the
 project follows the normal project directory convention.
@@ -174,7 +173,7 @@ Score (1-5):
 | **Export package** | Is everything a creator needs in the export directory? |
 | **Platform fit** | Is metadata tailored to the target platform? |
 
-For math projects, also verify the two final video files are present under
+For math projects, also verify every enabled final video file is present under
 `exports/video/` and that the thumbnail does not disclose the answer.
 
 If any dimension scores below 3, revise.

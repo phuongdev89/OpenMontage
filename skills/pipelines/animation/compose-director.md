@@ -1,5 +1,8 @@
 # Compose Director - Animation Pipeline
 
+Read `skills/pipelines/shared/output-formats.md` before composition: render only
+the enabled formats saved in this project marker.
+
 ## When To Use
 
 Render the animation with an emphasis on text sharpness, timing integrity, and consistent output cadence. For `image_animation` approach, this stage also includes building the composition JSON, sourcing music, running pre-render validation, and performing post-render self-review.

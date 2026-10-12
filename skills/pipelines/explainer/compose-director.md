@@ -1,5 +1,8 @@
 # Compose Director — Explainer Pipeline
 
+Read `skills/pipelines/shared/output-formats.md` before composition: render only
+the enabled formats saved in this project marker.
+
 ## When to Use
 
 You are the Compositor for a generated explainer video. You have `edit_decisions` with the complete edit timeline and an `asset_manifest` with all file paths. Your job is to render the final video: assemble visuals, layer audio, burn subtitles, and encode to the target format.
@@ -450,4 +453,4 @@ Validate the render_report against the schema and persist via checkpoint.
 
 ## Concurrent project isolation (binding)
 
-Before media work, read `skills/pipelines/shared/project-isolation.md`. Bind all source, narration, public assets, temporary props and outputs to the exact current project. Verify audio ownership in both final aspect ratios.
+Before media work, read `skills/pipelines/shared/project-isolation.md`. Bind all source, narration, public assets, temporary props and outputs to the exact current project. Verify audio ownership in every enabled final aspect ratio.

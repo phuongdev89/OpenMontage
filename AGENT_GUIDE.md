@@ -220,11 +220,11 @@ All math problem-solving videos MUST also follow the full rule set in:
 
 **[`skills/pipelines/math/pedagogy-rules.md`](skills/pipelines/math/pedagogy-rules.md)** — 7 sư phạm nguyên tắc, ví dụ đạt/chưa đạt, `teachingAid` design, `requiresIllustration` / `needsIllustration`, rà soát trước TTS.
 
-**[`skills/pipelines/math/compose-director.md`](skills/pipelines/math/compose-director.md)** — hai video bắt buộc (portrait 1080×1920 + landscape 1920×1080), layout, audio dùng chung, `formats.json`, kiểm tra sau render.
+**[`skills/pipelines/math/compose-director.md`](skills/pipelines/math/compose-director.md)** — các tỷ lệ được bật qua `.env` và lưu tại `project.json.output_video_formats`, layout, audio dùng chung, `formats.json`, kiểm tra sau render.
 
-**Publish rules:** Math project phải có hai video trong `exports/video/` và thumbnail không lộ đáp án; áp dụng publisher tương ứng với manifest: [`explainer`](skills/pipelines/explainer/publish-director.md) hoặc [`animation`](skills/pipelines/animation/publish-director.md).
+**Publish rules:** Math project phải có mọi bản được bật trong `exports/video/` theo `skills/pipelines/shared/output-formats.md` và thumbnail không lộ đáp án; áp dụng publisher tương ứng với manifest: [`explainer`](skills/pipelines/explainer/publish-director.md) hoặc [`animation`](skills/pipelines/animation/publish-director.md).
 
-**Concurrent runs:** Read [`project-isolation`](skills/pipelines/shared/project-isolation.md) before assets/compose. Use exact project directories, project-local source/public assets and unique render props. Never overwrite shared narration/source files. Review audio ownership in both ratios and bind conversation exports to the correct chat.
+**Concurrent runs:** Read [`project-isolation`](skills/pipelines/shared/project-isolation.md) before assets/compose. Use exact project directories, project-local source/public assets and unique render props. Never overwrite shared narration/source files. Review audio ownership in every enabled ratio and bind conversation exports to the correct chat.
 
 **Posting handoff:** Before publish, read [`posting-package`](skills/pipelines/shared/posting-package.md). Store a strong, accurate title, complete YouTube description, distinct Facebook/TikTok caption and dedicated image-generate thumbnail in `publish_log.metadata.posting_package`. Built-in image generation is first; the skill's configured API is fallback. Do not extract video frames for posting thumbnails. Backlot shows the published package and copyable local paths with portrait/landscape tabs.
 
@@ -715,6 +715,12 @@ Tool rules:
 
 ## Style Playbooks
 
+For Toán Olympic Cùng Con channel videos, read
+[`channel-branding`](skills/pipelines/shared/channel-branding.md) before assets
+and compose. Use the supplied original logo as a watermark fixed at top-left;
+the gap to each adjacent edge must never exceed 5% (default 2%). Save the corner
+schedule per project and include it in final render QA.
+
 | Playbook | Best For |
 |----------|----------|
 | `clean-professional` | Corporate, educational, SaaS |
@@ -731,7 +737,7 @@ The selected `styles/<style_playbook>.yaml` is the authority for the composition
 
 Before rendering, audit the complete composition source against both artifacts. Inspect global and scene-level CSS, inline styles, SVG fills/strokes, component themes, and runtime presets. Verify typography, every foreground/background pairing, color contrast, color-count limits, shadow/gradient/texture use, motion treatment, and consistency between portrait and landscape. A matching background alone is not a pass. Do not infer a dark, neon, branded, or other theme from a project name, template, renderer default, or older artifact.
 
-Fix source-level deviations before render. If compliance would require changing the approved visual direction, stop and obtain storyboard approval before rendering. After an approved render, inspect representative frames across scenes and both aspect ratios for actual style fidelity. A source-only correction does not change an already published MP4; rerender only when the user requests it or the active compose stage has valid approval.
+Fix source-level deviations before render. If compliance would require changing the approved visual direction, stop and obtain storyboard approval before rendering. After an approved render, inspect representative frames across scenes and every enabled aspect ratio for actual style fidelity. A source-only correction does not change an already published MP4; rerender only when the user requests it or the active compose stage has valid approval.
 
 ### Hand-drawn "doodle" animation → Ink Theater / Ink Puppet
 
@@ -821,7 +827,7 @@ The `.agents/skills/` directory is large. When you're not coming in through a to
 
 - Dùng font hỗ trợ đầy đủ dấu tiếng Việt ở đúng weight/style; kiểm tra chuỗi có ă â ê ô ơ ư đ và dấu kép. Nạp font local hoặc font đã xác minh, không dựa vào fallback trên máy preview.
 - Trước capture/render phải chờ font tải xong (`document.fonts.ready` với HTML/browser). Xác minh font thực tế và ảnh raster tiếng Việt; chỉ khai báo font-family không đủ bằng chứng.
-- Kiểm tra mọi text container ở cả portrait và landscape, gồm tiêu đề, đề bài, labels, phụ đề và CTA. Với HTML kiểm tra scrollWidth/clientWidth và scrollHeight/clientHeight, sau đó kiểm tra ảnh thật để bắt dấu bị cắt hoặc glyph lỗi; runtime khác dùng kiểm tra bounding box tương đương.
+- Kiểm tra mọi text container ở mọi tỷ lệ được bật (portrait/landscape), gồm tiêu đề, đề bài, labels, phụ đề và CTA. Với HTML kiểm tra scrollWidth/clientWidth và scrollHeight/clientHeight, sau đó kiểm tra ảnh thật để bắt dấu bị cắt hoặc glyph lỗi; runtime khác dùng kiểm tra bounding box tương đương.
 - Chữ và dấu phải nằm trong border với padding an toàn. Sửa bằng wrap, chia trang, tăng vùng chữ hoặc giảm cỡ chữ trong giới hạn dễ đọc của playbook. Cấm dùng overflow:hidden/ellipsis để che mất nội dung hay bóp chữ méo.
 - Ghi bằng chứng font, frame/ảnh review, tỷ lệ khung hình và kết quả containment vào review/render_report. Font lỗi hoặc chữ tràn = critical: sửa source trước render; auto-approval không bỏ qua kiểm tra này.
 

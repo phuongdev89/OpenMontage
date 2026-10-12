@@ -31,16 +31,32 @@ follow the skill's configured API fallback and record the exact reason. Do not
 use image_selector as a replacement for this routing. Never extract a video frame
 or use a screenshot as the posting thumbnail.
 
-Generate a dedicated hook image under `exports/thumbnails/`, consistent with the
-approved playbook. One focal puzzle, high contrast, large 3–5 word hook, readable
-at mobile size. Keep true numbers/units and the challenge; never reveal the answer
-or completed solution. Inspect the actual image before passing review. Generation
+Generate a dedicated concept-led narrative image under `exports/thumbnails/`,
+consistent with the approved playbook's visual language. Start from the concept,
+character, relevant prop, setting and an unresolved action/emotion. The thumbnail
+is a curiosity scene, not a miniature lesson slide: do not reproduce the full
+problem, equations, diagrams, answer options or a dense data table. Numbers and
+units are optional; if used they must be accurate. A short 3–5 word hook is
+optional, never mandatory when the scene tells the story clearly.
+
+Example for `2026-10-12_16-49-11_amo-2022-grade2-q21-rope`: Louis holds a coil
+of rope in a coherent garden shed, barn or orchard scene, looking curious. A
+simple thought bubble shows three rope pieces and a length question mark.
+Use the approved character appearance/reference when available. Do not put the
+solution or all problem text into the bubble. Choose one believable setting,
+not a collage of all settings. Preserve the mathematical premise without turning
+decorative details into fabricated conditions of the source problem.
+
+Record the exact prompt, concept, character/reference, setting and review.
+Review the actual image at mobile size: concept fidelity, clear character/prop,
+coherent scene, curiosity, readable optional text, factual accuracy and no answer
+leak. Avoid generic worksheet/card layouts. Generation
 requires the project's valid publish approval or recorded auto-authorization.
 Generation failure is an incomplete package; do not silently use a frame.
 
-Both final videos belong under `exports/video/video-portrait.mp4` and
-`exports/video/video-landscape.mp4`. Verify existence, size, dimensions and audio
-ownership. Backlot derives the tab previews and copyable absolute paths from these
+Read `skills/pipelines/shared/output-formats.md`. Only enabled final videos belong
+under `exports/video/video-<ratio>.mp4`. Verify existence, size, dimensions and audio
+ownership for each enabled format. Backlot derives tab previews and paths from these
 files. Metadata stays project-specific; do not reuse another project's log.
 
 Example:

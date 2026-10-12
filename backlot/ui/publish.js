@@ -1,11 +1,14 @@
 import {el, mediaURL} from '/ui/lib.js';
 
 let selectedRatio = 'portrait';
+// Keep pending requests across the board's SSE-driven DOM replacements.
+const copyRequests = new Map();
+const copyViews = new Map();
 
 function copyField(label, value, regenerate = null) {
   const button = el('button', {type: 'button', disabled: value ? null : '', onclick: async () => {
     try {
-      await navigator.clipboard.writeText(value);
+      await navigator.clipboard.writeText(field.value);
       button.textContent = 'Đã sao chép';
     } catch {
       field.focus(); field.select();
@@ -14,7 +17,28 @@ function copyField(label, value, regenerate = null) {
   }}, 'Sao chép');
   const field = el('textarea', {readonly: '', rows: label.includes('path') ? '2' : '4', 'aria-label': label}, value || 'Chưa có nội dung');
   const actions = el('div', {class: 'posting-actions'}, button);
-  if (regenerate) actions.append(el('button', {type: 'button', onclick: regenerate.run}, regenerate.label));
+  if (regenerate) {
+    const key = `${regenerate.projectId}:${regenerate.field}`;
+    const retry = el('button', {type: 'button', onclick: () => {
+      if (!copyRequests.get(key)?.busy) openCopyDialog(regenerate.projectId, regenerate.field, regenerate.package, regenerate.onUpdated);
+    }}, regenerate.label);
+    const status = el('p', {role: 'alert', hidden: ''});
+    const update = (request) => {
+      retry.disabled = !!request?.busy;
+      retry.setAttribute('aria-busy', String(!!request?.busy));
+      retry.classList.toggle('copy-busy', !!request?.busy);
+      status.textContent = request?.error || '';
+      status.hidden = !request?.error;
+      if (request?.content != null) {
+        field.value = request.content; button.disabled = false;
+        regenerate.package[regenerate.field] = request.content;
+        regenerate.package.revisions[regenerate.field] = request.revision;
+      }
+    };
+    copyViews.set(key, update);
+    update(copyRequests.get(key));
+    actions.append(retry, status);
+  }
   return el('div', {class: 'posting-field'}, el('div', {class: 'posting-label'}, el('strong', {}, label), actions), field);
 }
 
@@ -23,36 +47,41 @@ function openCopyDialog(projectId, field, p, onUpdated) {
   const dialog = el('dialog', {class: 'copy-dialog', 'aria-labelledby': 'copy-dialog-title'});
   const input = el('textarea', {id: 'copy-instruction', rows: '6', maxlength: '4000', placeholder: 'Ví dụ: mở đầu bằng câu hỏi gây tò mò, viết ngắn hơn và thêm lời mời bình luận.'});
   const status = el('p', {role: 'status', 'aria-live': 'polite'});
-  const result = el('textarea', {readonly: '', rows: '8', 'aria-label': 'Nội dung mới đã lưu', hidden: ''});
   const submit = el('button', {type: 'button'}, 'Tạo lại');
   const close = el('button', {type: 'button', onclick: () => dialog.close()}, 'Đóng');
-  let busy = false;
-  dialog.addEventListener('cancel', e => { if (busy) e.preventDefault(); });
   dialog.addEventListener('close', () => dialog.remove());
   submit.addEventListener('click', async () => {
     const instruction = input.value.trim();
     if (!instruction) { status.textContent = 'Hãy nhập yêu cầu chỉnh sửa.'; input.focus(); return; }
-    busy = true; submit.disabled = true; close.disabled = true; input.disabled = true;
-    status.textContent = 'AI đang tạo nội dung…';
+    const key = `${projectId}:${field}`;
+    if (copyRequests.get(key)?.busy) return;
+    const expectedRevision = p.revisions[field];
+    const request = {busy: true};
+    copyRequests.set(key, request);
+    copyViews.get(key)?.(request);
+    dialog.close();
     try {
       const response = await fetch(`/api/project/${encodeURIComponent(projectId)}/posting-copy/regenerate`, {
         method: 'POST', headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({field, instruction, expected_revision: p.revisions[field]}),
+        body: JSON.stringify({field, instruction, expected_revision: expectedRevision}),
       });
       const data = await response.json();
       if (!response.ok) throw new Error(typeof data.detail === 'string' ? data.detail : 'Yêu cầu không hợp lệ. Hãy tải lại trang rồi thử lại.');
       p[field] = data.content; p.revisions[field] = data.revision;
-      result.value = data.content; result.hidden = false;
-      status.textContent = 'Đã tạo và lưu nội dung mới cho project này.';
+      request.content = data.content; request.revision = data.revision;
+      copyViews.get(key)?.(request);
       if (onUpdated) await onUpdated();
     } catch (error) {
-      status.textContent = error.message || 'Không gửi được yêu cầu. Hãy thử lại.';
+      request.error = error.message || 'Không gửi được yêu cầu. Hãy thử lại.';
     } finally {
-      busy = false; submit.disabled = false; close.disabled = false; input.disabled = false;
+      request.busy = false;
+      copyViews.get(key)?.(request);
+      // Successful content is persisted on the server, not a client override.
+      if (!request.error) copyRequests.delete(key);
     }
   });
   dialog.append(el('h2', {id: 'copy-dialog-title'}, `Tạo lại ${label}`),
-    el('label', {for: 'copy-instruction'}, 'Yêu cầu chỉnh sửa'), input, status, result,
+    el('label', {for: 'copy-instruction'}, 'Yêu cầu chỉnh sửa'), input, status,
     el('div', {class: 'posting-actions'}, close, submit));
   document.body.append(dialog); dialog.showModal(); input.focus();
 }
@@ -63,8 +92,8 @@ export function renderPublishPackage(s, projectId, onUpdated = null) {
   const section = el('section', {class: 'posting-package', 'aria-label': 'Hỗ trợ đăng video'},
     el('h2', {}, 'Hỗ trợ đăng video'),
     copyField('Tiêu đề video', p.title),
-    copyField('Description · YouTube', p.description, {label: 'Tạo lại description', run: () => openCopyDialog(projectId, 'description', p, onUpdated)}),
-    copyField('Caption · Facebook / TikTok', p.caption, {label: 'Tạo lại caption', run: () => openCopyDialog(projectId, 'caption', p, onUpdated)}));
+    copyField('Description · YouTube', p.description, {label: 'Tạo lại description', projectId, field: 'description', package: p, onUpdated}),
+    copyField('Caption · Facebook / TikTok', p.caption, {label: 'Tạo lại caption', projectId, field: 'caption', package: p, onUpdated}));
   if (p.copy_warning) section.append(el('p', {role: 'alert'}, p.copy_warning));
   const thumbnails = el('div', {class: 'posting-thumbnails'});
   for (const thumb of p.thumbnails || []) {

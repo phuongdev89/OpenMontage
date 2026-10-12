@@ -174,6 +174,21 @@ class VideoCompose(BaseTool):
                     },
                 },
             },
+            "corner_watermark": {
+                "type": "object",
+                "description": "Overlay operation: channel logo in one fixed corner (top-left default), max 5% edge inset. Use project-local logo and save the rotation seed.",
+                "required": ["asset_path", "width", "height", "duration", "seed"],
+                "properties": {
+                    "asset_path": {"type": "string"},
+                    "width": {"type": "integer"}, "height": {"type": "integer"},
+                    "duration": {"type": "number"}, "seed": {"type": "string"},
+                    "corner": {"type": "string", "enum": ["top-left", "top-right", "bottom-left", "bottom-right"], "default": "top-left"},
+                    "interval": {"type": "number", "default": 8},
+                    "inset": {"type": "number", "minimum": 0, "maximum": 0.05, "default": 0.02},
+                    "size": {"type": "number", "default": 0.10},
+                    "opacity": {"type": "number", "default": 0.55}
+                }
+            },
             "audio_path": {"type": "string", "description": "Mixed audio to mux into output"},
             "profile": {
                 "type": "string",
@@ -339,6 +354,9 @@ class VideoCompose(BaseTool):
         start = time.time()
 
         try:
+            if inputs.get('output_path'):
+                from lib.output_formats import validate_output_destination
+                validate_output_destination(inputs['output_path'])
             isolation_error = self._validate_project_media(inputs)
             if isolation_error:
                 return ToolResult(success=False, error=isolation_error)
@@ -2790,6 +2808,11 @@ class VideoCompose(BaseTool):
         """Composite overlay images/videos on top of base video."""
         input_path = Path(inputs["input_path"])
         overlays = inputs.get("overlays", [])
+        watermark_plan = None
+        if inputs.get('corner_watermark'):
+            from lib.channel_watermark import plan_corner_watermark
+            watermark_plan = plan_corner_watermark(**inputs['corner_watermark'])
+            overlays = [*overlays, *watermark_plan['segments']]
         output_path = Path(inputs.get("output_path", str(input_path.with_stem(f"{input_path.stem}_overlay"))))
         codec = inputs.get("codec", "libx264")
         crf = inputs.get("crf", 23)
@@ -2816,6 +2839,8 @@ class VideoCompose(BaseTool):
             start = ov.get("start_seconds", 0)
             end = ov.get("end_seconds")
             opacity = ov.get("opacity", 1.0)
+            if not 0 < opacity <= 1:
+                return ToolResult(success=False, error="Overlay opacity must be greater than 0 and at most 1")
 
             overlay_input = f"{i + 1}:v"
 
@@ -2826,8 +2851,12 @@ class VideoCompose(BaseTool):
                 filter_parts.append(f"[{overlay_input}]scale={w}:{h}[ov_scaled_{i}]")
                 overlay_input = f"ov_scaled_{i}"
 
+            if opacity < 1:
+                filter_parts.append(f"[{overlay_input}]format=rgba,colorchannelmixer=aa={opacity}[ov_alpha_{i}]")
+                overlay_input = f"ov_alpha_{i}"
+
             # Build enable expression for timed overlays
-            enable = f"between(t,{start},{end})" if end else f"gte(t,{start})"
+            enable = f"gte(t,{start})*lt(t,{end})" if end is not None else f"gte(t,{start})"
             out_label = f"v{i}"
 
             filter_parts.append(
@@ -2846,14 +2875,20 @@ class VideoCompose(BaseTool):
 
         self.run_command(cmd)
 
+        plan_path = None
+        if watermark_plan is not None:
+            plan_path = output_path.with_suffix('.watermark.json')
+            plan_path.write_text(json.dumps(watermark_plan, ensure_ascii=False, indent=2), encoding='utf-8')
+
         return ToolResult(
             success=True,
             data={
                 "operation": "overlay",
                 "overlay_count": len(overlays),
                 "output": str(output_path),
+                "watermark_plan": str(plan_path) if plan_path else None,
             },
-            artifacts=[str(output_path)],
+            artifacts=[str(output_path), *([str(plan_path)] if plan_path else [])],
         )
 
     def _encode(self, inputs: dict[str, Any]) -> ToolResult:

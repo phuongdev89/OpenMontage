@@ -43,22 +43,21 @@ Store in `publish_log.metadata`:
 When the project is a math video and its compose artifacts include
 `artifacts/formats.json`:
 
-- Ensure the project's `exports/video/` contains both final renders as
-  `video-portrait.mp4` (1080x1920) and `video-landscape.mp4` (1920x1080).
-  Copy them from the paths recorded in `formats.json`; verify both files exist,
+- Read `skills/pipelines/shared/output-formats.md`. Ensure `exports/video/`
+  contains every enabled `video-<ratio>.mp4` from `formats.json`; verify they exist,
   are non-empty, and pass `ffprobe` dimension checks before completing publish.
 - The final thumbnail must not reveal the answer in either `answer` or
   `guided` mode. Do not use the answer value, a completed solving equation,
   a circled result, or a frame from an answer-reveal scene. Inspect the actual
   image, or review the thumbnail concept if no image was generated; revise any
   answer-revealing element before publishing.
-- Do not mark publish complete if either video variant is missing or the
+- Do not mark publish complete if any enabled video variant is missing or the
   thumbnail reveals the answer.
 
 ## Common Pitfalls
 
 - Writing generic metadata that ignores the animation style.
-- Creating a thumbnail concept unrelated to the final frames.
+- Creating a thumbnail unrelated to the concept, or copying the problem into a worksheet-like thumbnail.
 - Mixing platform variants without clear labels.
 
 ---
@@ -73,4 +72,4 @@ Approval is per-gate — an earlier "go ahead" does not cover this gate.
 
 ## Posting package (binding)
 
-Before completing publish, read `skills/pipelines/shared/posting-package.md`. Produce the title, full YouTube description, distinct Facebook/TikTok caption, dedicated image-generate thumbnail and both final video variants for Backlot. No video-frame thumbnails.
+Before completing publish, read `skills/pipelines/shared/posting-package.md`. Produce the title, full YouTube description, distinct Facebook/TikTok caption, concept-led dedicated image-generate thumbnail and every enabled final video variant for Backlot. No video-frame thumbnails.

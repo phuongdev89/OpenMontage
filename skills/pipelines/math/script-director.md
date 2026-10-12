@@ -225,4 +225,4 @@ Lời giải đầy đủ lưu trong `projects/YYYY-MM-DD_HH-MM-SS_<project-id>/
 - Persona + voiceText encoding: [`voice-text-rules.md`](voice-text-rules.md)
 - Sư phạm toán + teachingAid: [`pedagogy-rules.md`](pedagogy-rules.md) *(sẽ bổ sung)*
 - Audit độc lập: xem mục "Duyệt lời giải và audit" *(sẽ bổ sung trong workflow-director.md)*
-- Render hai video: xem mục "Hai video bắt buộc" *(sẽ bổ sung trong compose-director.md)*
+- Render các tỷ lệ được bật: xem [`compose-director.md`](compose-director.md) và `skills/pipelines/shared/output-formats.md`.

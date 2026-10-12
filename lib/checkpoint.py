@@ -234,6 +234,8 @@ def init_project(
     Returns the project directory.
     """
     _validate_style_playbook(style_playbook)
+    from lib.output_formats import configured_output_formats
+    output_formats = configured_output_formats()
     base = pipeline_dir or PROJECTS_DIR
     ts = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     project_dir = base / f"{ts}_{project_id}"
@@ -258,6 +260,7 @@ def init_project(
 
     marker.setdefault("version", "1.0")
     marker.setdefault("created_at", datetime.now(timezone.utc).isoformat())
+    marker.setdefault("output_video_formats", output_formats)
     marker["project_id"] = project_id
     marker["title"] = title
     marker["pipeline_type"] = pipeline_type

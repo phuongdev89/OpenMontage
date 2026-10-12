@@ -1,0 +1,16 @@
+{
+  "name": "Toán Olympic Cùng Con",
+  "logo": "logo.png",
+  "credit_seconds": 3,
+  "watermark": {
+    "enabled": true,
+    "asset": "logo.png",
+    "corner": "top-left",
+    "edge_inset_fraction": 0.02,
+    "maximum_edge_inset_fraction": 0.05,
+    "size_fraction_of_short_edge": 0.10,
+    "opacity": 0.55,
+    "movement": "fixed",
+    "rotation": {"axis": "y", "degrees": 360, "duration_seconds": 1.2, "frequency": "occasional"}
+  }
+}

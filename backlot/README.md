@@ -6,7 +6,9 @@ After publish, the posting section has **Tạo lại caption** and
 **Tạo lại description**. Enter a revision request in the dialog and click
 **Tạo lại**. The server calls the configured `AI_CHAT_URL`, `AI_CHAT_KEY` and
 `AI_CHAT_MODEL` using `/chat/completions`, then saves the successful response in
-that project's `artifacts/posting_copy.json`. The dialog shows the saved result;
+that project's `artifacts/posting_copy.json`. Submission closes the dialog;
+the field's button spins until completion and the saved result fills its textarea.
+Failures appear beside that button and preserve the previous text;
 refreshing the board preserves it. Previous versions and revision instructions
 are retained in the file's history.
 

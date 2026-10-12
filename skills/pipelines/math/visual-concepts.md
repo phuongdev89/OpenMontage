@@ -223,4 +223,4 @@ Nếu sửa `templateData.objects` hoặc `teachingAid` → phải audit lại.
 - Playbook files: `styles/math-*.yaml`
 - TeachingAid design: [`pedagogy-rules.md`](pedagogy-rules.md) mục 6
 - Phase sequence: [`script-director.md`](script-director.md)
-- Render hai video: [`compose-director.md`](compose-director.md)
+- Render các tỷ lệ được bật theo `.env`/project marker: [`compose-director.md`](compose-director.md)

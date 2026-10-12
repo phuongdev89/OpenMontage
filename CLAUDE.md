@@ -230,7 +230,7 @@ All math problem-solving videos must also follow:
 - **[`skills/pipelines/math/pedagogy-rules.md`](skills/pipelines/math/pedagogy-rules.md)**
   — 7 pedagogy principles, pass/fail examples, `teachingAid` design.
 - **[`skills/pipelines/math/compose-director.md`](skills/pipelines/math/compose-director.md)**
-  — two mandatory videos (portrait + landscape), shared audio, post-render checks.
+  — enabled video formats from `.env`, frozen in `project.json.output_video_formats`, shared audio, post-render checks.
 - **[`skills/pipelines/math/creator-review.md`](skills/pipelines/math/creator-review.md)**
   — internal review: full solution + audit in chat before TTS/render.
 - **[`skills/pipelines/math/visual-concepts.md`](skills/pipelines/math/visual-concepts.md)**
