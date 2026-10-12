@@ -2,17 +2,15 @@
 
 Start here. This is the complete operating guide and agent contract for OpenMontage.
 
-## First production question — approval mode
+## Approval configuration per stage
 
-Before any work on a NEW video task, ask only the three options in
-`skills/meta/approval-mode.md`: **Duyệt thủ công toàn bộ (khuyến nghị)**,
-**Duyệt mỗi concept, còn đâu tự động hoàn toàn**, **Tự động hoàn toàn**.
-Wait for selection before onboarding, any other question, research, preflight,
-init or artifact/provider work. Persist with `lib.checkpoint.set_approval_mode()`
-after init. Resume uses the stored project mode. This overrides later default
-ask/pause instructions: manual_all waits at every stage; concept_only waits only
-for the exact concept; full_auto chooses the concept and proceeds through publish.
-Read the mode skill for concept evidence and unchanged verification duties.
+Không hỏi 3 chế độ duyệt khi bắt đầu task mới. Đọc `skills/meta/approval-mode.md`.
+`NEED_APPROVE_<STAGE>=true` chờ duyệt stage; `false` tự tiếp tục sau review.
+`.env` ghi đè `.env.example`; stage không có cấu hình mặc định cần duyệt.
+`init_project()` lưu snapshot vào project.json. Resume dùng snapshot/quyền cũ;
+không tự áp cấu hình mới lên project đang có. Snapshot per-stage ưu tiên hơn
+manifest và chỉ dẫn chờ duyệt mặc định; không bỏ schema, chất lượng, predecessor,
+provider routing hoặc nghĩa vụ xuất hội thoại. Không tự đặt human_approved=True.
 
 For architecture, key files, and conventions see [`PROJECT_CONTEXT.md`](PROJECT_CONTEXT.md).
 
@@ -661,7 +659,7 @@ The reviewer is a meta skill (`skills/meta/reviewer.md`) — advisory, never dir
 
 The checkpoint protocol meta skill (`skills/meta/checkpoint-protocol.md`) teaches the agent when to pause:
 
-- Read `human_approval_default` from the pipeline manifest per stage. **The manifest value defines which stages are gated.** `lib.checkpoint.py` enforces each gate unless the current project has an explicit auto-approval authorization recorded by `authorize_auto_approval()`.
+- Read `human_approval_default` from the pipeline manifest per stage. **New projects use saved NEED_APPROVE stage settings; legacy projects retain manifest/mode gates.** `lib.checkpoint.py` enforces each gate unless the current project has an explicit auto-approval authorization recorded by `authorize_auto_approval()`.
 - Typical gated stages: `idea`/`proposal`, `script`, `scene_plan`, **`assets`** (review the generated assets scene-by-scene — the Backlot board's filmstrip — before compose locks them in), and `publish` where the pipeline has one. Most pipelines auto-proceed on `edit` and `compose`, but not all (documentary-montage gates `edit`) — the manifest you loaded is the only authority.
 - When approval is required and no project auto-authorization exists: write the checkpoint as `awaiting_human`, present artifact summary, review findings, and cost snapshot — then **END YOUR TURN**. Doing further pipeline work in the same response is a gate violation.
 - **Approval is per-gate.** An early "go ahead" never covers later gates. Full-run pre-authorization must use `authorize_auto_approval()` and is recorded in the project marker; do not infer it from a general request to make the video.

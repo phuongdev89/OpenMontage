@@ -7,26 +7,15 @@
 
 ## 1. Mandatory Startup Checklist
 
-### First question before production work
+## Approval configuration per stage
 
-Ngay khi nhận task sản xuất video MỚI, câu hỏi đầu tiên chỉ gồm:
-1. **Duyệt thủ công toàn bộ (khuyến nghị)**
-2. **Duyệt mỗi concept, còn đâu tự động hoàn toàn**
-3. **Tự động hoàn toàn**
-
-Chờ câu trả lời trực tiếp trước onboarding, hỏi lớp/solutionMode/concept/runtime,
-research, preflight, init, tạo artifact hoặc gọi provider. Không coi option chọn
-sẵn là câu trả lời. Sau lựa chọn mới thực hiện checklist dưới đây. Đọc
-`skills/meta/approval-mode.md`; dùng `set_approval_mode()` sau init để lưu mode
-và nguyên văn lựa chọn cho project. Resume dùng mode đã lưu, không hỏi lại hoặc
-kế thừa quyền project khác. Sửa code/quy tắc không tự bật mode cho project đang có.
-
-`manual_all` chờ duyệt mọi stage, kể cả manifest mặc định không gated.
-`concept_only` chỉ chờ chọn/duyệt concept từ catalog đầy đủ; ghi bằng
-`record_concept_approval()` rồi tự động mọi bước khác. Concept thay đổi phải duyệt
-lại. `full_auto` tự chọn concept phù hợp và tự chạy cả publish. Các mode tự động
-ưu tiên hơn quy tắc hỏi preference ban đầu/chờ duyệt stage; review, schema,
-checkpoint, chất lượng và ràng buộc cụ thể của user vẫn bắt buộc.
+Không hỏi 3 chế độ duyệt khi bắt đầu task mới. Đọc `skills/meta/approval-mode.md`.
+`NEED_APPROVE_<STAGE>=true` chờ duyệt stage; `false` tự tiếp tục sau review.
+`.env` ghi đè `.env.example`; stage không có cấu hình mặc định cần duyệt.
+`init_project()` lưu snapshot vào project.json. Resume dùng snapshot/quyền cũ;
+không tự áp cấu hình mới lên project đang có. Snapshot per-stage ưu tiên hơn
+manifest và chỉ dẫn chờ duyệt mặc định; không bỏ schema, chất lượng, predecessor,
+provider routing hoặc nghĩa vụ xuất hội thoại. Không tự đặt human_approved=True.
 
 Every production task MUST execute this sequence before calling any generation tools or creating media:
 
@@ -55,7 +44,7 @@ Every production task MUST execute this sequence before calling any generation t
 ## 3. Human Approval & Gate Protocol
 
 - **Lựa chọn tùy chọn ban đầu** (chọn lớp toán, `solutionMode`, visual concept, hay render runtime) **chỉ là user preference, KHÔNG PHẢI stage approval.**
-- Lựa chọn mode ở câu hỏi đầu tiên là chỉ thị duyệt của project. Concept_only lưu bằng chứng chọn/duyệt concept riêng; không biến nó thành human approval của mọi stage. Xem `skills/meta/approval-mode.md`.
+- Snapshot NEED_APPROVE theo stage là cấu hình duyệt của project mới; các mode cũ chỉ giữ cho resume. Concept_only lưu bằng chứng chọn/duyệt concept riêng; không biến nó thành human approval của mọi stage. Xem `skills/meta/approval-mode.md`.
 - Khi người dùng nói rõ **“cho phép tự động duyệt”** cho project hiện tại, gọi `lib.checkpoint.authorize_auto_approval()` sau `init_project()` và trước khi tiếp tục pipeline, lưu nguyên văn chỉ thị. Quyền này áp dụng cho mọi gate còn lại của đúng project đó, kể cả sau khi resume; không áp dụng cho project khác. Người dùng có thể thu hồi bằng `revoke_auto_approval()`.
 - Auto-authorization cho phép tiếp tục qua gate mà không hỏi lại, nhưng **không phải human approval**: checkpoint gated vẫn ghi `human_approval_required: true`, `human_approved: false` và `approval_resolution.type: "auto_authorized"` cùng chỉ thị nguồn. Không tự đổi `human_approved` thành `true`.
 - Ngoại lệ này ưu tiên hơn chỉ dẫn chờ duyệt trong stage director, sample review và checklist; review, schema validation, thứ tự stage, checkpoint và các ràng buộc cụ thể của người dùng vẫn bắt buộc. Bao gồm gate `publish` trong phạm vi task đã được yêu cầu. Nếu stage đang `awaiting_human`, review rồi ghi lại `completed` qua writer trước khi chạy downstream. Không bật chế độ cho project khi người dùng chỉ đang yêu cầu sửa quy tắc này.

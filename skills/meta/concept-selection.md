@@ -6,7 +6,7 @@ Read the project mode from `skills/meta/approval-mode.md` first. full_auto inspe
 the complete catalog, selects a suitable concept and logs why without asking.
 concept_only shows the full list and records explicit concept approval through
 `record_concept_approval()`. manual_all uses the full selection UI and retains
-per-stage approval. A new task must first receive the user's approval-mode answer.
+per-stage approval. New tasks use saved NEED_APPROVE_PROPOSAL/IDEA settings, without a mode question.
 
 - Discover the current catalog from the relevant concept reference, pipeline
   `compatible_playbooks`, and installed style playbooks (including custom entries).

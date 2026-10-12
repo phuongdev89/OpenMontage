@@ -236,6 +236,9 @@ def init_project(
     _validate_style_playbook(style_playbook)
     from lib.output_formats import configured_output_formats
     output_formats = configured_output_formats()
+    from lib.approval_config import configured_stage_approvals
+    configured_policy = configured_stage_approvals(pipeline_type)
+    configured_policy["authorized_at"] = datetime.now(timezone.utc).isoformat()
     base = pipeline_dir or PROJECTS_DIR
     ts = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     project_dir = base / f"{ts}_{project_id}"
@@ -261,6 +264,7 @@ def init_project(
     marker.setdefault("version", "1.0")
     marker.setdefault("created_at", datetime.now(timezone.utc).isoformat())
     marker.setdefault("output_video_formats", output_formats)
+    marker.setdefault("approval_policy", configured_policy)
     marker["project_id"] = project_id
     marker["title"] = title
     marker["pipeline_type"] = pipeline_type
@@ -556,7 +560,14 @@ def _enforce_stage_prerequisites(
         if checkpoint.get("status") != "completed":
             incomplete.append(predecessor)
             continue
-        if (_stage_requires_approval(pipeline_type, predecessor) or checkpoint.get('human_approval_required')) and not checkpoint.get(
+        predecessor_gate = bool(_stage_requires_approval(pipeline_type, predecessor) or checkpoint.get('human_approval_required'))
+        if auto_policy and auto_policy.get('execution_mode') == 'stage_config':
+            saved = (auto_policy.get('stage_approvals') or {}).get(predecessor)
+            if type(saved) is not bool:
+                unapproved.append(predecessor)
+                continue
+            predecessor_gate = saved
+        if predecessor_gate and not checkpoint.get(
             "human_approved"
         ):
             resolution = checkpoint.get("approval_resolution", {})
@@ -694,6 +705,14 @@ def write_checkpoint(
             style_playbook = marker["style_playbook"]
     auto_policy = _auto_approval_policy(marker)
     execution_mode = (marker.get('approval_policy') or {}).get('execution_mode') if isinstance(marker, dict) else None
+    configured_gate = None
+    if execution_mode == 'stage_config':
+        policy = marker['approval_policy']
+        approvals = policy.get('stage_approvals')
+        if not isinstance(approvals, dict) or type(approvals.get(stage)) is not bool:
+            raise CheckpointValidationError(f'Invalid or missing saved approval setting for {stage!r}.')
+        configured_gate = approvals[stage]
+        auto_policy = None if configured_gate else policy
     if execution_mode == 'concept_only' and auto_policy and not _concept_auto_allowed(marker, stage, artifacts, project_dir):
         auto_policy = None
     _validate_style_playbook(style_playbook)
@@ -720,11 +739,16 @@ def write_checkpoint(
     gated = (bool(manifest_gate) or human_approval_required or execution_mode == 'manual_all'
              or (execution_mode == 'concept_only' and
                  (stage in {'proposal', 'idea'} or (stage != 'research' and not auto_policy))))
+    if configured_gate is not None:
+        gated = configured_gate
+        human_approval_required = configured_gate
     if gated:
         human_approval_required = True
         if status == "completed" and not human_approved and not auto_policy:
             gate_source = (
-                'project approval mode manual_all'
+                'saved NEED_APPROVE_' + stage.upper() + '=true'
+                if configured_gate is True
+                else 'project approval mode manual_all'
                 if execution_mode == 'manual_all'
                 else 'project concept_only mode requires approval of the exact current concept'
                 if execution_mode == 'concept_only' and not auto_policy
@@ -761,7 +785,7 @@ def write_checkpoint(
         "human_approved": human_approved,
         "artifacts": artifacts,
     }
-    if gated and status == "completed" and auto_policy and not human_approved:
+    if (gated or configured_gate is False) and status == "completed" and auto_policy and not human_approved:
         checkpoint["approval_resolution"] = {
             "type": "auto_authorized",
             "authorization_source": auto_policy["authorization_source"],

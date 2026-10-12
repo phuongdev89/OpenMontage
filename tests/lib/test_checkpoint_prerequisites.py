@@ -46,7 +46,8 @@ def test_later_stage_cannot_skip_a_missing_predecessor(tmp_path) -> None:
         )
 
 
-def test_later_stage_rejects_unapproved_gated_predecessor(tmp_path) -> None:
+def test_later_stage_rejects_unapproved_gated_predecessor(tmp_path, monkeypatch) -> None:
+    monkeypatch.setenv('NEED_APPROVE_RESEARCH', 'true')
     project_dir = init_project(
         "run",
         title="Run",

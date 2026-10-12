@@ -27,7 +27,7 @@
       "required": ["type", "authorization_source", "authorization_text", "authorized_at"],
       "properties": {
         "type": { "type": "string", "const": "auto_authorized" },
-        "authorization_source": { "type": "string", "const": "user_instruction" },
+        "authorization_source": { "type": "string", "enum": ["user_instruction", "environment_config"] },
         "authorization_text": { "type": "string", "minLength": 1 },
         "authorized_at": { "type": "string", "format": "date-time" }
       },

@@ -1,0 +1,120 @@
+identity:
+  name: Math — Thám Tử — Auto-Create-Video reference
+  category: custom
+  mood: mysterious, investigative, engaging
+  pace: deliberate
+  best_for: Bài toán logic, chứng minh, tìm ẩn, bài nhiều bước suy luận
+visual_concept: detective
+visual_language:
+  color_palette:
+    primary:
+    - '#F5E6C8'
+    - '#E8D5A3'
+    accent:
+    - '#C0392B'
+    - '#E67E22'
+    background: '#25352d'
+    text: '#F5E6C8'
+    muted: '#8E8E93'
+  composition: Full-canvas tactile environment, wooden frame, pinned paper; spacious
+    scene-specific content; corner props do not cover formulas
+  texture: Dark green felt, warm wooden frame, aged paper
+math_colors:
+  background_alt: '#2C2C2E'
+  equation_highlight: '#E67E22'
+  clue_line: '#C0392B'
+  folder_bg: '#3A2E1E'
+typography:
+  headings:
+    font: ChannelLocal
+    weight: 700
+    tracking: 0.02em
+  body:
+    font: ChannelLocal
+    weight: 400
+    line_height: 1.8
+  scale_system: major_second
+  weight_matrix:
+    title: 700
+    heading: 600
+    body: 400
+    caption: 400
+motion:
+  transitions:
+  - fade
+  - reveal-stamp
+  animation_style: deliberate, tension-building, slight delay before reveal
+  pacing_rules:
+    min_scene_hold_seconds: 3.5
+    max_scene_hold_seconds: 18
+    text_card_hold_seconds: 4.5
+    stat_card_hold_seconds: 4.0
+    transition_duration_seconds: 0.5
+  entrance: stamp/appear từ trên xuống, như tài liệu được đặt lên bàn
+  exit: fade to dark
+math_motion:
+  equation_reveal: xuất hiện từng dòng với delay 0.3s, đường nối ghim vào hai vế cùng
+    lúc
+  clue_connection: đường đỏ vẽ nối từ dữ kiện đến bước suy luận khi lời đọc đến
+audio:
+  voice_style: nam, trầm, chậm rãi, thận trọng — như đang phân tích manh mối
+  music_mood: jazz tối nhẹ, strings căng thẳng vừa phải
+  music_volume: 0.04
+  sfx_style: tiếng máy đánh chữ nhẹ, tiếng giấy lật
+  ducking_threshold_db: -5
+asset_generation:
+  image_prompt_prefix: 'noir detective aesthetic, aged paper documents, dark background,
+    Vietnamese math, flat illustration, '
+  image_negative_prompt: bright colors, photorealistic, 3d render, cheerful, white
+    background
+  diagram_style: aged paper blocks connected by red string lines, handwritten annotations
+    in orange
+  consistency_anchors:
+  - Full-canvas tactile environment, wooden frame, pinned paper; spacious scene-specific
+    content; corner props do not cover formulas
+  - Dark green felt, warm wooden frame, aged paper
+  - Respect the existing approved mathematical content
+overlays:
+  stat_card:
+    bg: '#3A2E1E'
+    border: '#C0392B'
+    radius: 4
+    shadow: 0 4px 12px rgba(0,0,0,0.4)
+  key_term:
+    bg: '#2C1810'
+    text: '#E67E22'
+    radius: 3
+math_overlays:
+  equation_box:
+    bg: '#F5E6C8'
+    text: '#1C1C1E'
+    border: '#C0392B'
+    radius: 4
+  clue_pin:
+    color: '#C0392B'
+    size: 12
+math_scene_defaults:
+  math_intro:
+    background: '#1C1C1E'
+    title_color: '#F5E6C8'
+    subtitle_color: '#8E8E93'
+  math_problem:
+    background: '#3A2E1E'
+    text_color: '#F5E6C8'
+    border_accent: '#C0392B'
+  math_step:
+    background: '#2C2C2E'
+    equation_highlight: '#E67E22'
+    note_color: '#C0392B'
+  math_answer:
+    background: '#1C1C1E'
+    answer_color: '#E67E22'
+    border: '#C0392B'
+  math_closing:
+    background: '#1C1C1E'
+quality_rules:
+- Text contrast >=4.5:1; local Vietnamese font loaded before capture
+- Landscape uses full central working area; portrait readable at 360px
+- No answer appears before approved answer scene; mathematical actions follow narration
+- Logo fixed top-left, credit logo never rotates; watermark only may rotate
+- Source, narration and output must remain project-local
