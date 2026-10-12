@@ -1,5 +1,10 @@
 # Onboarding — Meta Skill
 
+For a new video-production task, the approval-mode question in
+`skills/meta/approval-mode.md` comes FIRST. Wait for its answer before onboarding
+or any other task work. On resume, honor the stored project mode. This onboarding
+skill must not introduce extra approval/preference questions in automatic modes.
+
 ## When to Use
 
 On the **very first interaction** with a user in a new session when the user has not yet specified a concrete production request — or when their request is vague ("make me a video", "what can you do?", "help me create something").
@@ -134,7 +139,7 @@ Based on the user's tier, present **3 ready-to-use prompts** they can copy right
 **Reference-based prompts (all tiers):**
 
 > **Have a video you love?** Paste a YouTube link and say "make me something like this"
-> — I'll analyze the style, pacing, and structure, then propose 2-3 creative variants
+> — I'll analyze the style, pacing, and structure, then show the complete available concept/style choices with brief descriptions and recommendations
 > you can choose from. Works with YouTube, Shorts, Instagram Reels, and TikTok.
 > All analysis runs locally and free — no API keys needed.
 

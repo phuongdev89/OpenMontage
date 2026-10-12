@@ -8,6 +8,14 @@ Checkpoints are the save points of a pipeline. They enable resume-from-failure, 
 
 ## Protocol
 
+First apply `skills/meta/approval-mode.md`. Persist the selected mode with
+`set_approval_mode()` after init. manual_all gates every stage regardless of
+manifest defaults. concept_only permits automatic research but requires
+`record_concept_approval()` for the exact proposal/brief before automatically
+resolving other gates. full_auto resolves gates without human_approved=True.
+These mode rules override the default pause table below. Validation and review
+remain mandatory. Never activate a mode while merely editing rules.
+
 ### Step 1: Check Manifest Policy
 
 **Project auto-authorization exception:** The explicit project policy below

@@ -318,6 +318,11 @@ Choose from: `myth_busting`, `problem_solution`, `data_narrative`, `comparison`,
 
 ### Step 5: Present Concepts and Get Selection
 
+Read `skills/meta/concept-selection.md`. For existing visual concepts/styles,
+show the entire current catalog with friendly descriptions and selectable
+options. Creative pitch count does not cap this catalog. Never hide existing
+concepts behind a shortlist plus free text.
+
 Present all concepts clearly to the user. For each concept, show:
 
 1. **Title** and **hook** — the creative pitch

@@ -2,6 +2,18 @@
 
 Start here. This is the complete operating guide and agent contract for OpenMontage.
 
+## First production question — approval mode
+
+Before any work on a NEW video task, ask only the three options in
+`skills/meta/approval-mode.md`: **Duyệt thủ công toàn bộ (khuyến nghị)**,
+**Duyệt mỗi concept, còn đâu tự động hoàn toàn**, **Tự động hoàn toàn**.
+Wait for selection before onboarding, any other question, research, preflight,
+init or artifact/provider work. Persist with `lib.checkpoint.set_approval_mode()`
+after init. Resume uses the stored project mode. This overrides later default
+ask/pause instructions: manual_all waits at every stage; concept_only waits only
+for the exact concept; full_auto chooses the concept and proceeds through publish.
+Read the mode skill for concept evidence and unchanged verification duties.
+
 For architecture, key files, and conventions see [`PROJECT_CONTEXT.md`](PROJECT_CONTEXT.md).
 
 ## First Interaction — Onboarding
@@ -37,7 +49,7 @@ This is a first-class workflow in OpenMontage.
    - style
    - what makes it work
 4. **Then** run normal capability audit and pipeline selection
-5. Present **2-3 differentiated concepts** for the user's version — not a carbon copy
+5. Present differentiated creative directions and the **complete existing visual-concept catalog**, following `skills/meta/concept-selection.md`.
 
 ### Important distinction
 
@@ -237,7 +249,7 @@ Summary of binding rules:
 - **Render:** Always produce both portrait (1080×1920) and landscape (1920×1080). Do not mark complete with only one video. Shared audio — do not re-call TTS for a ratio change.
 - **Device layout:** Landscape 16:9 is for PC/TV/tablet; portrait 9:16 is for Facebook/TikTok on phones. Use independent compositions, phone-safe margins and a 360 px readability review. Read `skills/pipelines/math/device-layout-rules.md` before scene planning and compose.
 - **Creator Review:** After audit, display full solution + audit result in chat before TTS/render. `solution.md` is internal only — never served to students.
-- **Visual concept:** After Creator Review, ask the user to choose one of 6 concepts (`news`, `detective`, `neon`, `chalkboard`, `notebook`, `manipulatives`). Load the matching `styles/math-*.yaml` playbook. Do not default silently. See `visual-concepts.md`.
+- **Visual concept:** After Creator Review, show ALL currently supported concepts as selectable options with friendly names and descriptions. Include new supported entries when installed. Recommendations must not hide other options or require custom text to select an existing concept. Read `skills/meta/concept-selection.md` and `visual-concepts.md`, then load the selected playbook. Do not default silently.
 
 Do not re-implement these rules inline. Reference the skill files; keep this section as a summary only.
 
@@ -578,7 +590,7 @@ Selectors route based on: user preference > availability > discovery order. They
 
 Before committing to execution, present:
 
-1. `4-5` concept directions when the brief is still open.
+1. Creative directions when the brief is open, plus the complete existing concept/style catalog when asking for a choice. Read `skills/meta/concept-selection.md`; never replace existing options with a shortlist and a custom-text field.
 2. Recommended pipeline.
 3. Recommended tool path.
 4. Alternative tool paths that are actually available.

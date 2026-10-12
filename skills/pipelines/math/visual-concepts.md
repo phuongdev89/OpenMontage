@@ -1,6 +1,6 @@
 # Math Video — Visual Concepts
 
-> **Scope:** Hướng dẫn agent chọn và áp dụng 6 visual concept cho video toán.
+> **Scope:** Chọn và áp dụng toàn bộ visual concept hiện có cho video toán (hiện có 6).
 > Đọc file này sau khi đã có `solutionMode` và `selectedGrade`,
 > trước khi gọi `video_compose`.
 >
@@ -28,6 +28,11 @@ Không tự thay concept của video đã tạo.
 
 ## 2. Khi nào hỏi người dùng
 
+Áp dụng mode đã lưu theo `skills/meta/approval-mode.md` trước: full_auto tự chọn
+concept từ catalog đầy đủ, ghi lý do và không dừng hỏi; concept_only hỏi chọn/duyệt
+concept rồi tự động những bước khác; manual_all theo quy trình dưới đây và vẫn
+chờ duyệt từng stage. Mode ưu tiên hơn các câu chờ mặc định bên dưới.
+
 Hỏi **sau** khi đã:
 1. Xác định lớp (`selectedGrade`)
 2. Chọn `solutionMode`
@@ -37,6 +42,31 @@ Hỏi **sau** khi đã:
 Hỏi **trước** khi viết kịch bản hoặc gọi TTS/render.
 
 Dùng `AskUserQuestion` (Claude Code) hoặc `request_user_input_async` (Codex):
+
+Đọc `skills/meta/concept-selection.md` trước khi hỏi. Đối chiếu reference này và
+`styles/math-*.yaml`; hiện **toàn bộ** concept có sẵn, kể cả mục không được
+khuyên dùng cho bài/lớp hiện tại. Không rút còn 2–3 rồi buộc người dùng tự nhập
+các mục còn lại. Bổ sung concept hỗ trợ mới vào danh sách khi catalog thay đổi.
+
+Ở Codex, truyền toàn bộ danh sách vào `options` của **một** câu hỏi:
+
+```json
+{"questions": [{
+  "title": "Bạn muốn video trông theo phong cách nào?",
+  "options": [
+    "Bản tin Thời sự — headline, bản tin và tường thuật",
+    "Thám Tử — hồ sơ bí ẩn, đường nối manh mối",
+    "Neon Lab — ánh sáng neon, phòng thí nghiệm tương lai",
+    "Bảng Phấn — bảng xanh đen, chữ phấn cổ điển",
+    "Vở Ô Ly — giấy học trò, nét viết thân quen",
+    "Đồ Vật Trực Quan — đồ vật màu sắc, đếm và chia nhóm"
+  ]
+}]}
+```
+
+Có thể đánh dấu mục khuyên dùng nhưng không xóa các mục khác. Ô concept riêng
+chỉ là bổ sung tùy chọn; nếu host giới hạn options, hiện đầy đủ danh sách theo
+nhóm/đánh số và để người dùng chọn mục đã hiển thị.
 
 > **Bạn muốn video trông theo phong cách nào?**
 >

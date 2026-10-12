@@ -7,6 +7,7 @@ checkpoints to resume pipelines and to present state at human checkpoints.
 from __future__ import annotations
 
 import json
+import hashlib
 from functools import lru_cache
 from datetime import datetime, timezone
 from pathlib import Path
@@ -300,6 +301,9 @@ def authorize_auto_approval(
             f"Project marker identity does not match {project_id!r}."
         )
 
+    selected_mode = (marker.get('approval_policy') or {}).get('execution_mode')
+    if selected_mode in {'manual_all', 'concept_only'}:
+        raise CheckpointValidationError('An explicit approval mode is active. Use set_approval_mode() only after a direct user instruction to change it.')
     existing_policy = _auto_approval_policy(marker)
     if existing_policy and existing_policy["authorization_text"] == authorization_text.strip():
         return marker_path
@@ -348,6 +352,98 @@ def revoke_auto_approval(pipeline_dir: Path, project_id: str) -> Path:
     return marker_path
 
 
+def set_approval_mode(pipeline_dir: Path, project_id: str, *, mode: str, authorization_text: str) -> Path:
+    """Persist the user's first-question choice for this initialized project."""
+    if mode not in {'manual_all', 'concept_only', 'full_auto'}:
+        raise ValueError('Unknown approval mode')
+    if not authorization_text.strip():
+        raise ValueError('Preserve the exact user selection')
+    project_dir = _resolve_project_dir(pipeline_dir, project_id)
+    marker_path = project_dir / PROJECT_MARKER_FILENAME
+    if not marker_path.is_file():
+        raise CheckpointValidationError('Project must be initialized before setting approval mode.')
+    marker = json.loads(marker_path.read_text(encoding='utf-8'))
+    if marker.get('project_id') != project_id:
+        raise CheckpointValidationError('Project marker identity mismatch.')
+    old = marker.get('approval_policy') or {}
+    if old.get('execution_mode') == mode and old.get('authorization_text') == authorization_text.strip() and old.get('mode') != 'revoked':
+        return marker_path
+    marker['approval_policy'] = {
+        'mode': 'manual_all' if mode == 'manual_all' else 'auto_approved',
+        'execution_mode': mode,
+        'authorization_source': 'user_instruction',
+        'authorization_text': authorization_text.strip(),
+        'authorized_at': datetime.now(timezone.utc).isoformat(),
+    }
+    marker.pop('concept_approval', None)
+    temporary = marker_path.with_suffix('.json.tmp')
+    temporary.write_text(json.dumps(marker, ensure_ascii=False, indent=2), encoding='utf-8')
+    import os
+    os.replace(temporary, marker_path)
+    return marker_path
+
+
+def _concept_fingerprint(artifacts: dict, style_playbook: str | None) -> str | None:
+    proposal = artifacts.get('proposal_packet')
+    if isinstance(proposal, dict):
+        selected = proposal.get('selected_concept') or {}
+        concept_id = selected.get('concept_id')
+        option = next((c for c in proposal.get('concept_options', []) if c.get('id') == concept_id), None)
+        if not concept_id or option is None:
+            return None
+        value = {'selected': selected, 'option': option, 'style_playbook': style_playbook}
+    elif isinstance(artifacts.get('brief'), dict):
+        value = {'brief': artifacts['brief'], 'style_playbook': style_playbook}
+    else:
+        return None
+    return hashlib.sha256(json.dumps(value, sort_keys=True, ensure_ascii=False).encode('utf-8')).hexdigest()
+
+
+def record_concept_approval(pipeline_dir: Path, project_id: str, *, artifacts: dict, approval_text: str) -> Path:
+    """Record an explicit human concept choice/approval, never stage approval."""
+    if not approval_text.strip():
+        raise ValueError('Preserve the exact human concept approval')
+    project_dir = _resolve_project_dir(pipeline_dir, project_id)
+    path = project_dir / PROJECT_MARKER_FILENAME
+    if not path.is_file():
+        raise CheckpointValidationError('Project must be initialized first.')
+    marker = json.loads(path.read_text(encoding='utf-8'))
+    if marker.get('project_id') != project_id:
+        raise CheckpointValidationError('Project marker identity mismatch.')
+    policy = _auto_approval_policy(marker)
+    if not policy or policy.get('execution_mode') != 'concept_only':
+        raise CheckpointValidationError('Concept approval requires concept_only mode.')
+    fingerprint = _concept_fingerprint(artifacts, marker.get('style_playbook'))
+    if not fingerprint:
+        raise CheckpointValidationError('Concept approval requires the exact selected proposal concept or brief.')
+    marker['concept_approval'] = {'fingerprint': fingerprint, 'approval_text': approval_text.strip(),
+                                  'approved_at': datetime.now(timezone.utc).isoformat()}
+    temporary = path.with_suffix('.json.tmp')
+    temporary.write_text(json.dumps(marker, ensure_ascii=False, indent=2), encoding='utf-8')
+    import os
+    os.replace(temporary, path)
+    return path
+
+
+def _concept_auto_allowed(marker: dict, stage: str, artifacts: dict, project_dir: Path) -> bool:
+    if stage == 'research':
+        return True
+    approval = marker.get('concept_approval') or {}
+    if not approval.get('approval_text') or not approval.get('approved_at'):
+        return False
+    selected_artifacts = artifacts
+    if stage not in {'proposal', 'idea'}:
+        selected_artifacts = {}
+        for predecessor in ('proposal', 'idea'):
+            path = _checkpoint_path(project_dir, predecessor)
+            if path.is_file():
+                selected_artifacts = json.loads(path.read_text(encoding='utf-8')).get('artifacts') or {}
+                if _concept_fingerprint(selected_artifacts, marker.get('style_playbook')):
+                    break
+    fingerprint = _concept_fingerprint(selected_artifacts, marker.get('style_playbook'))
+    return bool(fingerprint and fingerprint == approval.get('fingerprint'))
+
+
 def _auto_approval_policy(marker: Any) -> dict[str, str] | None:
     if not isinstance(marker, dict):
         return None
@@ -355,6 +451,7 @@ def _auto_approval_policy(marker: Any) -> dict[str, str] | None:
     if (
         isinstance(policy, dict)
         and policy.get("mode") == "auto_approved"
+        and policy.get('execution_mode') in (None, 'full_auto', 'concept_only')
         and policy.get("authorization_source") == "user_instruction"
         and isinstance(policy.get("authorization_text"), str)
         and policy.get("authorization_text").strip()
@@ -456,7 +553,7 @@ def _enforce_stage_prerequisites(
         if checkpoint.get("status") != "completed":
             incomplete.append(predecessor)
             continue
-        if _stage_requires_approval(pipeline_type, predecessor) and not checkpoint.get(
+        if (_stage_requires_approval(pipeline_type, predecessor) or checkpoint.get('human_approval_required')) and not checkpoint.get(
             "human_approved"
         ):
             resolution = checkpoint.get("approval_resolution", {})
@@ -593,6 +690,9 @@ def write_checkpoint(
         if not style_playbook and marker.get("style_playbook"):
             style_playbook = marker["style_playbook"]
     auto_policy = _auto_approval_policy(marker)
+    execution_mode = (marker.get('approval_policy') or {}).get('execution_mode') if isinstance(marker, dict) else None
+    if execution_mode == 'concept_only' and auto_policy and not _concept_auto_allowed(marker, stage, artifacts, project_dir):
+        auto_policy = None
     _validate_style_playbook(style_playbook)
 
     valid_stages = (
@@ -614,12 +714,18 @@ def write_checkpoint(
     # before gating (or by hand) still read as completed — deliberate
     # back-compat so in-flight and legacy projects keep resuming.
     manifest_gate = _stage_requires_approval(pipeline_type, stage)
-    gated = bool(manifest_gate) or human_approval_required
+    gated = (bool(manifest_gate) or human_approval_required or execution_mode == 'manual_all'
+             or (execution_mode == 'concept_only' and
+                 (stage in {'proposal', 'idea'} or (stage != 'research' and not auto_policy))))
     if gated:
         human_approval_required = True
         if status == "completed" and not human_approved and not auto_policy:
             gate_source = (
-                f"human_approval_default: true in the {pipeline_type!r} manifest"
+                'project approval mode manual_all'
+                if execution_mode == 'manual_all'
+                else 'project concept_only mode requires approval of the exact current concept'
+                if execution_mode == 'concept_only' and not auto_policy
+                else f"human_approval_default: true in the {pipeline_type!r} manifest"
                 if manifest_gate
                 else "human_approval_required=True was passed by the caller"
             )
