@@ -381,3 +381,8 @@ If `video_compose` returns an error:
 5. Surface to the user before swapping to a lower-fidelity path.
    This pipeline is footage-led; there is no generated-stills
    fallback.
+
+
+## Concurrent project isolation (binding)
+
+Before media work, read `skills/pipelines/shared/project-isolation.md`. Bind all source, narration, public assets, temporary props and outputs to the exact current project. Verify audio ownership in both final aspect ratios.

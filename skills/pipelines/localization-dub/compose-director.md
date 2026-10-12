@@ -63,3 +63,8 @@ Check:
 - Rendering all locales as if they were timing-identical.
 - Forgetting to re-check subtitle line length after translation.
 - Naming outputs in ways that hide the locale or treatment mode.
+
+
+## Concurrent project isolation (binding)
+
+Before media work, read `skills/pipelines/shared/project-isolation.md`. Bind all source, narration, public assets, temporary props and outputs to the exact current project. Verify audio ownership in both final aspect ratios.

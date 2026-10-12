@@ -656,6 +656,11 @@ def load_board_state(project_dir: Path) -> dict[str, Any]:
         "live": bool(last_activity and (now - last_activity) < LIVE_WINDOW_SECONDS),
     }
     state["poster"] = _find_poster(project_dir, state)
+    from backlot.publish_package import build_publish_package
+    state['publish_package'] = build_publish_package(
+        project_dir, artifacts.get('publish_log') or {},
+        any(s['name'] == 'publish' and s['status'] == 'completed' for s in stages),
+    )
     return state
 
 

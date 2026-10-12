@@ -97,3 +97,8 @@ Record important findings in:
 - Rendering `9:16` versions that are technically exported but practically unreadable.
 - Encoding screen text with generic low-bitrate social defaults.
 - Letting decorative backgrounds or padding reduce usable UI area too far.
+
+
+## Concurrent project isolation (binding)
+
+Before media work, read `skills/pipelines/shared/project-isolation.md`. Bind all source, narration, public assets, temporary props and outputs to the exact current project. Verify audio ownership in both final aspect ratios.

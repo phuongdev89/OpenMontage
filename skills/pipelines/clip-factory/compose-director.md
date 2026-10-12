@@ -67,3 +67,8 @@ Recommended metadata keys:
 - Rendering sequentially without reason when jobs are independent.
 - Treating a failed clip as a reason to stop the batch.
 - Letting one platform variant quietly use the wrong framing or subtitle zone.
+
+
+## Concurrent project isolation (binding)
+
+Before media work, read `skills/pipelines/shared/project-isolation.md`. Bind all source, narration, public assets, temporary props and outputs to the exact current project. Verify audio ownership in both final aspect ratios.

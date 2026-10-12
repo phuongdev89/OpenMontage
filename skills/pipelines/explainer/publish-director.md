@@ -66,7 +66,10 @@ Describe a thumbnail that:
 }
 ```
 
-*Note: Actual thumbnail generation happens via image_selector if available, otherwise it's a concept for manual creation.*
+Actual thumbnail generation follows `skills/pipelines/shared/posting-package.md`:
+use the installed `image-generate` skill, built-in first and configured API
+fallback. Never extract a video frame or silently substitute a concept for the
+required generated thumbnail.
 
 **Math-video answer safety (binding):**
 - A math thumbnail must create curiosity around the problem, not reveal its final answer. Never include the answer value, a completed solving equation, a circled result, or a frame taken from an answer-reveal scene.

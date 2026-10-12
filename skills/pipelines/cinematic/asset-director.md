@@ -185,3 +185,8 @@ This stage gates on human approval (`human_approval_default: true`). After revie
 checkpoint with `status="awaiting_human"`, present the summary (the Backlot board renders
 the artifact), and **END YOUR TURN**. Do not start the next stage in the same response.
 Approval is per-gate — an earlier "go ahead" does not cover this gate.
+
+
+## Concurrent project isolation (binding)
+
+Before media work, read `skills/pipelines/shared/project-isolation.md`. Bind all source, narration, public assets, temporary props and outputs to the exact current project. Verify audio ownership in both final aspect ratios.

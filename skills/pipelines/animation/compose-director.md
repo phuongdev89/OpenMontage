@@ -37,17 +37,23 @@ The post-render self-review (final_review) is identical across runtimes — same
 
 ### 1. Ensure Assets Are in Remotion's Public Directory
 
-**CRITICAL:** Remotion can only access files via `staticFile()`, which resolves from `remotion-composer/public/`. Generated images and music files MUST be copied or symlinked into this directory before rendering.
+Read `skills/pipelines/shared/project-isolation.md` first. `staticFile()` resolves
+against the explicit `--public-dir`. For production, populate
+`projects/<exact-project-directory>/public/` with this project's approved assets,
+and pass that directory on every render (`bespoke.public_dir` for atelier).
+Never place narration in the shared `remotion-composer/public/` or overwrite
+shared source/props. Missing public directories are blockers, not permission to
+fall back to a shared directory.
 
 ```
 Project structure:
   projects/<name>/assets/images/*.png     ← where images were generated
-  remotion-composer/public/<name>/*.png   ← where Remotion reads them
+  projects/<name>/public/images/*.png    ← this render's explicit public dir
 
-Required: Copy or symlink images AND music into public/<project-name>/
+Required: Copy this project's images/audio into its own public dir
 ```
 
-Image paths in the composition JSON are relative to `remotion-composer/public/`:
+Image paths in the composition JSON are relative to the explicit project public dir:
 ```json
 "images": ["deep-ocean/scene1-a.png", "deep-ocean/scene1-b.png"]
 "src": "deep-ocean/ambient-music.mp3"
@@ -57,7 +63,8 @@ Image paths in the composition JSON are relative to `remotion-composer/public/`:
 
 ### 2. Build the Composition JSON (image_animation approach)
 
-For `anime_scene` compositions, build a JSON file at `remotion-composer/public/demo-props/<name>.json`.
+For `anime_scene` compositions, build a JSON file under the current project's
+`artifacts/` or render workspace; each render gets its own immutable props file.
 
 **Required structure:**
 
@@ -154,8 +161,8 @@ Run `composition_validator` before every render:
 ```python
 from tools.analysis.composition_validator import CompositionValidator
 result = CompositionValidator().execute({
-    "composition_path": "remotion-composer/public/demo-props/<name>.json",
-    "assets_root": "remotion-composer/public",
+  "composition_path": "projects/<name>/artifacts/composition.json",
+  "assets_root": "projects/<name>/public",
 })
 # result.data["valid"] MUST be True before proceeding
 ```
@@ -175,12 +182,15 @@ Do not let export settings or careless composition change the perceived timing o
 
 Animation often fails on export through soft text, muddy thin lines, or cramped mobile framing.
 
+For math videos, read `skills/pipelines/math/device-layout-rules.md`: portrait is for Facebook/TikTok on phones; landscape is for PC/TV/tablet. Require a 360 px portrait raster review, effective font sizes, safe-area/containment evidence and correct mathematical state labels before final render.
+
 ### 7. Render
 
 ```bash
 cd remotion-composer
 npx remotion render Explainer \
-  --props="public/demo-props/<name>.json" \
+  --props="<project-dir>/artifacts/composition.json" \
+  --public-dir="<project-dir>/public" \
   --output="<output-path>/final.mp4" \
   --codec=h264 --crf=18
 ```
@@ -227,7 +237,7 @@ Recommended metadata keys:
 
 ## Common Pitfalls
 
-- **Forgetting to copy assets to `remotion-composer/public/`** — the #1 cause of render failures. Images generate to `projects/<name>/assets/` but Remotion reads from `public/`.
+- **Missing or shared public assets** — populate the project's own public dir and explicitly pass it to Remotion.
 - Soft or aliased text after rendering.
 - Compression choices that damage diagrams.
 - Scene cadence changing between preview and final.

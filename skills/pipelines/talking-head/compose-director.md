@@ -475,3 +475,8 @@ Document output: path, format, resolution, duration, file size, QA results.
 ### Step 10: Submit
 
 Validate the render_report against the schema and persist via checkpoint.
+
+
+## Concurrent project isolation (binding)
+
+Before media work, read `skills/pipelines/shared/project-isolation.md`. Bind all source, narration, public assets, temporary props and outputs to the exact current project. Verify audio ownership in both final aspect ratios.

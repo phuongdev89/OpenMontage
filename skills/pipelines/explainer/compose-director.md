@@ -446,3 +446,8 @@ Validate the render_report against the schema and persist via checkpoint.
 - **Subtitle encoding**: Burn subtitles into the video (hardcoded) for maximum compatibility. Don't rely on soft subtitles for social media.
 - **Single-pass encode**: Two-pass encoding produces better quality at the same file size. Worth the extra render time.
 - **Ignoring media profile**: YouTube and TikTok have very different requirements. Always check the target profile.
+
+
+## Concurrent project isolation (binding)
+
+Before media work, read `skills/pipelines/shared/project-isolation.md`. Bind all source, narration, public assets, temporary props and outputs to the exact current project. Verify audio ownership in both final aspect ratios.

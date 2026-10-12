@@ -69,3 +69,8 @@ Recommended metadata keys:
 - Letting visual treatments degrade audio quality.
 - Rendering the full companion first and delaying the clips that matter most.
 - Forgetting that a simple, readable clip beats a technically elaborate but confusing one.
+
+
+## Concurrent project isolation (binding)
+
+Before media work, read `skills/pipelines/shared/project-isolation.md`. Bind all source, narration, public assets, temporary props and outputs to the exact current project. Verify audio ownership in both final aspect ratios.

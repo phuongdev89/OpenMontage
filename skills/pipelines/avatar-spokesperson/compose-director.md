@@ -66,3 +66,8 @@ Record important findings in:
 - Letting subtitles cover the chin or mouth area.
 - Shipping a long lip-sync render without spot-checking drift.
 - Making derivative crops that cut off the presenter or CTA.
+
+
+## Concurrent project isolation (binding)
+
+Before media work, read `skills/pipelines/shared/project-isolation.md`. Bind all source, narration, public assets, temporary props and outputs to the exact current project. Verify audio ownership in both final aspect ratios.

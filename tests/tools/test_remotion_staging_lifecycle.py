@@ -102,7 +102,7 @@ def test_pre_render_failure_still_cleans_staged_media(tmp_path, monkeypatch, ren
     real_open = open
 
     def exploding_open(file, mode="r", *args, **kwargs):
-        if str(file).endswith(".remotion_props.json") and "w" in mode:
+        if Path(file).name.startswith(".remotion-props-") and "w" in mode:
             raise OSError("disk full")
         return real_open(file, mode, *args, **kwargs)
 

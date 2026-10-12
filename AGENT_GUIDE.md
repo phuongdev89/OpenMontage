@@ -212,6 +212,10 @@ All math problem-solving videos MUST also follow the full rule set in:
 
 **Publish rules:** Math project phải có hai video trong `exports/video/` và thumbnail không lộ đáp án; áp dụng publisher tương ứng với manifest: [`explainer`](skills/pipelines/explainer/publish-director.md) hoặc [`animation`](skills/pipelines/animation/publish-director.md).
 
+**Concurrent runs:** Read [`project-isolation`](skills/pipelines/shared/project-isolation.md) before assets/compose. Use exact project directories, project-local source/public assets and unique render props. Never overwrite shared narration/source files. Review audio ownership in both ratios and bind conversation exports to the correct chat.
+
+**Posting handoff:** Before publish, read [`posting-package`](skills/pipelines/shared/posting-package.md). Store a strong, accurate title, complete YouTube description, distinct Facebook/TikTok caption and dedicated image-generate thumbnail in `publish_log.metadata.posting_package`. Built-in image generation is first; the skill's configured API is fallback. Do not extract video frames for posting thumbnails. Backlot shows the published package and copyable local paths with portrait/landscape tabs.
+
 **[`skills/pipelines/math/creator-review.md`](skills/pipelines/math/creator-review.md)** — phần duyệt nội bộ cho người tạo: lời giải đầy đủ + audit result hiển thị trong chat trước TTS/render; `solution.md` không chia sẻ cho học sinh.
 
 **[`skills/pipelines/math/visual-concepts.md`](skills/pipelines/math/visual-concepts.md)** — 6 visual concept (`news`, `detective`, `neon`, `chalkboard`, `notebook`, `manipulatives`), khi nào hỏi người dùng, cách map sang `styles/math-*.yaml` và Remotion/HyperFrames fields.
@@ -231,6 +235,7 @@ Summary of binding rules:
 - **Pedagogy:** Explain *why* each step works (not just the formula). Match method to the confirmed grade. No shortcut tricks without explaining the basis. See `pedagogy-rules.md` for all 7 principles + "đạt/chưa đạt" examples.
 - **`teachingAid`:** Design custom manipulatives per problem. Declare `problem.requiresIllustration: true` and `needsIllustration: true` per scene where needed. Illustration appears from the first scene that uses it — not deferred to conclusions.
 - **Render:** Always produce both portrait (1080×1920) and landscape (1920×1080). Do not mark complete with only one video. Shared audio — do not re-call TTS for a ratio change.
+- **Device layout:** Landscape 16:9 is for PC/TV/tablet; portrait 9:16 is for Facebook/TikTok on phones. Use independent compositions, phone-safe margins and a 360 px readability review. Read `skills/pipelines/math/device-layout-rules.md` before scene planning and compose.
 - **Creator Review:** After audit, display full solution + audit result in chat before TTS/render. `solution.md` is internal only — never served to students.
 - **Visual concept:** After Creator Review, ask the user to choose one of 6 concepts (`news`, `detective`, `neon`, `chalkboard`, `notebook`, `manipulatives`). Load the matching `styles/math-*.yaml` playbook. Do not default silently. See `visual-concepts.md`.
 

@@ -32,6 +32,8 @@ Mọi video giải toán phải xuất **cả hai bản**:
 
 ## 2. Layout bản ngang
 
+Đọc `device-layout-rules.md` trước khi dựng hoặc sửa composition: bản ngang 16:9 dành cho PC/TV/tablet, bản dọc 9:16 dành cho Facebook/TikTok trên điện thoại. Mỗi bản có layout và bằng chứng độ đọc riêng; bản dọc cần safe area, preview 360 px và kiểm tra nhãn toán theo trạng thái cảnh.
+
 Bản ngang **không** kéo giãn hình dọc. Dùng layout hai cột:
 
 - **Rail trái:** tiêu đề, đề bài.
@@ -115,3 +117,8 @@ See [`skills/pipelines/explainer/publish-director.md`](../explainer/publish-dire
 - Kiểm tra mọi text container ở cả portrait và landscape, gồm tiêu đề, đề bài, labels, phụ đề và CTA. Với HTML kiểm tra scrollWidth/clientWidth và scrollHeight/clientHeight, sau đó kiểm tra ảnh thật để bắt dấu bị cắt hoặc glyph lỗi; runtime khác dùng kiểm tra bounding box tương đương.
 - Chữ và dấu phải nằm trong border với padding an toàn. Sửa bằng wrap, chia trang, tăng vùng chữ hoặc giảm cỡ chữ trong giới hạn dễ đọc của playbook. Cấm dùng overflow:hidden/ellipsis để che mất nội dung hay bóp chữ méo.
 - Ghi bằng chứng font, frame/ảnh review, tỷ lệ khung hình và kết quả containment vào review/render_report. Font lỗi hoặc chữ tràn = critical: sửa source trước render; auto-approval không bỏ qua kiểm tra này.
+
+
+## Concurrent project isolation (binding)
+
+Before media work, read `skills/pipelines/shared/project-isolation.md`. Bind all source, narration, public assets, temporary props and outputs to the exact current project. Verify audio ownership in both final aspect ratios.

@@ -4,6 +4,7 @@ import {
   STAGE_ICONS, el, fmtAgo, fmtClock, fmtDuration, fmtMoney,
   getJSON, mediaURL, subscribe, thumbURL, waveBars,
 } from "/ui/lib.js";
+import {renderPublishPackage} from '/ui/publish.js';
 
 const rawProjectPath = location.pathname.split("/p/")[1] || "";
 const projectId = decodeURIComponent(rawProjectPath);
@@ -1085,15 +1086,16 @@ function render() {
   const storyboard = renderStoryboard(s);
   const found = renderFoundMedia(s);
   const renders = renderRenders(s);
+  const posting = renderPublishPackage(s, projectId, refresh);
 
   if (approvalReview || script || decisions || activity) {
-    for (const section of [storyboard, found, renders]) {
+    for (const section of [storyboard, found, renders, posting]) {
       if (section) main.append(section);
     }
     const hasAside = Boolean(decisions || activity);
     app.append(el("div", { class: `board${hasAside ? "" : " solo"}` }, main, hasAside ? aside : null));
   } else {
-    for (const section of [storyboard, found, renders]) {
+    for (const section of [storyboard, found, renders, posting]) {
       if (section) app.append(section);
     }
   }

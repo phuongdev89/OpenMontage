@@ -58,3 +58,8 @@ Recommended metadata keys:
 - Good master cut, broken platform variants.
 - Support graphics clipping in vertical exports.
 - Audio loudness shifting between source and generated sections.
+
+
+## Concurrent project isolation (binding)
+
+Before media work, read `skills/pipelines/shared/project-isolation.md`. Bind all source, narration, public assets, temporary props and outputs to the exact current project. Verify audio ownership in both final aspect ratios.

@@ -33,3 +33,8 @@ This stage gates on human approval (`human_approval_default: true`). After revie
 checkpoint with `status="awaiting_human"`, present the summary (the Backlot board renders
 the artifact), and **END YOUR TURN**. Do not start the next stage in the same response.
 Approval is per-gate — an earlier "go ahead" does not cover this gate.
+
+
+## Posting package (binding)
+
+Before completing publish, read `skills/pipelines/shared/posting-package.md`. Produce the title, full YouTube description, distinct Facebook/TikTok caption, dedicated image-generate thumbnail and both final video variants for Backlot. No video-frame thumbnails.

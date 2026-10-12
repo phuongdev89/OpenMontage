@@ -139,12 +139,31 @@ Khi sử dụng VieNeu-TTS cho tiếng Việt:
 
 ## 8. Visual Style Contract
 
+### Concurrent project isolation
+
+- Bind each run to the exact absolute directory returned by `init_project()` and its `project.json`; do not select the newest project, first glob match, process cwd or another chat's project variable.
+- Every project's source, props, public media, concat list, narration and output must live under that project. Never overwrite shared `remotion-composer/src/Root.tsx`, generic components, `public/master_narration.mp3`, `.scratch/generate_audio.py` or a common props JSON during production. Reusable engine code is read-only for production.
+- Remotion atelier requires explicit `bespoke.public_dir` under the current project and `--public-dir` on every render. Use project-local source and a render-specific snapshot/props path. Never silently fall back to the shared composer public directory when a directory is missing.
+- Before compose, resolve every narration path against the current project, verify file hash, script/scene identity, duration and speed metadata. Record project directory, source path and SHA-256 in the asset manifest/render report. Compare the rendered audio with that project's approved narration, including EN/VI readings; stream presence and volume alone are not sufficient.
+- Keep conversation ID/source bound to the current chat; do not borrow an ID from another checkpoint or pick the newest global conversation when runs overlap. Validate the exported transcript actually contains the current project/source problem before copying it to exports.
+- Read `skills/pipelines/shared/project-isolation.md` before assets and compose, and `skills/pipelines/shared/posting-package.md` before publish. Complete the posting package (title, YouTube description, distinct Facebook/TikTok caption, generated thumbnail and both video variants) before publish completion. Dedicated thumbnail creation uses the installed `image-generate` skill: built-in first, configured API fallback with evidence; never extract a frame from the video.
+
 - `styles/<style_playbook>.yaml` là authority cho ngôn ngữ hình ảnh tổng thể: nền, palette, typography, hình khối, texture, shadow và motion. Storyboard đã duyệt triển khai các nguyên tắc đó theo từng cảnh; storyboard không tự động cho phép đổi playbook.
 - Trước render, đối chiếu composition source với cả playbook và storyboard đã duyệt. Kiểm tra mọi CSS rule, inline style, SVG fill/stroke, component theme và preset; không chỉ kiểm tra màu nền hoặc một frame.
 - Không tự thêm theme, font, màu nhấn hay hiệu ứng trái playbook dựa trên tên project, gu cá nhân, template/runtime mặc định hoặc artifact cũ. Chỉ dùng biến thể khi storyboard đã duyệt mô tả rõ và biến thể vẫn nằm trong giới hạn của playbook.
 - Xác minh tương phản chữ/nền và giới hạn số màu theo `quality_rules` của playbook; bảo đảm hai tỷ lệ khung hình dùng cùng visual language.
 - Nếu phát hiện lệch, sửa composition source trước khi render. Nếu cần thay đổi vượt quá playbook hoặc storyboard đã duyệt, dừng ở source draft và xin duyệt lại storyboard; không tự render để thử.
 - Sau render, kiểm tra frame đại diện ở các cảnh và cả hai tỷ lệ khung hình để xác nhận output thực sự giữ đúng style. Source-only edits không cập nhật MP4 đã publish; chỉ render lại khi người dùng yêu cầu hoặc pipeline đang ở compose với approval còn hiệu lực.
+
+### Portrait-first layout rules
+
+- Portrait và landscape phải có composition riêng theo từng tỷ lệ; không thu nhỏ một layout ngang để nhét vào khung dọc.
+- Landscape 16:9 (1920×1080) phục vụ xem trên PC, TV và tablet; portrait 9:16 (1080×1920) phục vụ Facebook/TikTok trên điện thoại. Đánh giá độ đọc theo thiết bị đích, không chỉ theo độ phân giải file.
+- Với portrait 1080×1920, thiết kế nội dung quan trọng trong safe area tối thiểu 72 px bên trái, 144 px bên phải, 120 px phía trên và 280 px phía dưới để tránh nút tương tác/caption của ứng dụng. Đây là baseline nội bộ bảo thủ, không phải cam kết UI cố định của nền tảng; preview với overlay ứng dụng đích trước bàn giao. Không dành vùng cố định cho footer minh họa nếu nó làm giảm kích thước sơ đồ hoặc chữ.
+- Dùng vùng trung tâm cho một ý toán học mỗi cảnh: vật mẫu/sơ đồ là trọng tâm; tiêu đề và chú thích hỗ trợ. Chỉ giữ các dữ kiện cần thiết cho lời đọc hiện tại, không lặp lại cùng nội dung trong nhiều bảng.
+- Kiểm tra ở viewport tương đương 360×640: chữ thân bài raster không nhỏ hơn 16 px, phép tính và nhãn sơ đồ không nhỏ hơn 18 px; câu dài phải chia cảnh hoặc phân cấp rõ, không thu nhỏ để vừa.
+- Các phép biến đổi phải được thể hiện theo trạng thái: nêu rõ trạng thái ban đầu, thao tác đang diễn ra và kết quả đã hoàn tất. Không đưa đáp án lên hook, footer hoặc hình nền trước cảnh đáp án được duyệt.
+- Với bài toán nhiều bước, tiết lộ từng thao tác theo timeline lời đọc; giữ tổng kết kiểm tra khớp với dữ kiện ban đầu và phân biệt rõ tổng trung gian đã biến đổi với tổng ban đầu.
 
 ### Hook-first acceptance gate
 

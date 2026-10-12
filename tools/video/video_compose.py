@@ -339,6 +339,9 @@ class VideoCompose(BaseTool):
         start = time.time()
 
         try:
+            isolation_error = self._validate_project_media(inputs)
+            if isolation_error:
+                return ToolResult(success=False, error=isolation_error)
             if operation == "compose":
                 result = self._compose(inputs)
             elif operation == "render":
@@ -358,6 +361,40 @@ class VideoCompose(BaseTool):
 
         result.duration_seconds = round(time.time() - start, 2)
         return result
+
+    @staticmethod
+    def _validate_project_media(inputs: dict[str, Any]) -> str | None:
+        """Reject foreign narration before invoking any renderer.
+
+        The output's project marker defines ownership, never process cwd or
+        the first matching project name. Shared music remains permitted.
+        """
+        output = inputs.get("output_path")
+        if not output:
+            return None
+        destination = Path(output).resolve()
+        project = next((p for p in destination.parents if (p / 'project.json').is_file()), None)
+        if project is None:
+            return None
+        paths = []
+        if inputs.get('audio_path'):
+            paths.append(inputs['audio_path'])
+        edit = inputs.get('edit_decisions') or inputs.get('composition_data') or {}
+        if isinstance(edit, dict):
+            narration = (edit.get('audio') or {}).get('narration') or {}
+            if isinstance(narration, dict) and narration.get('src'):
+                paths.append(narration['src'])
+        for raw in paths:
+            path = Path(raw)
+            if not path.is_absolute():
+                local = project / path
+                path = local if local.exists() else path
+            resolved = path.resolve()
+            if not resolved.is_relative_to(project):
+                return f'Project audio isolation violation: narration {resolved} is outside {project}'
+            if not resolved.is_file():
+                return f'Project narration not found: {resolved}'
+        return None
 
     _IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".bmp", ".tiff", ".tif", ".webp"}
 
@@ -861,17 +898,15 @@ class VideoCompose(BaseTool):
 
     @staticmethod
     def _mirror_public_dir(source_root: Path, staging_root: Path) -> None:
-        """Link the real ``public/`` tree into a render-scoped ``--public-dir``.
+        """Snapshot the real ``public/`` tree into a render-scoped public dir.
 
         ``--public-dir`` REPLACES Remotion's default public dir for the render.
         Assets that earlier pipeline stages already staged into
         ``remotion-composer/public/`` — ``anime_scene.images[]``,
         ``screenshot_scene.backgroundImage``, demo-props fixtures, all
         documented as public/-relative ``staticFile()`` paths — would therefore
-        404 as soon as we point the render at our own dir. Symlink each
-        top-level entry in (read-only; nothing is written back to
-        *source_root*), falling back to a copy where symlinks aren't permitted
-        (e.g. Windows without developer mode).
+        404 as soon as we point the render at our own dir. Copy each entry:
+        a symlink would observe another project's overwrite during rendering.
         """
         if not source_root.is_dir():
             return
@@ -880,11 +915,7 @@ class VideoCompose(BaseTool):
             link = staging_root / entry.name
             if link.exists() or link.is_symlink():
                 continue
-            try:
-                link.symlink_to(entry, target_is_directory=entry.is_dir())
-            except OSError:
-                with contextlib.suppress(OSError):
-                    (shutil.copytree if entry.is_dir() else shutil.copy2)(entry, link)
+            (shutil.copytree if entry.is_dir() else shutil.copy2)(entry, link)
 
     @staticmethod
     def _stage_remotion_media(value: Any, public_dir: Path) -> int:
@@ -1031,10 +1062,15 @@ class VideoCompose(BaseTool):
             cmd.append(f"--props={pp}")
 
         public_dir = bespoke.get("public_dir")
-        if public_dir:
-            pd = Path(public_dir).resolve()
-            if pd.exists():
-                cmd.append(f"--public-dir={pd}")
+        if not public_dir:
+            return ToolResult(success=False, error="Atelier requires an explicit project-local bespoke.public_dir; shared composer/public is unsafe for concurrent projects.")
+        pd = Path(public_dir).resolve()
+        if not pd.is_dir():
+            return ToolResult(success=False, error=f"Atelier public_dir not found: {pd}")
+        output_project = next((p for p in output_path.parents if (p / 'project.json').is_file()), None)
+        if output_project and not pd.is_relative_to(output_project):
+            return ToolResult(success=False, error=f"Atelier public_dir {pd} is outside {output_project}")
+        cmd.append(f"--public-dir={pd}")
 
         if bespoke.get("scale"):
             cmd.append(f"--scale={bespoke['scale']}")
@@ -2006,6 +2042,7 @@ class VideoCompose(BaseTool):
                 )
 
         requested_public_dir = inputs.get("public_dir")
+        output_project = next((p for p in output_path.parents if (p / 'project.json').is_file()), None)
         cleanup_public_dir = False
         public_dir: Path | None = None
         if requested_public_dir:
@@ -2015,6 +2052,8 @@ class VideoCompose(BaseTool):
                     success=False,
                     error=f"Remotion public_dir does not exist or is not a directory: {public_dir}",
                 )
+            if output_project and not public_dir.is_relative_to(output_project):
+                return ToolResult(success=False, error=f"Remotion public_dir {public_dir} is outside {output_project}")
         else:
             # Unique per render. A name derived only from the output stem is
             # shared by every render of that output: concurrent renders
@@ -2028,12 +2067,16 @@ class VideoCompose(BaseTool):
         # Everything from staging onward is guarded, so a failure during props
         # writing or command setup — not just during the render — still removes
         # the staged user media instead of leaving it on disk.
-        props_path = output_path.parent / ".remotion_props.json"
+        props_path = output_path.parent / f".remotion-props-{secrets.token_hex(8)}.json"
         staged_count = 0
         profile_name = inputs.get("profile")
         try:
             staged_count = self._stage_remotion_media(props, public_dir)
-            if not staged_count and cleanup_public_dir:
+            if output_project and cleanup_public_dir:
+                # Production must never inherit the shared composer's narration.
+                public_dir.mkdir(parents=True, exist_ok=True)
+                self._mirror_public_dir(output_project / 'public', public_dir)
+            elif not staged_count and cleanup_public_dir:
                 public_dir = None
             elif cleanup_public_dir:
                 # We are about to override Remotion's public dir with our own, so

@@ -1,6 +1,22 @@
 # Backlot — the living storyboard
 
-A read-only local board that shows a production happening: pipeline stages
+## Revise posting copy
+
+After publish, the posting section has **Tạo lại caption** and
+**Tạo lại description**. Enter a revision request in the dialog and click
+**Tạo lại**. The server calls the configured `AI_CHAT_URL`, `AI_CHAT_KEY` and
+`AI_CHAT_MODEL` using `/chat/completions`, then saves the successful response in
+that project's `artifacts/posting_copy.json`. The dialog shows the saved result;
+refreshing the board preserves it. Previous versions and revision instructions
+are retained in the file's history.
+
+The request includes this project's source artifacts and the current field value.
+Only the selected field changes. Failed provider calls preserve existing content;
+stale revisions are rejected instead of overwriting a newer edit. These user edits
+do not advance pipeline stages or modify media/checkpoints. `AI_IMAGE_*` remains
+the separate image-generation configuration, never the language-model provider.
+
+A local board that shows a production happening: pipeline stages
 lighting up, the script as a screenplay page, the scene plan as a filmstrip
 that fills in as assets generate, decisions, spend, and activity — all
 derived from what the pipeline already writes to `projects/<id>/`.

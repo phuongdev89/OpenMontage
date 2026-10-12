@@ -2,7 +2,8 @@
 
 The watcher observes ``projects/`` with watchfiles; on any change it bumps a
 per-project version and wakes SSE subscribers, who tell the browser to
-refetch state. The server never writes to project directories.
+refetch state. User-requested copy revisions only write posting_copy.json;
+pipeline checkpoints and media remain disk-derived.
 """
 
 from __future__ import annotations
@@ -12,11 +13,14 @@ import json
 import time
 from contextlib import asynccontextmanager, suppress
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Literal
+from urllib.parse import urlsplit
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, HTMLResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel, Field
+from backlot.copywriter import CopywriterError, regenerate
 
 from backlot.state import PROJECTS_DIR, REPO_ROOT, list_projects, load_board_state, summarize_project
 
@@ -28,6 +32,12 @@ THUMB_WIDTHS = (320, 640, 960)
 _IGNORE_PARTS = {"node_modules", ".git", "__pycache__", ".cache"}
 
 SSE_HEARTBEAT_SECONDS = 15
+
+
+class CopyRevisionRequest(BaseModel):
+    field: Literal['caption', 'description']
+    instruction: str = Field(min_length=1, max_length=4000)
+    expected_revision: str = Field(pattern=r'^[a-f0-9]{64}$')
 
 
 def _ui_html(name: str, assets: tuple[str, ...]) -> HTMLResponse:
@@ -179,6 +189,24 @@ def create_app() -> FastAPI:
     async def project_state(project_id: str) -> dict:
         project_dir = _safe_project_dir(project_id)
         return await asyncio.to_thread(load_board_state, project_dir)
+
+    @app.post('/api/project/{project_id}/posting-copy/regenerate')
+    async def regenerate_posting_copy(project_id: str, body: CopyRevisionRequest, request: Request) -> dict:
+        origin = request.headers.get('origin')
+        if origin and urlsplit(origin).netloc != request.url.netloc:
+            raise HTTPException(status_code=403, detail='Yêu cầu phải gửi từ Backlot đang mở.')
+        project = _safe_project_dir(project_id)
+        if not body.instruction.strip():
+            raise HTTPException(status_code=422, detail='Hãy nhập yêu cầu chỉnh sửa.')
+        try:
+            result = await asyncio.to_thread(regenerate, project, body.field, body.instruction.strip(), body.expected_revision)
+        except CopywriterError as exc:
+            raise HTTPException(status_code=exc.status, detail=str(exc))
+        except OSError:
+            raise HTTPException(status_code=500, detail='Không lưu được nội dung mới. Hãy kiểm tra quyền ghi của thư mục project.')
+        _invalidate_summary(project_id)
+        hub.publish(project_id)
+        return result
 
     @app.get("/api/project/{project_id}/events")
     async def project_events(project_id: str, request: Request) -> StreamingResponse:

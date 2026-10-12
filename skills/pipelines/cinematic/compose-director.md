@@ -91,3 +91,8 @@ Recommended metadata keys:
 - Applying letterbox to footage that needs every pixel.
 - Letting grading or sharpening damage faces or text.
 - Silently swapping a blocked Remotion render for a lower-fidelity still-image export.
+
+
+## Concurrent project isolation (binding)
+
+Before media work, read `skills/pipelines/shared/project-isolation.md`. Bind all source, narration, public assets, temporary props and outputs to the exact current project. Verify audio ownership in both final aspect ratios.
