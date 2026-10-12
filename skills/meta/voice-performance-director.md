@@ -55,6 +55,16 @@ Section-level delivery cues:
 
 ## Provider Mapping
 
+- Vietnamese and English narration both use fixed effective speed `0.90x`
+  relative to the provider native `1.0x`. Never multiply the previous rate or
+  add another 10% slowdown. Pass Vbee `speed_rate=0.90` (or `speed=0.90`
+  when required by the adapter). For VieNeu without speed control, generate
+  native audio and apply pitch-preserving `atempo=0.90` exactly once.
+  Already processed `0.90x` audio must not be slowed again in compose/mix.
+  Verify metadata before reusing audio; record `baseline_speed=1.0`,
+  `target_speed=0.90`, `effective_speed=0.90`, and the actual processing filter
+  in `voice_performance.provider_settings`. Extend scene timing to fit audio.
+
 - OpenAI TTS: use `model: "gpt-4o-mini-tts"` when sending `instructions`.
   Put the emotional arc, pacing, emphasis, and role in `instructions`; keep the
   input text clean but punctuated. Do not send `instructions` to `tts-1` or

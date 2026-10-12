@@ -267,3 +267,4 @@ stages:
     success_criteria:
       - Schema-valid publish_log
       - Export directory contains video, metadata, and thumbnail concept
+      - For math projects, exports/video contains portrait and landscape renders, and the thumbnail does not reveal the answer

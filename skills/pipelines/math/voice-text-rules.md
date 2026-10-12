@@ -35,6 +35,7 @@
      tiếng Anh.
   Không tự đổi thứ tự ưu tiên hoặc provider; ghi provider thực tế và lý do
   fallback vào asset manifest. Cả hai giọng đều theo persona nam.
+- **Tốc độ lời đọc VI và EN:** Cố định tốc độ hiệu dụng ở `0.90×` so với tốc độ native `1.0×` của provider cho cả tiếng Việt và tiếng Anh. Không nhân với tốc độ cũ và không áp thêm mức giảm 10%. Với Vbee truyền rõ `speed_rate=0.90`; nếu adapter dùng `speed` thì truyền `speed=0.90`. Với VieNeu không hỗ trợ speed, tạo audio native rồi áp time-stretch giữ cao độ `atempo=0.90` đúng một lần. Audio đã ở `0.90×` phải giữ nguyên tốc độ khi compose/mix; không time-stretch lần nữa. Ghi `baseline_speed=1.0`, `target_speed=0.90`, `effective_speed=0.90` và filter thực tế trong `voice_performance.provider_settings`; nếu tái sử dụng audio phải kiểm tra metadata, không mặc định coi là native. Điều chỉnh thời lượng cảnh theo audio.
 
 ---
 
@@ -147,7 +148,7 @@ dòng ở cả hook và phần đề bài đầy đủ.
 1. Chào bằng tiếng Việt
 2. Nói hôm nay học/giải bài gì
 3. Thông báo sẽ đọc nguyên văn tiếng Anh
-4. Đọc toàn bộ đề = Vbee API với `VBEE_VOICE_CODE_EN` (mặc định `am_echo`), tốc độ 0.85×; khi mix, tăng gain riêng đoạn tiếng Anh lên 1.20 và kiểm tra không clipping. Thiếu cấu hình Vbee tiếng Anh = blocker; chỉ thay provider khi người dùng duyệt.
+4. Đọc toàn bộ đề = Vbee API với `VBEE_VOICE_CODE_EN` (mặc định `am_echo`), tốc độ 0.90×; khi mix, tăng gain riêng đoạn tiếng Anh lên 1.20 và kiểm tra không clipping. Thiếu cấu hình Vbee tiếng Anh = blocker; chỉ thay provider khi người dùng duyệt.
 5. Đọc bản dịch Việt đầy đủ, chính xác = ưu tiên skill `vieneu-tts`; nếu
    skill không khả dụng thì dùng API `vbee` với `VBEE_VOICE_CODE_VI`.
 6. Bắt đầu lời giải / hướng dẫn (SAU KHI đọc cả đề gốc và bản dịch)
@@ -208,3 +209,10 @@ Trình bày đầy đủ lời giải, kiểm tra và đáp án trước lời c
 - Workflow đầy đủ: [`AGENT_GUIDE.md → Math Problem Videos`](../../../AGENT_GUIDE.md)
 - Voice performance chung: [`skills/meta/voice-performance-director.md`](../../meta/voice-performance-director.md)
 - Tool TTS: `tools/audio/vbee_tts.py` — param `language="en"` cho đề Anh
+
+### Hook-first acceptance gate
+
+- Câu được đọc đầu tiên phải nêu manh mối/mâu thuẫn hoặc thử thách cụ thể theo concept; cấm mở bằng "Chào", "Xin chào", lời giới thiệu lớp/kỳ thi hoặc "Hôm nay...". SFX mở đầu không thay thế hook trong lời đọc.
+- Trong 3–5 giây đầu, hình và lời đọc phải cùng tạo tò mò từ dữ kiện đúng của bài toán. Lời chào, nếu có, xuất hiện sau dữ kiện hook; không bắt buộc có lời chào.
+- Hook phải có câu hỏi/thách thức cụ thể, không lộ đáp án; tạo kịch tính bằng concept, không bịa dữ kiện hay phóng đại sai toán học.
+- Review script phải trích nguyên câu đầu và ghi PASS/FAIL cho hook-first. FAIL thì sửa trước TTS, kể cả chế độ tự động duyệt.

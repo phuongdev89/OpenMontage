@@ -74,7 +74,7 @@ OpenMontage is an instruction-driven video production system. The AI agent IS th
 ```
 Agent reads pipeline manifest (YAML) -> reads stage director skill (MD)
 -> uses tools (Python BaseTool subclasses) -> self-reviews (meta skill)
--> checkpoints (Python utility) -> presents to human for approval
+-> checkpoints (Python utility) -> presents gated stages for human approval unless the project has explicit auto-authorization
 ```
 
 **Python = tools + persistence.** No orchestration logic, creative decisions, review logic, or checkpoint policy in Python code. The agent makes those decisions guided by instructions.
@@ -192,10 +192,11 @@ At script review and final video review, verify the verbatim English reading, co
 
 ### Narration defaults (all new renders)
 
-- **Readable pace:** Unless the user explicitly chooses another pace, generate narration at `0.85x` (or the closest supported slower rate) and extend scene timing to fit the resulting audio. Never speed narration up to force it into the old timing.
+- **Readable pace:** Extend scene timing to fit the generated audio. Never speed narration up to force it into old timing.
+- **Vietnamese and English narration speed:** Fix effective speed at `0.90x` relative to the provider native `1.0x` for both languages. Do not multiply the previous rate or apply an additional 10% slowdown. Pass Vbee `speed_rate=0.90` (or `speed=0.90` when the adapter uses that name). For VieNeu without speed control, generate native audio and apply pitch-preserving `atempo=0.90` exactly once. Audio already at `0.90x` must retain its rate during compose/mix. Record `baseline_speed=1.0`, `target_speed=0.90`, `effective_speed=0.90`, and actual post-processing filter in `voice_performance.provider_settings`. Verify reused audio metadata rather than assuming native speed; extend scene timing to match audio.
 - **No first-person narrator:** In all agent-authored dialogue and narration, never self-identify as a teacher, host, or guide and never use first-person forms such as "I", "we", "tôi", "mình", "ta", or "chúng ta". Address viewers directly or use neutral/imperative phrasing (for example, "Chào các con. Hôm nay hãy cùng đến với một thử thách..."). Apply this to `voiceText`, subtitles, and visible dialogue. Preserve source material that must be quoted or read verbatim.
 - **Vietnamese narration routing:** First use the `vieneu-tts` skill to generate Vietnamese audio locally with the selected male preset voice. If that skill is unavailable because the package, model, or runtime fails, fall back to the Vbee API using `VBEE_VOICE_CODE_VI`. Do not silently choose another provider; record the actual provider and fallback reason in the asset manifest and render report.
-- **English problem reading:** Use the Vbee API with the configured `VBEE_VOICE_CODE_EN` (`am_echo`), render it at `0.85x`, then apply a `1.20` gain to that English segment during the mix. Verify the gain with an audio probe/FFmpeg measurement and confirm that it does not clip. Missing Vbee English configuration is a blocker; provider changes require user approval.
+- **English problem reading:** Use the Vbee API with the configured `VBEE_VOICE_CODE_EN` (`am_echo`), render it at `0.90x`, then apply a `1.20` gain to that English segment during the mix. Verify the gain with an audio probe/FFmpeg measurement and confirm that it does not clip. Missing Vbee English configuration is a blocker; provider changes require user approval.
 
 ## Math Video — Extended Rules
 
@@ -208,6 +209,8 @@ All math problem-solving videos MUST also follow the full rule set in:
 **[`skills/pipelines/math/pedagogy-rules.md`](skills/pipelines/math/pedagogy-rules.md)** — 7 sư phạm nguyên tắc, ví dụ đạt/chưa đạt, `teachingAid` design, `requiresIllustration` / `needsIllustration`, rà soát trước TTS.
 
 **[`skills/pipelines/math/compose-director.md`](skills/pipelines/math/compose-director.md)** — hai video bắt buộc (portrait 1080×1920 + landscape 1920×1080), layout, audio dùng chung, `formats.json`, kiểm tra sau render.
+
+**Publish rules:** Math project phải có hai video trong `exports/video/` và thumbnail không lộ đáp án; áp dụng publisher tương ứng với manifest: [`explainer`](skills/pipelines/explainer/publish-director.md) hoặc [`animation`](skills/pipelines/animation/publish-director.md).
 
 **[`skills/pipelines/math/creator-review.md`](skills/pipelines/math/creator-review.md)** — phần duyệt nội bộ cho người tạo: lời giải đầy đủ + audit result hiển thị trong chat trước TTS/render; `solution.md` không chia sẻ cho học sinh.
 
@@ -222,7 +225,7 @@ Summary of binding rules:
 - **`solutionMode`:** Ask the user (`answer` vs `guided`) before solving. Wait for real input — no defaults, no timeouts.
 - **Phase sequence (VI / `answer`):** `introduction → problem → [strategy] → solution → check → answer → closing`
 - **Phase sequence (VI / `guided`):** `introduction → problem → strategy → solution → check → practice → closing` (`strategy` mandatory; one `practice`; no `math-answer`)
-- **Phase sequence (EN problem):** Insert `read-english → read-translation` after `introduction`, before `strategy`. `read-english` uses `englishText` + empty `voiceText`; TTS = Vbee EN `0.85×`, English segment gain `1.20`. Missing EN config = **blocker**.
+- **Phase sequence (EN problem):** Insert `read-english → read-translation` after `introduction`, before `strategy`. `read-english` uses `englishText` + empty `voiceText`; TTS = Vbee EN `0.90×`, English segment gain `1.20`. Missing EN config = **blocker**.
 - **Guided leak check:** Before TTS — scan every `voiceText`, title, equation, note, diagram annotation for answer leakage.
 - **Closing:** CTA before wish; closing wish mandatory as last line.
 - **Pedagogy:** Explain *why* each step works (not just the formula). Match method to the confirmed grade. No shortcut tricks without explaining the basis. See `pedagogy-rules.md` for all 7 principles + "đạt/chưa đạt" examples.
@@ -247,7 +250,7 @@ The agent:
 4. Uses tools (`tools/`) for concrete capabilities
 5. Self-reviews using the reviewer meta skill (`skills/meta/reviewer.md`)
 6. Checkpoints via the checkpoint protocol (`skills/meta/checkpoint-protocol.md`)
-7. Presents to human for approval when `human_approval_default: true`
+7. Presents to human for approval when `human_approval_default: true` and no project auto-authorization exists
 
 Infrastructure files:
 
@@ -641,11 +644,13 @@ The reviewer is a meta skill (`skills/meta/reviewer.md`) — advisory, never dir
 
 The checkpoint protocol meta skill (`skills/meta/checkpoint-protocol.md`) teaches the agent when to pause:
 
-- Read `human_approval_default` from the pipeline manifest per stage. **The manifest value is binding** — never re-judge it. `lib/checkpoint.py` enforces this: a gated stage cannot be written `completed` without `human_approved=True`.
+- Read `human_approval_default` from the pipeline manifest per stage. **The manifest value defines which stages are gated.** `lib.checkpoint.py` enforces each gate unless the current project has an explicit auto-approval authorization recorded by `authorize_auto_approval()`.
 - Typical gated stages: `idea`/`proposal`, `script`, `scene_plan`, **`assets`** (review the generated assets scene-by-scene — the Backlot board's filmstrip — before compose locks them in), and `publish` where the pipeline has one. Most pipelines auto-proceed on `edit` and `compose`, but not all (documentary-montage gates `edit`) — the manifest you loaded is the only authority.
-- When approval is required: write the checkpoint as `awaiting_human`, present artifact summary, review findings, and cost snapshot — then **END YOUR TURN**. Doing further pipeline work in the same response is a gate violation.
-- **Approval is per-gate.** An early "go ahead" never covers later gates; explicit full-run pre-authorization must be recorded as a `decision_log` entry (`category: "approval_policy"`) to count.
-- Wait for human to approve, request revision, or abort.
+- When approval is required and no project auto-authorization exists: write the checkpoint as `awaiting_human`, present artifact summary, review findings, and cost snapshot — then **END YOUR TURN**. Doing further pipeline work in the same response is a gate violation.
+- **Approval is per-gate.** An early "go ahead" never covers later gates. Full-run pre-authorization must use `authorize_auto_approval()` and is recorded in the project marker; do not infer it from a general request to make the video.
+- When the user explicitly says **"cho phép tự động duyệt"** for the current project, call `authorize_auto_approval()` after project initialization and before crossing a gate. This is scoped to that project and may be revoked with `revoke_auto_approval()`. Keep `human_approved=False`; automatic gate resolution is recorded separately in `approval_resolution`.
+- This exception takes precedence over stage-director instructions to pause, sample review, and approval checklists, including the publish gate within the authorized task. Review, schema validation, checkpoints, stage order, locked provider/voice/runtime choices, budget, and explicit user constraints remain mandatory. Do not enable this policy merely because the user asks to implement or discuss the feature.
+- When paused at a human gate, wait for approval, revision request, or abort.
 
 ### Conversation Export After Compose and Publish
 
@@ -675,7 +680,7 @@ Checkpoint rules:
 - `status` may be `completed`, `failed`, `awaiting_human`, or `in_progress`.
 - Write an `in_progress` checkpoint on entering each stage; during `assets`/`compose`, refresh `metadata.partial_progress` after each completed scene/asset unit — this powers live progress on the board.
 - `completed` and `awaiting_human` checkpoints must include the canonical artifact.
-- A gated stage (`human_approval_default: true`) can only be written `completed` with `human_approved=True` — the writer raises a GATE VIOLATION otherwise.
+- A gated stage (`human_approval_default: true`) can be written `completed` with either an actual human approval (`human_approved=True`) or valid project auto-authorization (`approval_resolution.type: "auto_authorized"`); the latter keeps `human_approved=False` and records its source instruction.
 - Superseded checkpoints are archived automatically to `projects/YYYY-MM-DD_HH-MM-SS_<project_id>/history/` — stage re-runs never destroy run history.
 - Invalid checkpoints or invalid canonical artifacts are contract violations and should fail fast.
 
@@ -782,8 +787,33 @@ The `.agents/skills/` directory is large. When you're not coming in through a to
 - Do not hardcode provider names, API key names, or setup URLs. Read them from the registry's `install_instructions` and `dependencies` fields.
 - Do not tell a restricted shared-installation user to add credentials manually, create a `.env`, or export a key. Surface the unavailable provider as an administrator setup request and continue only with centrally provisioned capabilities.
 - Before offering a direct vendor credential, check the registry for an available wrapper through an already configured provider (for example, a partner model hosted by fal.ai).
-- Do not begin asset generation before user approval on the production plan.
+- Do not begin asset generation before user approval on the production plan unless the current project has explicit auto-authorization recorded with `authorize_auto_approval()`.
 - Do not hide degraded paths. Record substitutions and blocked options explicitly.
 - Do not present a single unavailable tool in isolation. Always show the full capability picture: "X of Y providers configured for this capability."
 - Do not skip the Provider Menu at preflight. The user must see what they have AND what they could unlock.
 - Do not change provider, model, or render path without telling the user first and getting approval when the change is material.
+
+### Hook-first acceptance gate
+
+- Câu được đọc đầu tiên phải nêu manh mối/mâu thuẫn hoặc thử thách cụ thể theo concept; cấm mở bằng "Chào", "Xin chào", lời giới thiệu lớp/kỳ thi hoặc "Hôm nay...". SFX mở đầu không thay thế hook trong lời đọc.
+- Trong 3–5 giây đầu, hình và lời đọc phải cùng tạo tò mò từ dữ kiện đúng của bài toán. Lời chào, nếu có, xuất hiện sau dữ kiện hook; không bắt buộc có lời chào.
+- Hook phải có câu hỏi/thách thức cụ thể, không lộ đáp án; tạo kịch tính bằng concept, không bịa dữ kiện hay phóng đại sai toán học.
+- Review script phải trích nguyên câu đầu và ghi PASS/FAIL cho hook-first. FAIL thì sửa trước TTS, kể cả chế độ tự động duyệt.
+
+## Vietnamese typography and text containment gate
+
+- Dùng font hỗ trợ đầy đủ dấu tiếng Việt ở đúng weight/style; kiểm tra chuỗi có ă â ê ô ơ ư đ và dấu kép. Nạp font local hoặc font đã xác minh, không dựa vào fallback trên máy preview.
+- Trước capture/render phải chờ font tải xong (`document.fonts.ready` với HTML/browser). Xác minh font thực tế và ảnh raster tiếng Việt; chỉ khai báo font-family không đủ bằng chứng.
+- Kiểm tra mọi text container ở cả portrait và landscape, gồm tiêu đề, đề bài, labels, phụ đề và CTA. Với HTML kiểm tra scrollWidth/clientWidth và scrollHeight/clientHeight, sau đó kiểm tra ảnh thật để bắt dấu bị cắt hoặc glyph lỗi; runtime khác dùng kiểm tra bounding box tương đương.
+- Chữ và dấu phải nằm trong border với padding an toàn. Sửa bằng wrap, chia trang, tăng vùng chữ hoặc giảm cỡ chữ trong giới hạn dễ đọc của playbook. Cấm dùng overflow:hidden/ellipsis để che mất nội dung hay bóp chữ méo.
+- Ghi bằng chứng font, frame/ảnh review, tỷ lệ khung hình và kết quả containment vào review/render_report. Font lỗi hoặc chữ tràn = critical: sửa source trước render; auto-approval không bỏ qua kiểm tra này.
+
+### Conversation export completion evidence
+
+- After every successful export (after compose and after publish), copy both Markdown and JSON from the skill session directory into `<project_dir>/exports/conversation/`. Preserve the two filenames and overwrite those same project copies after publishing; do not create another timestamped pair. Confirm both project copies exist, are nonempty, and match their sources by hash or byte comparison before reporting export completion. Record source and project-copy paths in the corresponding checkpoint metadata, and link the project copies in the handoff. Report copy failures explicitly; a scratch-only export does not complete delivery.
+
+- Sau checkpoint compose completed, bắt buộc thực thi skill `export-conversation` trước khi kết thúc lượt hoặc tiến tới publish, kể cả chế độ tự động duyệt. Đây là nghĩa vụ agent, không phải một bước cần hỏi người dùng.
+- Không coi lệnh export được dự định hoặc đoạn transcript viết tay là đã xuất. Xác nhận exit code thành công, hai tệp Markdown/JSON tồn tại, đúng conversation ID/source và có nội dung transcript thật.
+- Ghi conversation ID, source agent, output base path tuyệt đối, đường dẫn hai tệp và thời điểm export vào metadata checkpoint compose qua `write_checkpoint()`; giữ nguyên artifact và trạng thái approval khi bổ sung metadata. Dẫn link hai tệp khi báo hoàn tất.
+- Sau publish completed, chạy lại export cùng ID/base path để ghi đè, xác minh lại và ghi bằng chứng vào metadata checkpoint publish. Auto-approval cũng phải thực hiện bước này.
+- Nếu export thất bại hoặc không xác định được nguồn transcript: báo lỗi cụ thể, ghi pending/failed export trong metadata và không tuyên bố đã bàn giao đầy đủ; không tự tạo transcript thay thế.

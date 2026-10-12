@@ -118,8 +118,8 @@ introduction → problem → strategy → solution (hướng dẫn, KHÔNG hoàn
 introduction → read-english → read-translation → [strategy] → solution → check → answer → closing
 ```
 
-- `introduction`: chào Việt, nói hôm nay làm gì, **thông báo** sẽ đọc nguyên văn tiếng Anh.
-- `read-english`: dùng `englishText`, `voiceText` để **rỗng**; TTS = `vbee_tts` với `language="en"` ở `0.9×`.
+- `introduction`: mở ngay bằng hook thử thách cụ thể theo concept; lời chào chỉ được đặt sau dữ kiện gợi tò mò, rồi **thông báo** sẽ đọc nguyên văn tiếng Anh.
+- `read-english`: dùng `englishText`, `voiceText` để **rỗng**; TTS = `vbee_tts` với `language="en"` ở `0.90×` (tốc độ cố định; không giảm thêm khi mix).
 - `read-translation`: đọc bản dịch Việt đầy đủ, chính xác bằng giọng nam Việt.
 - Có thể chia đề/bản dịch thành nhiều cảnh liên tiếp, giữ đầy đủ nguyên văn khi ghép.
 

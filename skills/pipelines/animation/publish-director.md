@@ -38,6 +38,23 @@ Store in `publish_log.metadata`:
 - exports are labeled by purpose and platform,
 - the package is usable without extra manual work.
 
+#### Math-Video Publishing Contract
+
+When the project is a math video and its compose artifacts include
+`artifacts/formats.json`:
+
+- Ensure the project's `exports/video/` contains both final renders as
+  `video-portrait.mp4` (1080x1920) and `video-landscape.mp4` (1920x1080).
+  Copy them from the paths recorded in `formats.json`; verify both files exist,
+  are non-empty, and pass `ffprobe` dimension checks before completing publish.
+- The final thumbnail must not reveal the answer in either `answer` or
+  `guided` mode. Do not use the answer value, a completed solving equation,
+  a circled result, or a frame from an answer-reveal scene. Inspect the actual
+  image, or review the thumbnail concept if no image was generated; revise any
+  answer-revealing element before publishing.
+- Do not mark publish complete if either video variant is missing or the
+  thumbnail reveals the answer.
+
 ## Common Pitfalls
 
 - Writing generic metadata that ignores the animation style.

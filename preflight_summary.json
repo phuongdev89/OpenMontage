@@ -1,0 +1,1071 @@
+{
+  "composition_runtimes": {
+    "ffmpeg": true,
+    "remotion": true,
+    "hyperframes": true
+  },
+  "capabilities": [
+    {
+      "capability": "3d_asset_acquisition",
+      "configured": 1,
+      "total": 1,
+      "available_providers": [
+        "multi"
+      ],
+      "unavailable_providers": []
+    },
+    {
+      "capability": "3d_asset_generation",
+      "configured": 0,
+      "total": 2,
+      "available_providers": [],
+      "unavailable_providers": [
+        "atlas_cloud",
+        "fal"
+      ]
+    },
+    {
+      "capability": "3d_world_generation",
+      "configured": 1,
+      "total": 1,
+      "available_providers": [
+        "threejs"
+      ],
+      "unavailable_providers": []
+    },
+    {
+      "capability": "3d_world_rendering",
+      "configured": 0,
+      "total": 1,
+      "available_providers": [],
+      "unavailable_providers": [
+        "blender"
+      ]
+    },
+    {
+      "capability": "analysis",
+      "configured": 9,
+      "total": 13,
+      "available_providers": [
+        "ffmpeg",
+        "ffprobe",
+        "local",
+        "multi",
+        "transformers",
+        "whisperx"
+      ],
+      "unavailable_providers": [
+        "azure",
+        "dashscope",
+        "mediapipe",
+        "youtube-transcript-api"
+      ]
+    },
+    {
+      "capability": "audio_processing",
+      "configured": 2,
+      "total": 2,
+      "available_providers": [
+        "ffmpeg"
+      ],
+      "unavailable_providers": []
+    },
+    {
+      "capability": "avatar",
+      "configured": 0,
+      "total": 5,
+      "available_providers": [],
+      "unavailable_providers": [
+        "heygen",
+        "kling_official",
+        "sadtalker",
+        "wav2lip"
+      ]
+    },
+    {
+      "capability": "character_animation",
+      "configured": 6,
+      "total": 6,
+      "available_providers": [
+        "openmontage"
+      ],
+      "unavailable_providers": []
+    },
+    {
+      "capability": "clip_acquisition",
+      "configured": 1,
+      "total": 1,
+      "available_providers": [
+        "openmontage"
+      ],
+      "unavailable_providers": []
+    },
+    {
+      "capability": "clip_retrieval",
+      "configured": 1,
+      "total": 1,
+      "available_providers": [
+        "openmontage"
+      ],
+      "unavailable_providers": []
+    },
+    {
+      "capability": "corpus_population",
+      "configured": 0,
+      "total": 1,
+      "available_providers": [],
+      "unavailable_providers": [
+        "openmontage"
+      ]
+    },
+    {
+      "capability": "enhancement",
+      "configured": 2,
+      "total": 6,
+      "available_providers": [
+        "ffmpeg"
+      ],
+      "unavailable_providers": [
+        "codeformer",
+        "mediapipe",
+        "realesrgan",
+        "rembg"
+      ]
+    },
+    {
+      "capability": "graphics",
+      "configured": 2,
+      "total": 3,
+      "available_providers": [
+        "mermaid",
+        "pygments"
+      ],
+      "unavailable_providers": [
+        "manim"
+      ]
+    },
+    {
+      "capability": "image_generation",
+      "configured": 0,
+      "total": 23,
+      "available_providers": [],
+      "unavailable_providers": [
+        "atlascloud",
+        "bytedance",
+        "comfyui",
+        "dashscope",
+        "fal.ai",
+        "flux",
+        "google_imagen",
+        "grok",
+        "hunyuan_cloud",
+        "ideogram",
+        "kling_official",
+        "local_diffusion",
+        "minimax",
+        "multi",
+        "openai",
+        "pexels",
+        "pixabay",
+        "qwen_local",
+        "recraft",
+        "replicate"
+      ]
+    },
+    {
+      "capability": "music_generation",
+      "configured": 0,
+      "total": 5,
+      "available_providers": [],
+      "unavailable_providers": [
+        "comfyui",
+        "elevenlabs",
+        "fal.ai",
+        "google",
+        "suno"
+      ]
+    },
+    {
+      "capability": "music_library",
+      "configured": 0,
+      "total": 1,
+      "available_providers": [],
+      "unavailable_providers": [
+        "local"
+      ]
+    },
+    {
+      "capability": "music_search",
+      "configured": 1,
+      "total": 2,
+      "available_providers": [
+        "pixabay_music"
+      ],
+      "unavailable_providers": [
+        "freesound"
+      ]
+    },
+    {
+      "capability": "publish",
+      "configured": 1,
+      "total": 1,
+      "available_providers": [
+        "local"
+      ],
+      "unavailable_providers": []
+    },
+    {
+      "capability": "screen_capture",
+      "configured": 2,
+      "total": 2,
+      "available_providers": [
+        "cap",
+        "ffmpeg"
+      ],
+      "unavailable_providers": []
+    },
+    {
+      "capability": "source_ingest",
+      "configured": 1,
+      "total": 1,
+      "available_providers": [
+        "yt-dlp"
+      ],
+      "unavailable_providers": []
+    },
+    {
+      "capability": "subtitle",
+      "configured": 2,
+      "total": 2,
+      "available_providers": [
+        "openmontage",
+        "remotion"
+      ],
+      "unavailable_providers": []
+    },
+    {
+      "capability": "tts",
+      "configured": 1,
+      "total": 14,
+      "available_providers": [
+        "vbee"
+      ],
+      "unavailable_providers": [
+        "azure",
+        "cartesia",
+        "dashscope",
+        "doubao",
+        "elevenlabs",
+        "fal.ai",
+        "fish_audio",
+        "gemini",
+        "google_tts",
+        "inworld",
+        "kling_official",
+        "openai",
+        "piper"
+      ]
+    },
+    {
+      "capability": "video_generation",
+      "configured": 0,
+      "total": 31,
+      "available_providers": [],
+      "unavailable_providers": [
+        "ark",
+        "atlascloud",
+        "cogvideo",
+        "comfyui",
+        "fal.ai",
+        "gemini_omni",
+        "grok",
+        "heygen",
+        "higgsfield",
+        "hunyuan",
+        "hunyuan_cloud",
+        "kling",
+        "kling_official",
+        "ltx",
+        "ltx-modal",
+        "minimax",
+        "openai",
+        "pexels",
+        "pixabay",
+        "replicate",
+        "runway",
+        "seedance",
+        "veo",
+        "volcengine",
+        "wan"
+      ]
+    },
+    {
+      "capability": "video_post",
+      "configured": 9,
+      "total": 9,
+      "available_providers": [
+        "ffmpeg",
+        "hyperframes"
+      ],
+      "unavailable_providers": []
+    }
+  ],
+  "setup_offers": [
+    {
+      "capability": "3d_asset_generation",
+      "tool": "atlas_3d",
+      "provider": "atlas_cloud",
+      "runtime": "api",
+      "kind": "env_var",
+      "fix_complexity": "1-minute env-var",
+      "env_vars": [
+        "ATLASCLOUD_API_KEY"
+      ],
+      "install_instructions": "Set ATLASCLOUD_API_KEY (ATLAS_CLOUD_API_KEY and ATLAS_API_KEY are also accepted). Create a key at https://www.atlascloud.ai/."
+    },
+    {
+      "capability": "3d_asset_generation",
+      "tool": "fal_3d",
+      "provider": "fal",
+      "runtime": "api",
+      "kind": "env_var",
+      "fix_complexity": "1-minute env-var",
+      "env_vars": [
+        "FAL_KEY"
+      ],
+      "install_instructions": "Set FAL_KEY (or FAL_AI_API_KEY). Create a key at https://fal.ai/dashboard/keys."
+    },
+    {
+      "capability": "analysis",
+      "tool": "azure_stt",
+      "provider": "azure",
+      "runtime": "api",
+      "install_instructions": "Set your Azure AI Speech credentials:\n  export AZURE_SPEECH_KEY=your_speech_resource_key\n  export AZURE_SPEECH_REGION=eastus   # your Speech resource region\nCreate a Speech resource in the Azure portal (https://portal.azure.com) -- the key and region are on its 'Keys and Endpoint' page. Optionally set AZURE_SPEECH_ENDPOINT to a full custom endpoint URL instead of the region."
+    },
+    {
+      "capability": "analysis",
+      "tool": "dashscope_asr",
+      "provider": "dashscope",
+      "runtime": "api",
+      "install_instructions": "Set DASHSCOPE_API_KEY to your Alibaba Cloud DashScope API key.\n  Get one at https://dashscope.aliyun.com/"
+    },
+    {
+      "capability": "avatar",
+      "tool": "heygen_avatar",
+      "provider": "heygen",
+      "runtime": "api",
+      "kind": "env_var",
+      "fix_complexity": "1-minute env-var",
+      "env_vars": [
+        "HEYGEN_API_KEY"
+      ],
+      "install_instructions": "Configure HEYGEN_API_KEY from your HeyGen API account."
+    },
+    {
+      "capability": "avatar",
+      "tool": "kling_avatar",
+      "provider": "kling_official",
+      "runtime": "api",
+      "kind": "env_var",
+      "fix_complexity": "1-minute env-var",
+      "env_vars": [
+        "KLING_API_KEY"
+      ],
+      "install_instructions": "Set KLING_API_KEY in .env for the official Kling API. Provide an avatar image plus either audio_id or sound_file/audio_path."
+    },
+    {
+      "capability": "avatar",
+      "tool": "kling_lip_sync",
+      "provider": "kling_official",
+      "runtime": "api",
+      "kind": "env_var",
+      "fix_complexity": "1-minute env-var",
+      "env_vars": [
+        "KLING_API_KEY"
+      ],
+      "install_instructions": "Set KLING_API_KEY in .env for the official Kling API. Use identify_face first for multi-person clips, then pass face_choose or face_id."
+    },
+    {
+      "capability": "avatar",
+      "tool": "talking_head",
+      "provider": "sadtalker",
+      "runtime": "local_gpu",
+      "install_instructions": "Clone https://github.com/OpenTalker/SadTalker and set SADTALKER_PATH env var\nRequires: PyTorch with CUDA, ffmpeg\npip install sadtalker  # or clone the repo"
+    },
+    {
+      "capability": "avatar",
+      "tool": "lip_sync",
+      "provider": "wav2lip",
+      "runtime": "local_gpu",
+      "install_instructions": "Option 1: pip install wav2lip (if available)\nOption 2: Clone https://github.com/Rudrabha/Wav2Lip and set WAV2LIP_PATH env var\nRequires: PyTorch with CUDA, ffmpeg"
+    },
+    {
+      "capability": "corpus_population",
+      "tool": "corpus_builder",
+      "provider": "openmontage",
+      "runtime": "hybrid",
+      "install_instructions": "pip install opencv-python numpy requests pillow transformers torch\nAt least one stock source must be configured:\n  PEXELS_API_KEY for Pexels (free at https://www.pexels.com/api/)\n  UNSPLASH_ACCESS_KEY for Unsplash (see https://unsplash.com/documentation)\n  archive.org, nasa, and wikimedia work without API keys"
+    },
+    {
+      "capability": "image_generation",
+      "tool": "atlas_image",
+      "provider": "atlascloud",
+      "runtime": "api",
+      "kind": "env_var",
+      "fix_complexity": "1-minute env-var",
+      "env_vars": [
+        "ATLASCLOUD_API_KEY"
+      ],
+      "install_instructions": "Set ATLASCLOUD_API_KEY to your Atlas Cloud API key.\n  Get one at https://www.atlascloud.ai/ -> Dashboard -> API Keys"
+    },
+    {
+      "capability": "image_generation",
+      "tool": "atlas_refresh_image",
+      "provider": "atlascloud",
+      "runtime": "api",
+      "kind": "env_var",
+      "fix_complexity": "1-minute env-var",
+      "env_vars": [
+        "ATLASCLOUD_API_KEY"
+      ],
+      "install_instructions": "Configure ATLASCLOUD_API_KEY."
+    },
+    {
+      "capability": "image_generation",
+      "tool": "seedream_image",
+      "provider": "bytedance",
+      "runtime": "api",
+      "kind": "env_var",
+      "fix_complexity": "1-minute env-var",
+      "env_vars": [
+        "FAL_KEY"
+      ],
+      "install_instructions": "Set FAL_KEY to your fal.ai API key.\n  Get one at https://fal.ai/dashboard/keys"
+    },
+    {
+      "capability": "image_generation",
+      "tool": "comfyui_image",
+      "provider": "comfyui",
+      "runtime": "local_gpu",
+      "install_instructions": "Start a ComfyUI server and set COMFYUI_SERVER_URL (default http://localhost:8188).\nSee https://github.com/comfyanonymous/ComfyUI for setup.\nRunning a separate ComfyUI instance for images? Set COMFYUI_IMAGE_SERVER_URL instead -- it takes priority over COMFYUI_SERVER_URL for this tool only.",
+      "kind": "local_server",
+      "fix_complexity": "1-minute env-var if ComfyUI is already running; otherwise local install",
+      "env_var": "COMFYUI_SERVER_URL",
+      "default_url": "http://localhost:8188",
+      "health_check": "GET /system_stats",
+      "what_it_unlocks": [
+        "free local image generation through ComfyUI workflows",
+        "free local video generation through ComfyUI workflows",
+        "community workflow_json/workflow_path execution"
+      ],
+      "per_capability_env_var_overrides": {
+        "comfyui_image": "COMFYUI_IMAGE_SERVER_URL",
+        "comfyui_video": "COMFYUI_VIDEO_SERVER_URL",
+        "comfyui_music": "COMFYUI_MUSIC_SERVER_URL"
+      }
+    },
+    {
+      "capability": "image_generation",
+      "tool": "dashscope_image",
+      "provider": "dashscope",
+      "runtime": "api",
+      "install_instructions": "Set DASHSCOPE_API_KEY to your Alibaba Cloud DashScope API key.\n  Get one at https://dashscope.aliyun.com/"
+    },
+    {
+      "capability": "image_generation",
+      "tool": "gemini_fal_image",
+      "provider": "fal.ai",
+      "runtime": "api",
+      "kind": "env_var",
+      "fix_complexity": "1-minute env-var",
+      "env_vars": [
+        "FAL_KEY"
+      ],
+      "install_instructions": "Configure FAL_KEY using https://fal.ai/dashboard/keys."
+    },
+    {
+      "capability": "image_generation",
+      "tool": "ideogram_fal_image",
+      "provider": "fal.ai",
+      "runtime": "api",
+      "kind": "env_var",
+      "fix_complexity": "1-minute env-var",
+      "env_vars": [
+        "FAL_KEY"
+      ],
+      "install_instructions": "Configure FAL_KEY using https://fal.ai/dashboard/keys."
+    },
+    {
+      "capability": "image_generation",
+      "tool": "openai_fal_image",
+      "provider": "fal.ai",
+      "runtime": "api",
+      "kind": "env_var",
+      "fix_complexity": "1-minute env-var",
+      "env_vars": [
+        "FAL_KEY"
+      ],
+      "install_instructions": "Configure FAL_KEY using https://fal.ai/dashboard/keys."
+    },
+    {
+      "capability": "image_generation",
+      "tool": "flux_image",
+      "provider": "flux",
+      "runtime": "api",
+      "install_instructions": "Set FAL_KEY to your fal.ai API key.\n  Get one at https://fal.ai/dashboard/keys"
+    },
+    {
+      "capability": "image_generation",
+      "tool": "google_imagen",
+      "provider": "google_imagen",
+      "runtime": "api",
+      "install_instructions": "Auth option A -- API key (AI Studio): set GOOGLE_API_KEY (or GEMINI_API_KEY).\n  Get one at https://aistudio.google.com/apikey\nAuth option B -- service account (Vertex AI): set GOOGLE_APPLICATION_CREDENTIALS\n  to a service-account JSON key (needs the 'google-auth' package), plus\n  GOOGLE_CLOUD_PROJECT and optionally GOOGLE_CLOUD_LOCATION (default us-central1).\n  Requires the Vertex AI API enabled and billing on the project."
+    },
+    {
+      "capability": "image_generation",
+      "tool": "grok_image",
+      "provider": "grok",
+      "runtime": "api",
+      "install_instructions": "Set XAI_API_KEY to your xAI API key.\n  Get one from the xAI developer console"
+    },
+    {
+      "capability": "image_generation",
+      "tool": "hunyuan_image",
+      "provider": "hunyuan_cloud",
+      "runtime": "api",
+      "kind": "env_var",
+      "fix_complexity": "1-minute env-var",
+      "env_vars": [
+        "TENCENT_TOKENHUB_API_KEY"
+      ],
+      "install_instructions": "Set TENCENT_TOKENHUB_API_KEY to your Tencent Cloud TokenHub API key.\n  Get it at https://console.cloud.tencent.com/tokenhub"
+    },
+    {
+      "capability": "image_generation",
+      "tool": "ideogram_image",
+      "provider": "ideogram",
+      "runtime": "api",
+      "kind": "env_var",
+      "fix_complexity": "1-minute env-var",
+      "env_vars": [
+        "IDEOGRAM_API_KEY"
+      ],
+      "install_instructions": "Configure IDEOGRAM_API_KEY."
+    },
+    {
+      "capability": "image_generation",
+      "tool": "kling_official_image",
+      "provider": "kling_official",
+      "runtime": "api",
+      "kind": "env_var",
+      "fix_complexity": "1-minute env-var",
+      "env_vars": [
+        "KLING_API_KEY"
+      ],
+      "install_instructions": "Set KLING_API_KEY in .env for the official Kling API. Optionally set KLING_API_BASE_URL to override the default Singapore endpoint."
+    },
+    {
+      "capability": "image_generation",
+      "tool": "minimax_image",
+      "provider": "minimax",
+      "runtime": "api",
+      "kind": "env_var",
+      "fix_complexity": "1-minute env-var",
+      "env_vars": [
+        "MINIMAX_API_KEY"
+      ],
+      "install_instructions": "Set MINIMAX_API_KEY to your MiniMax API key. Optionally set MINIMAX_REGION to global or cn."
+    },
+    {
+      "capability": "image_generation",
+      "tool": "image_gen",
+      "provider": "multi",
+      "runtime": "hybrid",
+      "install_instructions": "Set one of these environment variables:\n  OPENAI_API_KEY -- for GPT Image 2\n  FAL_KEY -- for FLUX via fal.ai\nOr install diffusers for local generation:\n  pip install diffusers transformers accelerate torch"
+    },
+    {
+      "capability": "image_generation",
+      "tool": "openai_image",
+      "provider": "openai",
+      "runtime": "api",
+      "install_instructions": "Set OPENAI_API_KEY to your OpenAI API key.\n  pip install openai"
+    },
+    {
+      "capability": "image_generation",
+      "tool": "pexels_image",
+      "provider": "pexels",
+      "runtime": "api",
+      "install_instructions": "Set PEXELS_API_KEY to your Pexels API key.\n  Get one free at https://www.pexels.com/api/"
+    },
+    {
+      "capability": "image_generation",
+      "tool": "pixabay_image",
+      "provider": "pixabay",
+      "runtime": "api",
+      "install_instructions": "Set PIXABAY_API_KEY to your Pixabay API key.\n  Get one free at https://pixabay.com/api/docs/"
+    },
+    {
+      "capability": "image_generation",
+      "tool": "recraft_image",
+      "provider": "recraft",
+      "runtime": "api",
+      "install_instructions": "Set FAL_KEY to your fal.ai API key.\n  Get one at https://fal.ai/dashboard/keys"
+    },
+    {
+      "capability": "image_generation",
+      "tool": "gemini_replicate_image",
+      "provider": "replicate",
+      "runtime": "api",
+      "kind": "env_var",
+      "fix_complexity": "1-minute env-var",
+      "env_vars": [
+        "REPLICATE_API_TOKEN"
+      ],
+      "install_instructions": "Configure REPLICATE_API_TOKEN."
+    },
+    {
+      "capability": "music_generation",
+      "tool": "comfyui_music",
+      "provider": "comfyui",
+      "runtime": "local_gpu",
+      "install_instructions": "Start a ComfyUI server and set COMFYUI_SERVER_URL (default http://localhost:8188).\nRequires ace_step_v1_3.5b.safetensors in ComfyUI's checkpoints directory for the bundled workflow.\nRunning a separate ComfyUI instance for music? Set COMFYUI_MUSIC_SERVER_URL instead -- it takes priority over COMFYUI_SERVER_URL for this tool only.",
+      "kind": "local_server",
+      "fix_complexity": "1-minute env-var if ComfyUI is already running; otherwise local install",
+      "env_var": "COMFYUI_SERVER_URL",
+      "default_url": "http://localhost:8188",
+      "health_check": "GET /system_stats",
+      "what_it_unlocks": [
+        "free local image generation through ComfyUI workflows",
+        "free local video generation through ComfyUI workflows",
+        "community workflow_json/workflow_path execution"
+      ],
+      "per_capability_env_var_overrides": {
+        "comfyui_image": "COMFYUI_IMAGE_SERVER_URL",
+        "comfyui_video": "COMFYUI_VIDEO_SERVER_URL",
+        "comfyui_music": "COMFYUI_MUSIC_SERVER_URL"
+      }
+    },
+    {
+      "capability": "music_generation",
+      "tool": "music_gen",
+      "provider": "elevenlabs",
+      "runtime": "api",
+      "install_instructions": "Set the ELEVENLABS_API_KEY environment variable:\n  export ELEVENLABS_API_KEY=your_key_here\nGet a key at https://elevenlabs.io"
+    },
+    {
+      "capability": "music_generation",
+      "tool": "fal_elevenlabs_music",
+      "provider": "fal.ai",
+      "runtime": "api",
+      "kind": "env_var",
+      "fix_complexity": "1-minute env-var",
+      "env_vars": [
+        "FAL_KEY"
+      ],
+      "install_instructions": "Set FAL_KEY to a fal.ai API key. Get one at https://fal.ai/dashboard/keys"
+    },
+    {
+      "capability": "music_generation",
+      "tool": "google_music",
+      "provider": "google",
+      "runtime": "api",
+      "install_instructions": "Configure Google credentials:\n  - Set GEMINI_API_KEY (or GOOGLE_API_KEY) in environment.\n  - Or set GOOGLE_APPLICATION_CREDENTIALS for Vertex AI service account."
+    },
+    {
+      "capability": "music_generation",
+      "tool": "suno_music",
+      "provider": "suno",
+      "runtime": "api",
+      "install_instructions": "Set the SUNO_API_KEY environment variable:\n  export SUNO_API_KEY=your_key_here\nGet a key at https://sunoapi.org/api-key"
+    },
+    {
+      "capability": "music_library",
+      "tool": "music_library",
+      "provider": "local",
+      "runtime": "local",
+      "install_instructions": "Create a 'music_library/' folder in the project root and drop royalty-free audio tracks into it (e.g. .mp3, .wav, .m4a, .flac, .ogg). Sources: your own files, YouTube Audio Library, Jamendo, Freesound, etc. Override the location with the MUSIC_LIBRARY_DIR environment variable."
+    },
+    {
+      "capability": "music_search",
+      "tool": "freesound_music",
+      "provider": "freesound",
+      "runtime": "api",
+      "install_instructions": "Set the FREESOUND_API_KEY environment variable:\n  export FREESOUND_API_KEY=your_key_here\nGet a free key at https://freesound.org/apiv2/apply/"
+    },
+    {
+      "capability": "tts",
+      "tool": "azure_tts",
+      "provider": "azure",
+      "runtime": "api",
+      "install_instructions": "Set your Azure AI Speech credentials (same resource as azure_stt):\n  export AZURE_SPEECH_KEY=your_speech_resource_key\n  export AZURE_SPEECH_REGION=eastus   # your Speech resource region\nCreate a Speech resource in the Azure portal (https://portal.azure.com) -- the key and region are on its 'Keys and Endpoint' page. Optionally set AZURE_TTS_ENDPOINT to a full custom TTS host (e.g. https://<region>.tts.speech.microsoft.com)."
+    },
+    {
+      "capability": "tts",
+      "tool": "cartesia_tts",
+      "provider": "cartesia",
+      "runtime": "api",
+      "kind": "env_var",
+      "fix_complexity": "1-minute env-var",
+      "env_vars": [
+        "CARTESIA_API_KEY"
+      ],
+      "install_instructions": "Configure CARTESIA_API_KEY from the Cartesia dashboard."
+    },
+    {
+      "capability": "tts",
+      "tool": "dashscope_tts",
+      "provider": "dashscope",
+      "runtime": "api",
+      "install_instructions": "Set DASHSCOPE_API_KEY to your Alibaba Cloud DashScope API key.\n  Get one at https://dashscope.aliyun.com/"
+    },
+    {
+      "capability": "tts",
+      "tool": "doubao_tts",
+      "provider": "doubao",
+      "runtime": "api",
+      "install_instructions": "Set DOUBAO_SPEECH_API_KEY to a Volcengine Doubao Speech API Key.\nOptional: set DOUBAO_SPEECH_VOICE_TYPE to the default speaker voice.\nUse the new console API key flow; do not pass app id/access token as the API key."
+    },
+    {
+      "capability": "tts",
+      "tool": "elevenlabs_tts",
+      "provider": "elevenlabs",
+      "runtime": "api",
+      "install_instructions": "Set the ELEVENLABS_API_KEY environment variable:\n  export ELEVENLABS_API_KEY=your_key_here\nGet a key at https://elevenlabs.io\nIf fal_elevenlabs_tts is available, use it instead to access ElevenLabs speech through fal.ai without a separate ElevenLabs key."
+    },
+    {
+      "capability": "tts",
+      "tool": "fal_elevenlabs_tts",
+      "provider": "fal.ai",
+      "runtime": "api",
+      "kind": "env_var",
+      "fix_complexity": "1-minute env-var",
+      "env_vars": [
+        "FAL_KEY"
+      ],
+      "install_instructions": "Set FAL_KEY to a fal.ai API key. No separate ElevenLabs key is needed. Get a fal.ai key at https://fal.ai/dashboard/keys"
+    },
+    {
+      "capability": "tts",
+      "tool": "fish_audio_tts",
+      "provider": "fish_audio",
+      "runtime": "api",
+      "kind": "env_var",
+      "fix_complexity": "1-minute env-var",
+      "env_vars": [
+        "FISH_AUDIO_API_KEY"
+      ],
+      "install_instructions": "Set FISH_AUDIO_API_KEY to an API key from https://fish.audio/go-api/api-keys/\nCreate voice models in the fish.audio playground and pass their id as\nreference_id to reuse a cloned voice."
+    },
+    {
+      "capability": "tts",
+      "tool": "google_tts",
+      "provider": "google_tts",
+      "runtime": "api",
+      "install_instructions": "Auth option A -- TTS-only API key: set GOOGLE_TTS_API_KEY.\n  GOOGLE_API_KEY or GEMINI_API_KEY remain supported for broader Google setups.\n  Google Cloud API key with Text-to-Speech enabled.\n  Enable the API at https://console.cloud.google.com/apis/library/texttospeech.googleapis.com\nAuth option B -- service account: set GOOGLE_APPLICATION_CREDENTIALS to the\n  path of a service-account JSON key (needs the 'google-auth' package)."
+    },
+    {
+      "capability": "tts",
+      "tool": "inworld_tts",
+      "provider": "inworld",
+      "runtime": "api",
+      "kind": "env_var",
+      "fix_complexity": "1-minute env-var",
+      "env_vars": [
+        "INWORLD_API_KEY"
+      ],
+      "install_instructions": "Configure INWORLD_API_KEY with the Base64 credential from the Inworld Portal."
+    },
+    {
+      "capability": "tts",
+      "tool": "kling_tts",
+      "provider": "kling_official",
+      "runtime": "api",
+      "kind": "env_var",
+      "fix_complexity": "1-minute env-var",
+      "env_vars": [
+        "KLING_API_KEY"
+      ],
+      "install_instructions": "Set KLING_API_KEY in .env for the official Kling API. Pass voice_id explicitly; OpenMontage does not guess Kling voice IDs."
+    },
+    {
+      "capability": "tts",
+      "tool": "openai_tts",
+      "provider": "openai",
+      "runtime": "api",
+      "install_instructions": "Set the OPENAI_API_KEY environment variable:\n  export OPENAI_API_KEY=your_key_here\nGet a key at https://platform.openai.com/"
+    },
+    {
+      "capability": "video_generation",
+      "tool": "seedance_ark",
+      "provider": "ark",
+      "runtime": "api",
+      "kind": "env_var",
+      "fix_complexity": "1-minute env-var",
+      "env_vars": [
+        "ARK_API_KEY"
+      ],
+      "install_instructions": "Set ARK_API_KEY to the API Key body from Volcengine Ark (without the 'Bearer ' prefix). Optional: ARK_SEEDANCE_MODEL and ARK_BASE_URL."
+    },
+    {
+      "capability": "video_generation",
+      "tool": "atlas_video",
+      "provider": "atlascloud",
+      "runtime": "api",
+      "kind": "env_var",
+      "fix_complexity": "1-minute env-var",
+      "env_vars": [
+        "ATLASCLOUD_API_KEY"
+      ],
+      "install_instructions": "Set ATLASCLOUD_API_KEY to your Atlas Cloud API key.\n  Get one at https://www.atlascloud.ai/ -> Dashboard -> API Keys"
+    },
+    {
+      "capability": "video_generation",
+      "tool": "wan_atlas_video",
+      "provider": "atlascloud",
+      "runtime": "api",
+      "kind": "env_var",
+      "fix_complexity": "1-minute env-var",
+      "env_vars": [
+        "ATLASCLOUD_API_KEY"
+      ],
+      "install_instructions": "Configure ATLASCLOUD_API_KEY."
+    },
+    {
+      "capability": "video_generation",
+      "tool": "comfyui_video",
+      "provider": "comfyui",
+      "runtime": "local_gpu",
+      "install_instructions": "Start a ComfyUI server and set COMFYUI_SERVER_URL (default http://localhost:8188).\nBundled local WAN requires WAN 2.2 models and LightX2V LoRAs. Local MiniMax H3 requires its official model stack and exported API workflow.\nGemini Omni, Seedance 2.5, and MiniMax H3 Partner Nodes require a logged-in Comfy account, credits, and network access.\nRunning a separate ComfyUI instance for video? Set COMFYUI_VIDEO_SERVER_URL instead -- it takes priority over COMFYUI_SERVER_URL for this tool only.",
+      "kind": "local_server",
+      "fix_complexity": "1-minute env-var if ComfyUI is already running; otherwise local install",
+      "env_var": "COMFYUI_SERVER_URL",
+      "default_url": "http://localhost:8188",
+      "health_check": "GET /system_stats",
+      "what_it_unlocks": [
+        "free local image generation through ComfyUI workflows",
+        "free local video generation through ComfyUI workflows",
+        "community workflow_json/workflow_path execution"
+      ],
+      "per_capability_env_var_overrides": {
+        "comfyui_image": "COMFYUI_IMAGE_SERVER_URL",
+        "comfyui_video": "COMFYUI_VIDEO_SERVER_URL",
+        "comfyui_music": "COMFYUI_MUSIC_SERVER_URL"
+      }
+    },
+    {
+      "capability": "video_generation",
+      "tool": "h3_max_video",
+      "provider": "fal.ai",
+      "runtime": "api",
+      "kind": "env_var",
+      "fix_complexity": "1-minute env-var",
+      "env_vars": [
+        "FAL_KEY"
+      ],
+      "install_instructions": "Configure FAL_KEY using https://fal.ai/dashboard/keys."
+    },
+    {
+      "capability": "video_generation",
+      "tool": "wan_fal_video",
+      "provider": "fal.ai",
+      "runtime": "api",
+      "kind": "env_var",
+      "fix_complexity": "1-minute env-var",
+      "env_vars": [
+        "FAL_KEY"
+      ],
+      "install_instructions": "Configure FAL_KEY using https://fal.ai/dashboard/keys."
+    },
+    {
+      "capability": "video_generation",
+      "tool": "gemini_omni_fal",
+      "provider": "gemini_omni",
+      "runtime": "api",
+      "kind": "env_var",
+      "fix_complexity": "1-minute env-var",
+      "env_vars": [
+        "FAL_KEY"
+      ],
+      "install_instructions": "Set FAL_KEY (or FAL_AI_API_KEY) from https://fal.ai/dashboard/keys."
+    },
+    {
+      "capability": "video_generation",
+      "tool": "gemini_omni_video",
+      "provider": "gemini_omni",
+      "runtime": "api",
+      "install_instructions": "Set GEMINI_API_KEY or GOOGLE_API_KEY to a Google AI Studio API key.\n  Get one at https://aistudio.google.com/apikey\n  Gemini Omni Flash is paid-tier only (no free tier); ~$0.10 per second of video."
+    },
+    {
+      "capability": "video_generation",
+      "tool": "grok_video",
+      "provider": "grok",
+      "runtime": "api",
+      "install_instructions": "Set XAI_API_KEY to your xAI API key.\n  Get one from the xAI developer console"
+    },
+    {
+      "capability": "video_generation",
+      "tool": "heygen_video",
+      "provider": "heygen",
+      "runtime": "api",
+      "install_instructions": "Set the HEYGEN_API_KEY environment variable:\n  set HEYGEN_API_KEY=your_key_here\nGet a key at https://app.heygen.com/settings/api"
+    },
+    {
+      "capability": "video_generation",
+      "tool": "higgsfield_video",
+      "provider": "higgsfield",
+      "runtime": "api",
+      "install_instructions": "Set HIGGSFIELD_API_KEY and HIGGSFIELD_API_SECRET for your Higgsfield Cloud credentials.\n  Get them at https://cloud.higgsfield.ai/api-keys\n  Alternatively, set HIGGSFIELD_KEY as a combined key:secret value."
+    },
+    {
+      "capability": "video_generation",
+      "tool": "hunyuan_cloud_video",
+      "provider": "hunyuan_cloud",
+      "runtime": "api",
+      "kind": "env_var",
+      "fix_complexity": "1-minute env-var",
+      "env_vars": [
+        "TENCENT_TOKENHUB_API_KEY"
+      ],
+      "install_instructions": "Set TENCENT_TOKENHUB_API_KEY to your Tencent Cloud TokenHub API key.\n  Get it at https://console.cloud.tencent.com/tokenhub"
+    },
+    {
+      "capability": "video_generation",
+      "tool": "kling_video",
+      "provider": "kling",
+      "runtime": "api",
+      "install_instructions": "Set FAL_KEY to your fal.ai API key.\n  Get one at https://fal.ai/dashboard/keys"
+    },
+    {
+      "capability": "video_generation",
+      "tool": "kling_official_video",
+      "provider": "kling_official",
+      "runtime": "api",
+      "kind": "env_var",
+      "fix_complexity": "1-minute env-var",
+      "env_vars": [
+        "KLING_API_KEY"
+      ],
+      "install_instructions": "Set KLING_API_KEY in .env for the official Kling API. Optionally set KLING_API_BASE_URL to override the default Singapore endpoint."
+    },
+    {
+      "capability": "video_generation",
+      "tool": "ltx_api_video",
+      "provider": "ltx",
+      "runtime": "api",
+      "kind": "env_var",
+      "fix_complexity": "1-minute env-var",
+      "env_vars": [
+        "LTX_API_KEY"
+      ],
+      "install_instructions": "Configure LTX_API_KEY from https://console.ltx.io."
+    },
+    {
+      "capability": "video_generation",
+      "tool": "ltx_video_modal",
+      "provider": "ltx-modal",
+      "runtime": "api",
+      "install_instructions": "Set the MODAL_LTX2_ENDPOINT_URL environment variable to your deployed LTX endpoint:\n  set MODAL_LTX2_ENDPOINT_URL=https://<your-modal-endpoint>"
+    },
+    {
+      "capability": "video_generation",
+      "tool": "minimax_fal_video",
+      "provider": "minimax",
+      "runtime": "api",
+      "kind": "env_var",
+      "fix_complexity": "1-minute env-var",
+      "env_vars": [
+        "FAL_KEY"
+      ],
+      "install_instructions": "Set FAL_KEY (or FAL_AI_API_KEY) from https://fal.ai/dashboard/keys."
+    },
+    {
+      "capability": "video_generation",
+      "tool": "minimax_video",
+      "provider": "minimax",
+      "runtime": "api",
+      "kind": "env_var",
+      "fix_complexity": "1-minute env-var",
+      "env_vars": [
+        "MINIMAX_API_KEY"
+      ],
+      "install_instructions": "Set MINIMAX_API_KEY to your MiniMax API key.\n  Get one at https://platform.minimax.io/ (global) or https://platform.minimaxi.com/ (CN).\n  Optionally set MINIMAX_REGION=cn to route to the mainland China host, or MINIMAX_BASE_URL to override the endpoint entirely."
+    },
+    {
+      "capability": "video_generation",
+      "tool": "sora_video",
+      "provider": "openai",
+      "runtime": "api",
+      "install_instructions": "Set OPENAI_API_KEY to your OpenAI API key with Sora API access.\n  pip install 'openai>=2.44.0'"
+    },
+    {
+      "capability": "video_generation",
+      "tool": "pexels_video",
+      "provider": "pexels",
+      "runtime": "api",
+      "install_instructions": "Set PEXELS_API_KEY to your Pexels API key.\n  Get one free at https://www.pexels.com/api/"
+    },
+    {
+      "capability": "video_generation",
+      "tool": "pixabay_video",
+      "provider": "pixabay",
+      "runtime": "api",
+      "install_instructions": "Set PIXABAY_API_KEY to your Pixabay API key.\n  Get one free at https://pixabay.com/api/docs/"
+    },
+    {
+      "capability": "video_generation",
+      "tool": "wan_replicate_video",
+      "provider": "replicate",
+      "runtime": "api",
+      "kind": "env_var",
+      "fix_complexity": "1-minute env-var",
+      "env_vars": [
+        "REPLICATE_API_TOKEN"
+      ],
+      "install_instructions": "Configure REPLICATE_API_TOKEN."
+    },
+    {
+      "capability": "video_generation",
+      "tool": "runway_video",
+      "provider": "runway",
+      "runtime": "api",
+      "install_instructions": "Set RUNWAY_API_KEY to your Runway API secret.\n  Get one at https://dev.runwayml.com/"
+    },
+    {
+      "capability": "video_generation",
+      "tool": "seedance_replicate",
+      "provider": "seedance",
+      "runtime": "api",
+      "install_instructions": "Set REPLICATE_API_TOKEN to your Replicate API token.\n  Get one at https://replicate.com/account/api-tokens"
+    },
+    {
+      "capability": "video_generation",
+      "tool": "seedance_video",
+      "provider": "seedance",
+      "runtime": "api",
+      "install_instructions": "Set FAL_KEY to your fal.ai API key.\n  Get one at https://fal.ai/dashboard/keys"
+    },
+    {
+      "capability": "video_generation",
+      "tool": "veo_video",
+      "provider": "veo",
+      "runtime": "api",
+      "install_instructions": "Configure at least one backend API key:\n  - Direct Google GenAI backend: Set GEMINI_API_KEY (or GOOGLE_API_KEY).\n    Get a key at https://aistudio.google.com/\n    Or set GOOGLE_APPLICATION_CREDENTIALS for Vertex AI service account.\n  - FAL.ai backend: Set FAL_KEY (or FAL_AI_API_KEY).\n    Get one at https://fal.ai/dashboard/keys"
+    },
+    {
+      "capability": "video_generation",
+      "tool": "jimeng_video",
+      "provider": "volcengine",
+      "runtime": "api",
+      "kind": "env_var",
+      "fix_complexity": "1-minute env-var",
+      "env_vars": [
+        "VOLC_ACCESSKEY",
+        "VOLC_SECRETKEY"
+      ],
+      "install_instructions": "Set VOLC_ACCESSKEY and VOLC_SECRETKEY to your Volcengine IAM credentials.\n  Get them at https://console.volcengine.com/iam/keymanage\n  Ensure your account has access to Jimeng AI (\u5373\u68a6) video generation."
+    }
+  ],
+  "runtime_warnings": [
+    "comfyui_video: The top-level resource_profile is a ComfyUI provider floor, not a promise that every workflow fits 8GB VRAM. Bundled WAN 2.2 14B FP8 workflows recommend 16GB VRAM; custom low-VRAM workflows can target 8GB-12GB depending on model, quantization, resolution, and frame count."
+  ]
+}

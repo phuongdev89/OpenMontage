@@ -13,9 +13,9 @@ Every production task MUST execute this sequence before calling any generation t
 2. **Đọc pipeline manifest**: Đọc `pipeline_defs/<pipeline>.yaml` tương ứng.
 3. **Xác định stage hiện tại**: Dùng `lib.checkpoint.get_next_stage()`.
 4. **Đọc stage director skill**: Đọc `skills/pipelines/<pipeline>/<stage>-director.md`.
-5. **Kiểm tra checkpoint predecessor**: Xác nhận stage trước đã `completed` và `human_approved` (nếu có gate).
+5. **Kiểm tra checkpoint predecessor**: Xác nhận stage trước đã `completed` và có human approval hoặc auto-authorization hợp lệ (nếu có gate).
 6. **Kiểm tra stage có gated không**: Đọc `human_approval_default` từ pipeline manifest.
-7. **Kiểm tra approval evidence từ tin nhắn người dùng**: Xác minh approval thực tế từ người dùng.
+7. **Kiểm tra approval evidence từ tin nhắn người dùng**: Xác minh duyệt từng gate hoặc ủy quyền tự động duyệt tường minh cho project hiện tại.
 8. **Kiểm tra provider routing**: Xác định provider theo thứ tự ưu tiên (TTS, image, video).
 9. **Nếu bất kỳ mục nào chưa xác minh, KHÔNG gọi generation tool.**
 
@@ -34,12 +34,15 @@ Every production task MUST execute this sequence before calling any generation t
 ## 3. Human Approval & Gate Protocol
 
 - **Lựa chọn tùy chọn ban đầu** (chọn lớp toán, `solutionMode`, visual concept, hay render runtime) **chỉ là user preference, KHÔNG PHẢI stage approval.**
-- **Với mọi stage có `human_approval_default: true` trong pipeline manifest:**
+- Khi người dùng nói rõ **“cho phép tự động duyệt”** cho project hiện tại, gọi `lib.checkpoint.authorize_auto_approval()` sau `init_project()` và trước khi tiếp tục pipeline, lưu nguyên văn chỉ thị. Quyền này áp dụng cho mọi gate còn lại của đúng project đó, kể cả sau khi resume; không áp dụng cho project khác. Người dùng có thể thu hồi bằng `revoke_auto_approval()`.
+- Auto-authorization cho phép tiếp tục qua gate mà không hỏi lại, nhưng **không phải human approval**: checkpoint gated vẫn ghi `human_approval_required: true`, `human_approved: false` và `approval_resolution.type: "auto_authorized"` cùng chỉ thị nguồn. Không tự đổi `human_approved` thành `true`.
+- Ngoại lệ này ưu tiên hơn chỉ dẫn chờ duyệt trong stage director, sample review và checklist; review, schema validation, thứ tự stage, checkpoint và các ràng buộc cụ thể của người dùng vẫn bắt buộc. Bao gồm gate `publish` trong phạm vi task đã được yêu cầu. Nếu stage đang `awaiting_human`, review rồi ghi lại `completed` qua writer trước khi chạy downstream. Không bật chế độ cho project khi người dùng chỉ đang yêu cầu sửa quy tắc này.
+- **Khi stage có `human_approval_default: true` và project chưa có auto-authorization hợp lệ:**
   1. Ghi checkpoint `status="awaiting_human"` bằng `lib.checkpoint.write_checkpoint()`.
   2. Trình bày tóm tắt artifact và review summary cho người dùng.
   3. Hỏi rõ ràng người dùng có duyệt để chuyển sang stage tiếp theo hay không.
   4. **KẾT THÚC LƯỢT NGAY (END YOUR TURN).** Cấm gọi thêm bất kỳ tool downstream nào trong cùng response.
-  5. **Chỉ tiếp tục sau câu trả lời trực tiếp của người dùng.**
+  5. **Chỉ tiếp tục sau câu trả lời trực tiếp của người dùng, trừ khi project có auto-authorization hợp lệ đã ghi nhận.**
 - **TUYỆT ĐỐI KHÔNG tự đặt `human_approved=True`.** Chỉ được truyền `human_approved=True` vào `write_checkpoint()` sau khi người dùng đã phản hồi đồng ý rõ ràng ở lượt trước.
 - **Không được suy ra approval** từ việc người dùng đã chọn option hoặc đã yêu cầu tạo video ở các lượt trước. Approval có tính chất per-gate (từng cổng riêng biệt).
 - **Không gọi downstream tool trong cùng lượt sau khi ghi `awaiting_human`.**
@@ -51,13 +54,13 @@ Every production task MUST execute this sequence before calling any generation t
 
 - **Luôn dùng `lib.checkpoint.write_checkpoint()`** để ghi nhận trạng thái.
 - **TUYỆT ĐỐI KHÔNG dùng `json.dump`, `Write`, `Set-Content` hoặc bất kỳ file tool nào** để tự tạo hoặc sửa đổi file `checkpoint_*.json`.
-- **Không được đánh dấu stage là `completed` nếu predecessor còn thiếu hoặc chưa được duyệt.**
+- **Không được đánh dấu stage là `completed` nếu predecessor còn thiếu hoặc chưa được duyệt/ủy quyền tự động hợp lệ.**
 - **Khi gặp `GATE VIOLATION`, `PREREQUISITE VIOLATION` hoặc schema error:**
   - DỪNG NGAY LẬP TỨC.
   - Báo rõ nguyên nhân lỗi cho người dùng.
   - KHÔNG tự tiện thêm `human_approved=True` để lách luật.
   - KHÔNG tiếp tục render hoặc tạo media.
-- *Lưu ý cơ chế kiểm soát:* Python code chỉ kiểm tra giá trị boolean của tham số `human_approved`, không tự xác minh được nguồn gốc (provenance) của approval. Do đó, việc không tự đặt `human_approved=True` là cam kết kỷ luật bắt buộc của agent.
+- *Lưu ý cơ chế kiểm soát:* Python code xác minh human approval boolean và auto-authorization được ghi trong project marker; agent không tự đặt `human_approved=True` khi chạy theo auto-authorization.
 - *Lưu ý phạm vi enforcement:* Gate và prerequisite chỉ có hiệu lực khi `pipeline_type` resolve được từ manifest thật. `write_checkpoint()` tự backfill `pipeline_type`/`style_playbook` từ marker `project.json`, nên project đã `init_project()` không thể bypass bằng cách bỏ tham số; nhưng nếu project chưa init và caller bỏ `pipeline_type`, gate lẫn prerequisite bị bỏ qua âm thầm (fail-open). Chỉ chạy production trên project đã `init_project()` với `pipeline_type` là tên manifest thật.
 
 ---
@@ -65,6 +68,8 @@ Every production task MUST execute this sequence before calling any generation t
 ## 5. TTS Routing (Tiếng Việt & Tiếng Anh)
 
 - **Lời thoại:** Không tự xưng thầy/cô hoặc vai trò người dẫn; loại bỏ toàn bộ ngôi thứ nhất số ít và số nhiều trong lời thoại do agent viết. Dùng cách nói trực tiếp với người xem hoặc câu trung tính/mệnh lệnh như "hãy cùng..."; giữ nguyên nội dung nguồn bắt buộc đọc/trích nguyên văn. Chi tiết áp dụng tại `AGENT_GUIDE.md` và skill lời thoại theo pipeline.
+- **Tốc độ lời đọc VI và EN:** Cố định tốc độ hiệu dụng ở `0.90×` so với tốc độ native `1.0×` của provider cho cả tiếng Việt và tiếng Anh. Không nhân với tốc độ cũ và không áp thêm mức giảm 10%. Với Vbee truyền rõ `speed_rate=0.90`; nếu adapter dùng `speed` thì truyền `speed=0.90`. Với VieNeu không hỗ trợ speed, tạo audio native rồi áp time-stretch giữ cao độ `atempo=0.90` đúng một lần. Audio đã ở `0.90×` phải giữ nguyên tốc độ khi compose/mix; không time-stretch lần nữa. Ghi `baseline_speed=1.0`, `target_speed=0.90`, `effective_speed=0.90` và filter thực tế trong `voice_performance.provider_settings`; nếu tái sử dụng audio phải kiểm tra metadata, không mặc định coi là native. Điều chỉnh thời lượng cảnh theo audio.
+- **Publish video toán:** `exports/video/` phải có `video-portrait.mp4` (1080×1920) và `video-landscape.mp4` (1920×1080); rà thumbnail cuối để đảm bảo không có đáp án hoặc phép giải đã hoàn tất. Theo `skills/pipelines/explainer/publish-director.md`.
 - **Với tiếng Việt:**
   - Bắt buộc kiểm tra và thử skill `vieneu-tts` (VieNeu-TTS local) trước.
   - Chỉ dùng API Vbee tiếng Việt khi VieNeu thật sự không khả dụng vì thiếu package, model hoặc runtime failure.
@@ -91,16 +96,16 @@ Khi sử dụng VieNeu-TTS cho tiếng Việt:
 7. Nếu VieNeu không hỗ trợ hoặc không xác định được preset `Minh Quân`, phải dừng và báo lỗi; không tự đổi sang giọng khác.
 
 - **Với tiếng Anh (đọc đề toán):**
-  - Luôn dùng API Vbee (`VBEE_VOICE_CODE_EN`, mặc định `am_echo`) với tốc độ `0.85x`, áp gain `1.20` khi mix âm thanh theo math rules hiện hành.
+  - Luôn dùng API Vbee (`VBEE_VOICE_CODE_EN`, mặc định `am_echo`) với tốc độ `0.90x`, áp gain `1.20` khi mix âm thanh theo math rules hiện hành.
 
 ---
 
 ## 6. Generation Timing & Media Creation Gate
 
-- **Tuyệt đối không tạo audio, image, video hoặc render trước approval tương ứng.**
+- **Tuyệt đối không tạo audio, image, video hoặc render trước approval tương ứng hoặc auto-authorization hợp lệ của project.**
   - Stage `scene_plan` phải được duyệt trước khi gọi tool tạo media ở stage `assets`.
   - Stage `assets` (storyboard / filmstrip) phải được duyệt trước khi gọi render video ở stage `compose`. Không render video draft/full ở stage `assets` để thay thế storyboard.
-- **Nếu lỡ gọi tool trước approval:** Phải dừng ngay lập tức, báo cáo vi phạm gate cho người dùng và không tiếp tục âm thầm.
+- **Nếu lỡ gọi tool trước approval/auto-authorization:** Phải dừng ngay lập tức, báo cáo vi phạm gate cho người dùng và không tiếp tục âm thầm.
 - **Lưu ý:** Checkpoint không tự động ngăn chặn việc gọi tool phát sinh trước đó trong code Python; đây là ràng buộc quy trình nghiêm ngặt mà agent phải tự giác tuân thủ.
 
 ### Xuất hội thoại sau compose và publish
@@ -121,8 +126,8 @@ Khi sử dụng VieNeu-TTS cho tiếng Việt:
 4. **Video toán chạy trên pipeline thật có manifest** — ví dụ `animation` hoặc `animated-explainer` (cả hai khai báo `math_animate` ở stage `assets`); `pipeline_type` truyền vào checkpoint phải là tên manifest thật, nếu không `_stage_requires_approval` raise.
 5. **Đọc stage director skill** (`skills/pipelines/<pipeline>/<stage>-director.md`) trước từng stage.
 6. **Preference không phải stage approval** — xem section 3.
-7. **Stage gated** (`human_approval_default: true`): ghi `awaiting_human` qua `write_checkpoint()`, hỏi user, KẾT THÚC LƯỢT.
-8. **Không tự đặt `human_approved=True`** — chỉ truyền `True` sau câu trả lời duyệt tường minh của user cho gate đó ở lượt trước.
+7. **Stage gated** (`human_approval_default: true`): nếu project có auto-authorization hợp lệ, tiếp tục và ghi `approval_resolution`; nếu không, ghi `awaiting_human`, hỏi user, KẾT THÚC LƯỢT.
+8. **Không tự đặt `human_approved=True`** — chỉ truyền `True` sau câu trả lời duyệt tường minh của user cho gate đó ở lượt trước. Auto-authorization phải giữ `human_approved=False`.
 9. **TaskCreate/TaskUpdate/todo list của ZCode không phải checkpoint** — xem section 2.
 10. **Không ghi `checkpoint_*.json` bằng Write/json.dump hay file tool nào** — chỉ qua `lib.checkpoint.write_checkpoint()`.
 11. **Tiếng Việt: thử VieNeu trước Vbee** theo đúng quy trình trong skill `vieneu-tts` (`import vieneu` → cài nếu thiếu → chạy `generate_voice.py`), giữ log/output làm bằng chứng; không tuyên bố đã thử nếu không có log.
@@ -140,3 +145,28 @@ Khi sử dụng VieNeu-TTS cho tiếng Việt:
 - Xác minh tương phản chữ/nền và giới hạn số màu theo `quality_rules` của playbook; bảo đảm hai tỷ lệ khung hình dùng cùng visual language.
 - Nếu phát hiện lệch, sửa composition source trước khi render. Nếu cần thay đổi vượt quá playbook hoặc storyboard đã duyệt, dừng ở source draft và xin duyệt lại storyboard; không tự render để thử.
 - Sau render, kiểm tra frame đại diện ở các cảnh và cả hai tỷ lệ khung hình để xác nhận output thực sự giữ đúng style. Source-only edits không cập nhật MP4 đã publish; chỉ render lại khi người dùng yêu cầu hoặc pipeline đang ở compose với approval còn hiệu lực.
+
+### Hook-first acceptance gate
+
+- Câu được đọc đầu tiên phải nêu manh mối/mâu thuẫn hoặc thử thách cụ thể theo concept; cấm mở bằng "Chào", "Xin chào", lời giới thiệu lớp/kỳ thi hoặc "Hôm nay...". SFX mở đầu không thay thế hook trong lời đọc.
+- Trong 3–5 giây đầu, hình và lời đọc phải cùng tạo tò mò từ dữ kiện đúng của bài toán. Lời chào, nếu có, xuất hiện sau dữ kiện hook; không bắt buộc có lời chào.
+- Hook phải có câu hỏi/thách thức cụ thể, không lộ đáp án; tạo kịch tính bằng concept, không bịa dữ kiện hay phóng đại sai toán học.
+- Review script phải trích nguyên câu đầu và ghi PASS/FAIL cho hook-first. FAIL thì sửa trước TTS, kể cả chế độ tự động duyệt.
+
+## Vietnamese typography and text containment gate
+
+- Dùng font hỗ trợ đầy đủ dấu tiếng Việt ở đúng weight/style; kiểm tra chuỗi có ă â ê ô ơ ư đ và dấu kép. Nạp font local hoặc font đã xác minh, không dựa vào fallback trên máy preview.
+- Trước capture/render phải chờ font tải xong (`document.fonts.ready` với HTML/browser). Xác minh font thực tế và ảnh raster tiếng Việt; chỉ khai báo font-family không đủ bằng chứng.
+- Kiểm tra mọi text container ở cả portrait và landscape, gồm tiêu đề, đề bài, labels, phụ đề và CTA. Với HTML kiểm tra scrollWidth/clientWidth và scrollHeight/clientHeight, sau đó kiểm tra ảnh thật để bắt dấu bị cắt hoặc glyph lỗi; runtime khác dùng kiểm tra bounding box tương đương.
+- Chữ và dấu phải nằm trong border với padding an toàn. Sửa bằng wrap, chia trang, tăng vùng chữ hoặc giảm cỡ chữ trong giới hạn dễ đọc của playbook. Cấm dùng overflow:hidden/ellipsis để che mất nội dung hay bóp chữ méo.
+- Ghi bằng chứng font, frame/ảnh review, tỷ lệ khung hình và kết quả containment vào review/render_report. Font lỗi hoặc chữ tràn = critical: sửa source trước render; auto-approval không bỏ qua kiểm tra này.
+
+### Conversation export completion evidence
+
+- Sau mỗi lần export thành công (sau compose và sau publish), bắt buộc copy cả Markdown và JSON từ session directory của skill vào `<project_dir>/exports/conversation/`. Giữ nguyên tên hai tệp và ghi đè đúng hai bản đã copy khi export lại sau publish; không tạo thêm bản timestamp mới. Chỉ báo hoàn tất export sau khi xác minh hai bản trong project tồn tại, không rỗng và khớp nội dung với nguồn (hash hoặc so sánh bytes). Ghi đường dẫn bản trong project cùng đường dẫn nguồn vào metadata checkpoint tương ứng và dẫn link bản trong project khi bàn giao. Copy thất bại phải báo rõ; không coi chỉ có bản trong `.scratch` là hoàn tất bước bàn giao.
+
+- Sau checkpoint compose completed, bắt buộc thực thi skill `export-conversation` trước khi kết thúc lượt hoặc tiến tới publish, kể cả chế độ tự động duyệt. Đây là nghĩa vụ agent, không phải một bước cần hỏi người dùng.
+- Không coi lệnh export được dự định hoặc đoạn transcript viết tay là đã xuất. Xác nhận exit code thành công, hai tệp Markdown/JSON tồn tại, đúng conversation ID/source và có nội dung transcript thật.
+- Ghi conversation ID, source agent, output base path tuyệt đối, đường dẫn hai tệp và thời điểm export vào metadata checkpoint compose qua `write_checkpoint()`; giữ nguyên artifact và trạng thái approval khi bổ sung metadata. Dẫn link hai tệp khi báo hoàn tất.
+- Sau publish completed, chạy lại export cùng ID/base path để ghi đè, xác minh lại và ghi bằng chứng vào metadata checkpoint publish. Auto-approval cũng phải thực hiện bước này.
+- Nếu export thất bại hoặc không xác định được nguồn transcript: báo lỗi cụ thể, ghi pending/failed export trong metadata và không tuyên bố đã bàn giao đầy đủ; không tự tạo transcript thay thế.

@@ -68,6 +68,11 @@ Describe a thumbnail that:
 
 *Note: Actual thumbnail generation happens via image_selector if available, otherwise it's a concept for manual creation.*
 
+**Math-video answer safety (binding):**
+- A math thumbnail must create curiosity around the problem, not reveal its final answer. Never include the answer value, a completed solving equation, a circled result, or a frame taken from an answer-reveal scene.
+- Apply this in both `answer` and `guided` modes. The full solution may be present in internal review artifacts, but it must not leak into thumbnail text, image, or its concept/alt text.
+- Before packaging, inspect the actual thumbnail image when one exists and review `thumbnail_concept` otherwise. If any element reveals the answer, revise and re-check it before continuing.
+
 ### Step 4: Create Chapter Markers
 
 From the script sections, generate YouTube-style chapters:
@@ -109,6 +114,23 @@ exports/
       concept.json          # Thumbnail concept (or the copied thumbnail image)
 ```
 
+**Math-video package requirement (binding):** Math compose produces both
+`video-portrait.mp4` and `video-landscape.mp4`, recorded in `artifacts/formats.json`.
+`export_bundle` accepts only one `video_path` and writes it as `video/output.mp4`,
+so for a math project:
+
+1. Confirm both final renders exist and pass `ffprobe` using their recorded dimensions.
+2. Call `export_bundle` with the portrait render as the primary video.
+3. In that same export's `video/` directory, preserve the bundle's `output.mp4`
+   and place copies of both final renders named `video-portrait.mp4` and
+   `video-landscape.mp4`.
+4. Verify the two named files exist, are non-empty, and have dimensions
+   `1080x1920` and `1920x1080`, respectively. Do not mark publish complete if
+   either variant is missing or invalid.
+
+The required directory is `projects/<project-id>/exports/video/` when the
+project follows the normal project directory convention.
+
 `export_bundle` is a local, offline packager — it does not upload. A networked
 publisher (e.g. a YouTube uploader) would be a separate `publish`-capability
 provider.
@@ -148,6 +170,9 @@ Score (1-5):
 | **Thumbnail concept** | Would this thumbnail stand out in a feed? |
 | **Export package** | Is everything a creator needs in the export directory? |
 | **Platform fit** | Is metadata tailored to the target platform? |
+
+For math projects, also verify the two final video files are present under
+`exports/video/` and that the thumbnail does not disclose the answer.
 
 If any dimension scores below 3, revise.
 

@@ -10,6 +10,32 @@ Checkpoints are the save points of a pipeline. They enable resume-from-failure, 
 
 ### Step 1: Check Manifest Policy
 
+**Project auto-authorization exception:** The explicit project policy below
+overrides this document's instructions to pause at gates (including sample
+review and an existing `awaiting_human` checkpoint). Stage reviews, artifact
+validation, sequential execution, and checkpoint writes remain mandatory.
+An already waiting stage must be reviewed and rewritten through
+`write_checkpoint(..., status="completed", human_approved=False)` before
+downstream work. Never continue from an unchanged `awaiting_human` checkpoint.
+
+When the user says "cho phép tự động duyệt" for a production project:
+
+```python
+from lib.checkpoint import authorize_auto_approval, PROJECTS_DIR
+authorize_auto_approval(
+    PROJECTS_DIR, project_id,
+    authorization_text="<exact user instruction authorizing this project>",
+)
+```
+
+Call this after `init_project()`; on resume read the existing marker instead
+of renewing its timestamp. Do not enable it merely because the user is
+discussing this feature or asks to implement the rule. On "tắt tự động duyệt"
+or "yêu cầu duyệt lại", call `revoke_auto_approval(PROJECTS_DIR, project_id)`;
+future gates pause again. All pipeline gates including `publish` are covered,
+within the production task scope the user authorized. Locked voice/provider,
+budget, and explicit user constraints still apply.
+
 Read the current stage's configuration from the pipeline manifest:
 
 ```yaml
@@ -109,6 +135,17 @@ stage without `human_approved=True` raises a `GATE VIOLATION` error.)
 
 When `human_approval_default: true`:
 
+First check whether the current project marker contains a valid
+`approval_policy.mode: "auto_approved"` recorded by
+`authorize_auto_approval()` from an explicit user instruction for this
+project. If so, continue without asking at this gate. Write the stage as
+`completed` with `human_approved=False` and an `approval_resolution` object
+that preserves the authorization text and timestamp. This is automatic
+authorization, not a claim that a human reviewed the artifact. The policy is
+project-scoped and remains in force when resuming until the user revokes it.
+
+If no such authorization exists, follow the human approval steps below:
+
 1. **Write the checkpoint with `status="awaiting_human"`** (not `completed`).
 
 2. **Present a summary** to the human:
@@ -168,7 +205,7 @@ When `human_approval_default: true`:
 
 ### Step 6: Determine Next Stage
 
-After checkpoint is written and approved (if needed):
+After checkpoint is written and its gate is resolved by human approval or valid project auto-authorization:
 
 ```python
 next_stage = get_next_stage(pipeline_dir, project_name)
@@ -237,7 +274,7 @@ Does this feel right? I can adjust: voice, visual style, pacing, music, colors.
 
 1. **Always checkpoint completed work.** Even if `checkpoint_required: false`, consider checkpointing anyway if the stage took significant time or cost. Losing work is worse than an extra file on disk.
 
-2. **Never skip human approval on creative stages.** `idea` and `script` shape everything. Rushing past them to save time produces videos nobody wants.
+2. **Never skip a configured gate without recorded authorization.** Creative stages such as `idea` and `script` still require a human pause unless the user explicitly authorizes automatic approval for the current project.
 
 3. **Include cost snapshots.** The human should know how much has been spent and how much remains before approving expensive downstream stages (assets, compose).
 

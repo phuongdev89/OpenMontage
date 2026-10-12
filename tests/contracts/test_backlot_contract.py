@@ -10,8 +10,10 @@ from lib.checkpoint import (
     CheckpointValidationError,
     HISTORY_DIRNAME,
     PROJECT_MARKER_FILENAME,
+    authorize_auto_approval,
     init_project,
     read_checkpoint,
+    revoke_auto_approval,
     write_checkpoint,
 )
 from lib.events import emit_event, infer_project_dir, read_events
@@ -101,6 +103,98 @@ class TestGateEnforcement:
             pipeline_type="animated-explainer",
         )
         assert path.exists()
+
+    def test_explicit_auto_approval_is_recorded_without_faking_human_approval(self, tmp_path):
+        from tests.contracts.test_phase0_contracts import sample_artifact
+
+        project_id = "auto-run"
+        project_dir = init_project(
+            project_id, title="Auto Run", pipeline_type="framework-smoke",
+            pipeline_dir=tmp_path,
+        )
+        instruction = "Cho phép tự động duyệt cho project auto-run."
+        authorize_auto_approval(
+            tmp_path, project_id, authorization_text=instruction
+        )
+
+        research_path = write_checkpoint(
+            tmp_path, project_id, "research", "completed",
+            {"research_brief": sample_artifact("research_brief")},
+            pipeline_type="framework-smoke",
+        )
+        script_path = write_checkpoint(
+            tmp_path, project_id, "script", "completed",
+            {"script": _minimal_script()},
+            pipeline_type="framework-smoke",
+        )
+
+        research = json.loads(research_path.read_text(encoding="utf-8"))
+        script = json.loads(script_path.read_text(encoding="utf-8"))
+        assert research["human_approved"] is False
+        assert research["approval_resolution"]["authorization_text"] == instruction
+        assert script["human_approved"] is False
+        assert script["approval_resolution"]["type"] == "auto_authorized"
+        assert (project_dir / PROJECT_MARKER_FILENAME).exists()
+
+    def test_auto_approval_preserves_prerequisites(self, tmp_path):
+        init_project("auto", title="Auto", pipeline_type="framework-smoke", pipeline_dir=tmp_path)
+        authorize_auto_approval(tmp_path, "auto", authorization_text="cho phép tự động duyệt")
+        with pytest.raises(CheckpointValidationError, match="PREREQUISITE VIOLATION"):
+            write_checkpoint(
+                tmp_path, "auto", "script", "completed",
+                {"script": _minimal_script()}, pipeline_type="framework-smoke",
+            )
+
+    def test_authorization_resolves_waiting_stage_and_revoke_keeps_past_resolution(self, tmp_path):
+        from tests.contracts.test_phase0_contracts import sample_artifact
+
+        init_project("auto", title="Auto", pipeline_type="framework-smoke", pipeline_dir=tmp_path)
+        artifact = {"research_brief": sample_artifact("research_brief")}
+        write_checkpoint(tmp_path, "auto", "research", "awaiting_human", artifact)
+        authorize_auto_approval(tmp_path, "auto", authorization_text="cho phép tự động duyệt")
+        write_checkpoint(tmp_path, "auto", "research", "completed", artifact)
+        first = read_checkpoint(tmp_path, "auto", "research")["approval_resolution"]
+        authorize_auto_approval(tmp_path, "auto", authorization_text="cho phép tự động duyệt")
+        write_checkpoint(tmp_path, "auto", "research", "completed", artifact)
+        assert read_checkpoint(tmp_path, "auto", "research")["approval_resolution"] == first
+        revoke_auto_approval(tmp_path, "auto")
+        # Revocation pauses future gates without invalidating already completed work.
+        write_checkpoint(
+            tmp_path, "auto", "script", "completed",
+            {"script": _minimal_script()}, human_approved=True,
+        )
+
+    def test_auto_approval_is_project_scoped_and_can_be_revoked(self, tmp_path):
+        from tests.contracts.test_phase0_contracts import sample_artifact
+
+        authorize_id = "authorized"
+        init_project(
+            authorize_id, title="Authorized", pipeline_type="framework-smoke",
+            pipeline_dir=tmp_path,
+        )
+        init_project(
+            "other", title="Other", pipeline_type="framework-smoke",
+            pipeline_dir=tmp_path,
+        )
+        authorize_auto_approval(
+            tmp_path, authorize_id,
+            authorization_text="Cho phép tự động duyệt cho project authorized.",
+        )
+
+        with pytest.raises(CheckpointValidationError, match="GATE VIOLATION"):
+            write_checkpoint(
+                tmp_path, "other", "research", "completed",
+                {"research_brief": sample_artifact("research_brief")},
+                pipeline_type="framework-smoke",
+            )
+
+        revoke_auto_approval(tmp_path, authorize_id)
+        with pytest.raises(CheckpointValidationError, match="GATE VIOLATION"):
+            write_checkpoint(
+                tmp_path, authorize_id, "research", "completed",
+                {"research_brief": sample_artifact("research_brief")},
+                pipeline_type="framework-smoke",
+            )
 
 
 class TestCheckpointHistory:

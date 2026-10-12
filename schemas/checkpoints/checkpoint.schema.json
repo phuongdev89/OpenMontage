@@ -22,6 +22,17 @@
     "checkpoint_policy": { "type": "string", "enum": ["guided", "manual_all", "auto_noncreative"] },
     "human_approval_required": { "type": "boolean" },
     "human_approved": { "type": "boolean" },
+    "approval_resolution": {
+      "type": "object",
+      "required": ["type", "authorization_source", "authorization_text", "authorized_at"],
+      "properties": {
+        "type": { "type": "string", "const": "auto_authorized" },
+        "authorization_source": { "type": "string", "const": "user_instruction" },
+        "authorization_text": { "type": "string", "minLength": 1 },
+        "authorized_at": { "type": "string", "format": "date-time" }
+      },
+      "additionalProperties": false
+    },
     "artifacts": {
       "type": "object",
       "description": "Map of artifact name to artifact data or file path",

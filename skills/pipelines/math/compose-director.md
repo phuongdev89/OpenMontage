@@ -91,6 +91,11 @@ Ghi đường dẫn và kích thước cả hai bản vào
 }
 ```
 
+These are the two required source renders for publish packaging. The publish
+director must include both in the project's `exports/video/`; a single
+`output.mp4` from `export_bundle` does not satisfy the two-format requirement.
+See [`skills/pipelines/explainer/publish-director.md`](../explainer/publish-director.md).
+
 ---
 
 ## 7. Tham chiếu liên quan
@@ -98,3 +103,15 @@ Ghi đường dẫn và kích thước cả hai bản vào
 - Audit trước render: `workflow-director.md` *(sẽ bổ sung)*
 - Phase sequence và templates: [`script-director.md`](script-director.md)
 - Pedagogy + teachingAid: [`pedagogy-rules.md`](pedagogy-rules.md)
+
+## Vietnamese typography and text containment gate
+
+- SVG tải bằng `<img>` là tài liệu độc lập: font CSS của trang cha không tự truyền vào SVG. Phải đóng gói font đã xác minh ngay trong SVG hoặc chuyển chữ thành vector paths; kiểm tra từng SVG khi render độc lập. Chờ `document.fonts.ready` của trang cha không chứng minh font bên trong ảnh SVG đã tải.
+- Kiểm tra bounding box của mọi `<text>` so với rect/badge chứa nó, không chỉ so với viewBox hay card HTML ngoài cùng. Cả nhãn ngắn và tiêu đề diagram đều phải vừa khung, có padding; lưu ảnh thực tế làm bằng chứng.
+- Final review không được ghi `unreadable_text: false` hay `issues: []` khi ảnh review vẫn có chữ tràn hoặc glyph sai. Bất kỳ lỗi đó phải được ghi critical và sửa trước khi kết luận PASS.
+
+- Dùng font hỗ trợ đầy đủ dấu tiếng Việt ở đúng weight/style; kiểm tra chuỗi có ă â ê ô ơ ư đ và dấu kép. Nạp font local hoặc font đã xác minh, không dựa vào fallback trên máy preview.
+- Trước capture/render phải chờ font tải xong (`document.fonts.ready` với HTML/browser). Xác minh font thực tế và ảnh raster tiếng Việt; chỉ khai báo font-family không đủ bằng chứng.
+- Kiểm tra mọi text container ở cả portrait và landscape, gồm tiêu đề, đề bài, labels, phụ đề và CTA. Với HTML kiểm tra scrollWidth/clientWidth và scrollHeight/clientHeight, sau đó kiểm tra ảnh thật để bắt dấu bị cắt hoặc glyph lỗi; runtime khác dùng kiểm tra bounding box tương đương.
+- Chữ và dấu phải nằm trong border với padding an toàn. Sửa bằng wrap, chia trang, tăng vùng chữ hoặc giảm cỡ chữ trong giới hạn dễ đọc của playbook. Cấm dùng overflow:hidden/ellipsis để che mất nội dung hay bóp chữ méo.
+- Ghi bằng chứng font, frame/ảnh review, tỷ lệ khung hình và kết quả containment vào review/render_report. Font lỗi hoặc chữ tràn = critical: sửa source trước render; auto-approval không bỏ qua kiểm tra này.

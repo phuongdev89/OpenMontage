@@ -14,6 +14,24 @@ style playbooks, capability discovery, and stage details — read
 
 ## Startup Self-Check (MANDATORY)
 
+### Explicit project auto-authorization
+
+When the user explicitly says "cho phép tự động duyệt" for a production
+project, follow the project-scoped protocol in `AGENT_GUIDE.md` and
+`skills/meta/checkpoint-protocol.md`: call
+`lib.checkpoint.authorize_auto_approval()` after initialization, preserving
+the user's exact instruction. This exception overrides instructions below
+to pause at gates, including sample and publish gates, within the authorized
+task. Stage reviews, schema validation, stage order and checkpoints remain
+mandatory. Keep `human_approved=False`; the writer records
+`approval_resolution.type="auto_authorized"`. Resume uses the stored policy;
+an existing `awaiting_human` stage must be reviewed and rewritten as completed
+through the writer before proceeding. On revocation call
+`revoke_auto_approval()`; subsequent gates require human approval again.
+Do not activate a production project's policy merely because the user asks
+to implement this feature. Explicit provider/voice/runtime and budget
+constraints remain binding.
+
 Before executing ANY production task (video creation, rendering, TTS, image
 generation, or any pipeline stage work), run this checklist. If any item
 cannot be verified, do NOT call a generation tool.

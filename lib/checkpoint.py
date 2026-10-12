@@ -269,6 +269,101 @@ def init_project(
     return project_dir
 
 
+def authorize_auto_approval(
+    pipeline_dir: Path,
+    project_id: str,
+    *,
+    authorization_text: str,
+) -> Path:
+    """Record an explicit user instruction to auto-approve gates for a project.
+
+    This records authorization provenance; it never marks a human as having
+    reviewed or approved an individual stage.
+    """
+    if not authorization_text.strip():
+        raise ValueError("authorization_text must preserve the user's instruction")
+    project_dir = _resolve_project_dir(pipeline_dir, project_id)
+    marker_path = project_dir / PROJECT_MARKER_FILENAME
+    if not marker_path.exists():
+        raise CheckpointValidationError(
+            f"Project {project_id!r} is not initialized; call init_project() first."
+        )
+    try:
+        with open(marker_path, encoding="utf-8") as f:
+            marker = json.load(f)
+    except (json.JSONDecodeError, OSError) as exc:
+        raise CheckpointValidationError(
+            f"Cannot read project marker for {project_id!r}: {exc}"
+        ) from exc
+    if not isinstance(marker, dict) or marker.get("project_id") != project_id:
+        raise CheckpointValidationError(
+            f"Project marker identity does not match {project_id!r}."
+        )
+
+    existing_policy = _auto_approval_policy(marker)
+    if existing_policy and existing_policy["authorization_text"] == authorization_text.strip():
+        return marker_path
+    marker["approval_policy"] = {
+        "mode": "auto_approved",
+        "authorization_source": "user_instruction",
+        "authorization_text": authorization_text.strip(),
+        "authorized_at": datetime.now(timezone.utc).isoformat(),
+    }
+    tmp_path = marker_path.with_suffix(".json.tmp")
+    with open(tmp_path, "w", encoding="utf-8") as f:
+        json.dump(marker, f, indent=2, ensure_ascii=False)
+    import os
+    os.replace(tmp_path, marker_path)
+    return marker_path
+
+
+def revoke_auto_approval(pipeline_dir: Path, project_id: str) -> Path:
+    """Revoke a project's previously recorded automatic approval policy."""
+    project_dir = _resolve_project_dir(pipeline_dir, project_id)
+    marker_path = project_dir / PROJECT_MARKER_FILENAME
+    if not marker_path.exists():
+        raise CheckpointValidationError(
+            f"Project {project_id!r} is not initialized; call init_project() first."
+        )
+    try:
+        with open(marker_path, encoding="utf-8") as f:
+            marker = json.load(f)
+    except (json.JSONDecodeError, OSError) as exc:
+        raise CheckpointValidationError(
+            f"Cannot read project marker for {project_id!r}: {exc}"
+        ) from exc
+    if not isinstance(marker, dict) or marker.get("project_id") != project_id:
+        raise CheckpointValidationError(
+            f"Project marker identity does not match {project_id!r}."
+        )
+    policy = marker.get("approval_policy")
+    if isinstance(policy, dict) and policy.get("mode") == "auto_approved":
+        policy["mode"] = "revoked"
+        policy["revoked_at"] = datetime.now(timezone.utc).isoformat()
+    tmp_path = marker_path.with_suffix(".json.tmp")
+    with open(tmp_path, "w", encoding="utf-8") as f:
+        json.dump(marker, f, indent=2, ensure_ascii=False)
+    import os
+    os.replace(tmp_path, marker_path)
+    return marker_path
+
+
+def _auto_approval_policy(marker: Any) -> dict[str, str] | None:
+    if not isinstance(marker, dict):
+        return None
+    policy = marker.get("approval_policy")
+    if (
+        isinstance(policy, dict)
+        and policy.get("mode") == "auto_approved"
+        and policy.get("authorization_source") == "user_instruction"
+        and isinstance(policy.get("authorization_text"), str)
+        and policy.get("authorization_text").strip()
+        and isinstance(policy.get("authorized_at"), str)
+    ):
+        return policy
+    return None
+
+
 def _stage_requires_approval(pipeline_type: Optional[str], stage: str) -> Optional[bool]:
     """Read human_approval_default for a stage from its pipeline manifest.
 
@@ -328,6 +423,17 @@ def _enforce_stage_prerequisites(
     incomplete: list[str] = []
     unapproved: list[str] = []
     project_dir = _resolve_project_dir(pipeline_dir, project_id)
+    marker = None
+    marker_path = project_dir / PROJECT_MARKER_FILENAME
+    if marker_path.exists():
+        try:
+            with open(marker_path, encoding="utf-8") as handle:
+                marker = json.load(handle)
+        except (OSError, json.JSONDecodeError):
+            marker = None
+    auto_policy = marker.get("approval_policy") if isinstance(marker, dict) else None
+    if not isinstance(auto_policy, dict):
+        auto_policy = None
     for predecessor in stages[: stages.index(stage)]:
         path = _checkpoint_path(project_dir, predecessor)
         if not path.exists():
@@ -353,7 +459,18 @@ def _enforce_stage_prerequisites(
         if _stage_requires_approval(pipeline_type, predecessor) and not checkpoint.get(
             "human_approved"
         ):
-            unapproved.append(predecessor)
+            resolution = checkpoint.get("approval_resolution", {})
+            auto_authorized = bool(
+                auto_policy
+                and auto_policy.get("authorization_source") == "user_instruction"
+                and resolution.get("type") == "auto_authorized"
+                and resolution.get("authorization_text")
+                == auto_policy.get("authorization_text")
+                and resolution.get("authorized_at")
+                == auto_policy.get("authorized_at")
+            )
+            if not auto_authorized:
+                unapproved.append(predecessor)
 
     if incomplete or unapproved:
         details = []
@@ -461,10 +578,10 @@ def write_checkpoint(
     """Write a checkpoint file for a pipeline stage."""
     # Backfill identity fields from the project marker so omitted kwargs
     # cannot bypass either gate enforcement or style validation.
-    marker = None
     project_dir = _resolve_project_dir(pipeline_dir, project_id)
     marker_path = project_dir / PROJECT_MARKER_FILENAME
-    if marker_path.exists() and (not pipeline_type or not style_playbook):
+    marker = None
+    if marker_path.exists():
         try:
             with open(marker_path, encoding="utf-8") as f:
                 marker = json.load(f)
@@ -475,6 +592,7 @@ def write_checkpoint(
             pipeline_type = marker["pipeline_type"]
         if not style_playbook and marker.get("style_playbook"):
             style_playbook = marker["style_playbook"]
+    auto_policy = _auto_approval_policy(marker)
     _validate_style_playbook(style_playbook)
 
     valid_stages = (
@@ -488,11 +606,9 @@ def write_checkpoint(
         )
 
     # --- Gate enforcement (GI-4) ---
-    # The pipeline manifest is the binding source of truth for whether a stage
-    # gates on human approval; a caller may gate MORE strictly (e.g. a
-    # manual_all checkpoint policy) but never less. A gated stage can only be
-    # written "completed" with explicit evidence of approval
-    # (human_approved=True). Skipping a gate is a hard error.
+    # The manifest remains the source of which stages are human-gated. A
+    # project-level user authorization may resolve those gates automatically,
+    # but is recorded separately and never changes human_approved to True.
     #
     # Enforcement happens at write time only: pre-existing checkpoints written
     # before gating (or by hand) still read as completed — deliberate
@@ -501,7 +617,7 @@ def write_checkpoint(
     gated = bool(manifest_gate) or human_approval_required
     if gated:
         human_approval_required = True
-        if status == "completed" and not human_approved:
+        if status == "completed" and not human_approved and not auto_policy:
             gate_source = (
                 f"human_approval_default: true in the {pipeline_type!r} manifest"
                 if manifest_gate
@@ -536,6 +652,13 @@ def write_checkpoint(
         "human_approved": human_approved,
         "artifacts": artifacts,
     }
+    if gated and status == "completed" and auto_policy and not human_approved:
+        checkpoint["approval_resolution"] = {
+            "type": "auto_authorized",
+            "authorization_source": auto_policy["authorization_source"],
+            "authorization_text": auto_policy["authorization_text"],
+            "authorized_at": auto_policy["authorized_at"],
+        }
     if style_playbook is not None:
         checkpoint["style_playbook"] = style_playbook
     if review is not None:

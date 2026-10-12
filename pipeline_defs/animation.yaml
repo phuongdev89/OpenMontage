@@ -297,3 +297,4 @@ stages:
     success_criteria:
       - Schema-valid publish_log artifact
       - Export package contains video and metadata outputs
+      - For math projects, exports/video contains portrait and landscape renders, and the thumbnail does not reveal the answer
