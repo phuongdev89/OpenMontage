@@ -505,12 +505,13 @@ def _scan_media(project_dir: Path) -> dict[str, list[dict]]:
     snapshots: list[dict] = []
     music: list[dict] = []
 
-    renders_dir = project_dir / "renders"
-    if renders_dir.is_dir():
-        for f in sorted(renders_dir.iterdir()):
-            if f.suffix.lower() in MEDIA_VIDEO_EXT and f.is_file():
-                renders.append({"path": _rel(project_dir, f), "size": f.stat().st_size,
-                                "mtime": f.stat().st_mtime})
+    for dirname in ("renders", "exports/video"):
+        renders_dir = project_dir / dirname
+        if renders_dir.is_dir():
+            for f in sorted(renders_dir.iterdir()):
+                if f.suffix.lower() in MEDIA_VIDEO_EXT and f.is_file():
+                    renders.append({"path": _rel(project_dir, f), "size": f.stat().st_size,
+                                    "mtime": f.stat().st_mtime})
     # Atelier heuristic: deliverables at project root.
     for f in sorted(project_dir.glob("*.mp4")):
         renders.append({"path": _rel(project_dir, f), "size": f.stat().st_size,
@@ -545,7 +546,7 @@ def _find_poster(project_dir: Path, state: dict) -> Optional[str]:
     for snap in (state.get("media") or {}).get("snapshots", []):
         return snap["path"]
     # Common image homes, in order of how representative they usually are.
-    for rel_dir in ("assets/images", "assets/frames", "exports", "assets", "."):
+    for rel_dir in ("exports/thumbnails", "assets/images", "assets/frames", "exports", "assets", "."):
         d = (project_dir / rel_dir) if rel_dir != "." else project_dir
         if not d.is_dir():
             continue
