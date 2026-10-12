@@ -17,7 +17,8 @@ function copyField(label, value, regenerate = null) {
   }}, 'Sao chép');
   const field = el('textarea', {readonly: '', rows: label.includes('path') ? '2' : '4', 'aria-label': label}, value || 'Chưa có nội dung');
   const actions = el('div', {class: 'posting-actions'}, button);
-  if (regenerate) {
+  if (regenerate?.editable) field.removeAttribute('readonly');
+  if (regenerate && !regenerate.editable) {
     const key = `${regenerate.projectId}:${regenerate.field}`;
     const retry = el('button', {type: 'button', onclick: () => {
       if (!copyRequests.get(key)?.busy) openCopyDialog(regenerate.projectId, regenerate.field, regenerate.package, regenerate.onUpdated);
@@ -101,7 +102,8 @@ export function renderPublishPackage(s, projectId, onUpdated = null) {
       el('a', {href: mediaURL(projectId, thumb.path), target: '_blank', rel: 'noopener'},
         el('img', {src: mediaURL(projectId, thumb.path), alt: thumb.label || 'Thumbnail', loading: 'lazy'})),
       thumb.generated ? null : el('p', {class: 'posting-note'}, 'Thumbnail cũ · chưa xác minh tạo bằng image-generate'),
-      copyField('Thumbnail path', thumb.absolute_path)));
+      copyField('Thumbnail path', thumb.absolute_path),
+      copyField('Prompt tạo thumbnail · có thể sửa để gen thủ công', thumb.prompt || '', {editable: true})));
   }
   section.append(el('h3', {}, 'Thumbnail'), thumbnails);
   if (!p.thumbnails?.length) section.append(el('p', {}, 'Chưa có thumbnail.'));
@@ -123,4 +125,26 @@ export function renderPublishPackage(s, projectId, onUpdated = null) {
   section.append(el('h3', {}, 'Video đã xuất'), tabs, preview);
   if (selectedRatio) select(selectedRatio);
   return section;
+}
+
+export function renderTitleEditor(s, projectId, onUpdated) {
+  if (!s.stages.some(x => ['compose','publish'].includes(x.name) && x.status === 'completed')) return null;
+  return el('button', {type:'button', onclick: () => {
+    const dialog = el('dialog', {class:'copy-dialog'});
+    const input = el('input', {value:s.title, maxlength:'300', 'aria-label':'Tên project trên Backlot'});
+    const status = el('p', {role:'alert'});
+    const save = el('button', {type:'button', onclick:async () => {
+      save.disabled=true;
+      try {
+        const response=await fetch(`/api/project/${encodeURIComponent(projectId)}/title`, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title:input.value,expected_title:s.title})});
+        const data=await response.json();
+        if (!response.ok) throw new Error(data.detail || 'Không lưu được tiêu đề');
+        dialog.close(); await onUpdated();
+      } catch(error) {status.textContent=error.message;}
+      finally {save.disabled=false;}
+    }}, 'Lưu tiêu đề');
+    dialog.addEventListener('close',()=>dialog.remove());
+    dialog.append(el('h2',{},'Đổi tên project trên Backlot'),input,status,save,el('button',{type:'button',onclick:()=>dialog.close()},'Đóng'));
+    document.body.append(dialog);dialog.showModal();input.focus();
+  }}, 'Sửa tiêu đề');
 }

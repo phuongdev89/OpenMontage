@@ -58,3 +58,12 @@ python -m backlot open backlot-demo-run
 ```
 
 Design doc: `internal/design/LIVING_STORYBOARD.md`.
+
+After compose/publish completion, “Sửa tiêu đề” saves a presentation title in
+project-local display_title.json. Original marker/checkpoints and last_activity
+remain unchanged. Only the Backlot library/project heading uses this organizational name.
+The video title in the posting package retains its original metadata.
+Thumbnail cards show the exact stored generation prompt, with editable copy text
+for manual generation; editing that textarea does not save provenance or call AI.
+Agents fill the shared thumbnail-prompt.txt template from the hook and record the
+fully resolved prompt in posting-package thumbnail metadata.

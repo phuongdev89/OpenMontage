@@ -1,0 +1,5 @@
+Tạo thumbnail YouTube ngang 16:9 cho kênh “Toán Olympic Cùng Con”.
+Ý TƯỞNG CẢNH: {{HOOK_SCENE}}
+Phong cách hoạt hình sách truyện cao cấp, thân thiện với trẻ em. Nhân vật biểu cảm rõ, đồ vật chính nổi bật; bối cảnh thật, mạch lạc, có chiều sâu, chất liệu và ánh sáng ấm. Bố cục dễ hiểu khi xem nhỏ trên điện thoại, tương phản tốt.
+Thể hiện hook bằng tình huống chưa được giải đáp. Có thể dùng bong bóng suy nghĩ hoặc dấu hỏi nếu phù hợp. Nếu thêm chữ: chỉ một tiêu đề tiếng Việt ngắn 3–5 từ, đúng dấu, dễ đọc, cách mép an toàn.
+Không đưa đáp án, lời giải, toàn bộ đề bài hoặc bảng dữ kiện. Không làm ảnh giống worksheet, slide bài giảng hay khung chữ. Không tự thêm điều kiện toán học.

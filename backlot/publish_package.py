@@ -43,7 +43,7 @@ def build_publish_package(project: Path, publish_log: dict, completed: bool) -> 
             continue
         info = file_info(thumbnail.get('path'))
         if info:
-            thumbnails.append({**info, 'generated': thumbnail.get('method') == 'image-generate', 'provider': thumbnail.get('provider'), 'label': thumbnail.get('label') or 'Thumbnail'})
+            thumbnails.append({**info, 'generated': thumbnail.get('method') == 'image-generate', 'provider': thumbnail.get('provider'), 'label': thumbnail.get('label') or 'Thumbnail', 'prompt': thumbnail.get('prompt') or ''})
     if not thumbnails:
         for path in sorted((project / 'exports/thumbnails').glob('*')):
             if path.suffix.lower() in ('.png', '.jpg', '.jpeg', '.webp'):

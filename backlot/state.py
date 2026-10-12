@@ -655,6 +655,10 @@ def load_board_state(project_dir: Path) -> dict[str, Any]:
         "last_activity": last_activity,
         "live": bool(last_activity and (now - last_activity) < LIVE_WINDOW_SECONDS),
     }
+    from backlot.project_title import read_title
+    override_title = read_title(project_dir)
+    if override_title:
+        state['title'] = override_title
     state["poster"] = _find_poster(project_dir, state)
     from backlot.publish_package import build_publish_package
     state['publish_package'] = build_publish_package(

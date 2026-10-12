@@ -34,6 +34,11 @@ _IGNORE_PARTS = {"node_modules", ".git", "__pycache__", ".cache"}
 SSE_HEARTBEAT_SECONDS = 15
 
 
+class TitleRevisionRequest(BaseModel):
+    title: str = Field(min_length=1, max_length=300)
+    expected_title: str
+
+
 class CopyRevisionRequest(BaseModel):
     field: Literal['caption', 'description']
     instruction: str = Field(min_length=1, max_length=4000)
@@ -189,6 +194,20 @@ def create_app() -> FastAPI:
     async def project_state(project_id: str) -> dict:
         project_dir = _safe_project_dir(project_id)
         return await asyncio.to_thread(load_board_state, project_dir)
+
+    @app.post('/api/project/{project_id}/title')
+    async def edit_project_title(project_id: str, body: TitleRevisionRequest, request: Request) -> dict:
+        origin = request.headers.get('origin')
+        if origin and urlsplit(origin).netloc != request.url.netloc:
+            raise HTTPException(status_code=403, detail='Yêu cầu phải gửi từ Backlot đang mở.')
+        from backlot.project_title import save_title
+        try:
+            result = await asyncio.to_thread(save_title, _safe_project_dir(project_id), body.title, body.expected_title)
+        except CopywriterError as exc:
+            raise HTTPException(status_code=exc.status, detail=str(exc))
+        _invalidate_summary(project_id)
+        hub.publish(project_id)
+        return result
 
     @app.post('/api/project/{project_id}/posting-copy/regenerate')
     async def regenerate_posting_copy(project_id: str, body: CopyRevisionRequest, request: Request) -> dict:

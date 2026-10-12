@@ -4,7 +4,7 @@ import {
   STAGE_ICONS, el, fmtAgo, fmtClock, fmtDuration, fmtMoney,
   getJSON, mediaURL, subscribe, thumbURL, waveBars,
 } from "/ui/lib.js";
-import {renderPublishPackage} from '/ui/publish.js';
+import {renderPublishPackage, renderTitleEditor} from '/ui/publish.js';
 
 const rawProjectPath = location.pathname.split("/p/")[1] || "";
 const projectId = decodeURIComponent(rawProjectPath);
@@ -48,7 +48,7 @@ applyTheme(currentTheme);
 // header slate
 // ---------------------------------------------------------------------------
 
-function renderSlate(s) {
+function renderSlate(s, projectId, refresh) {
   const board = s.storyboard;
   const chips = [
     el("span", { class: "chip" }, `${s.pipeline.pipeline_type} pipeline`),
@@ -95,6 +95,7 @@ function renderSlate(s) {
     el("div", {},
       el("a", { class: "wordmark", href: "/", style: "text-decoration:none" }, "Backlot"),
       el("h1", {}, s.title),
+      renderTitleEditor(s, projectId, refresh),
     ),
     ...chips,
     el("div", { class: "spacer" }),
@@ -1059,7 +1060,7 @@ function render() {
   document.body.classList.toggle("first", firstPaint);
   firstPaint = false;
   app.innerHTML = "";
-  app.append(renderSlate(s));
+  app.append(renderSlate(s, projectId, refresh));
   app.append(renderRail(s));
   const replayBar = renderReplayBar(state);
   if (replayBar) app.append(replayBar);

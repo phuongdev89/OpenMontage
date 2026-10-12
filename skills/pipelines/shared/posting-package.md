@@ -6,12 +6,22 @@ posting package in `publish_log.metadata.posting_package` for Backlot.
 ## Required content
 
 - `title`: a specific curiosity hook grounded in the actual video, no false claims.
-- `description`: first sentence poses the central challenge; then source/year/grade,
-  complete problem context and units, what the video teaches, language, method,
-  accurate chapters matching the final timeline, CTA and relevant hashtags.
-- `caption`: independently written for Facebook/TikTok. Open with a concrete
-  challenge, give enough data to understand it, invite a relevant comment and
-  include a small set of hashtags. Never substitute the YouTube description.
+- Both `description` and `caption` must open with a concrete hook grounded in
+  the problem, followed by the complete English problem verbatim when an English
+  source exists, the complete Vietnamese problem (faithful translation), source
+  attribution (competition/book, year, grade, question number), and relevant hashtags. Keep units and all conditions intact.
+  Never invent an English original or source details. Do not insert source URLs,
+  Scribd links or any other external links automatically. The user adds links manually. If provenance is
+  unavailable, explicitly say the source has not been verified. Do not reveal
+  the answer or completed solution in the hook/problem sections.
+- `description`: YouTube copy also explains what the video teaches, includes
+  accurate verified chapters when available, and a CTA.
+- `caption`: independently phrase the hook and comment invitation for Facebook/
+  TikTok. Keep the mandatory problem/source blocks even when they make it longer;
+  do not shorten away conditions or replace it with the YouTube description.
+- Use a small set of topic-specific hashtags, e.g. #ToanOlympicCungCon,
+  #ToanOlympic, a verified grade/competition tag and the mathematical topic.
+  No unrelated trending tags or unverified competition names.
 - `thumbnails`: objects with project-relative `path`, `label`, `method`, `provider`,
   `prompt` and `review` (hook, readability, factual accuracy, no answer leak).
 
@@ -30,6 +40,24 @@ and provider, without inventing a model name. If unavailable or service-blocked,
 follow the skill's configured API fallback and record the exact reason. Do not
 use image_selector as a replacement for this routing. Never extract a video frame
 or use a screenshot as the posting thumbnail.
+
+Use the two 2026-10-12 refreshed thumbnails as quality references:
+- Q21: Louis holding a rope coil in a sunlit wooden garden shed, expressive face,
+  a thought bubble with exactly three unequal rope pieces and a question mark;
+  short readable Vietnamese headline “BA ĐOẠN DÂY”.
+- Q16: child detective with magnifying glass, real wooden-framed green felt board,
+  pinned 1/2/4 clues with red string, mystery envelope, warm desk lamp;
+  short readable Vietnamese headline “MANH MỐI BÍ ẨN”.
+These are composition references, not a template to reuse for every problem.
+Build each thumbnail from that problem's concept, character, prop and coherent
+setting. Favor expressive faces, tactile scenery, layered light/shadow and a
+clear curiosity cue readable at mobile size. Do not replace the scene with a
+worksheet, full problem statement, formulas or a generic flat card.
+Review the actual generated image; these examples are not a guarantee that a
+future generation is acceptable. If generation fails or the result fails review,
+report the specific issue and leave thumbnail pending. The user may generate it
+manually; preserve that supplied image and register it honestly as user-supplied.
+Never claim a poor image passes just to finish the package.
 
 Generate a dedicated concept-led narrative image under `exports/thumbnails/`,
 consistent with the approved playbook's visual language. Start from the concept,
@@ -72,3 +100,16 @@ Example:
     "readability": "PASS", "factual_accuracy": "PASS", "no_answer_leak": "PASS"}}]
 }}
 ```
+
+## Agent-owned reusable thumbnail prompt
+
+Agent MUST read `skills/pipelines/shared/thumbnail-prompt.txt`, fill only
+{{HOOK_SCENE}} from the actual hook with character/action/prop/setting/curiosity,
+and send the fully resolved prompt to image generation. The user is not asked
+to fill it. Save that exact submitted prompt (not a summary) in each thumbnail's
+`prompt` metadata so Backlot can display/copy it. Save final refinements as the
+actual prompt used, retaining earlier attempts in the generation record.
+The template lives outside projects and survives project deletion. The two
+examples above are written composition references and require no project files.
+Backlot's prompt textarea is editable for manual copying; edits there do not
+regenerate images or silently claim that edited text was the generation prompt.

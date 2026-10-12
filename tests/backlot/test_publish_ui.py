@@ -50,3 +50,30 @@ def test_background_copy_regeneration(field):
         expect(textarea).to_have_value('New copy')
         expect(button).to_be_enabled()
         browser.close()
+
+
+def test_title_editor_and_editable_thumbnail_prompt():
+    ui = Path(__file__).resolve().parents[2] / 'backlot/ui'
+    with sync_playwright() as pw:
+        browser=pw.chromium.launch();page=browser.new_page()
+        def serve(route):
+            path=route.request.url.split('example.test')[-1]
+            route.fulfill(body=(ui/path.split('/')[-1]).read_text(encoding='utf-8') if path.startswith('/ui/') else '<html><body></body></html>',content_type='text/javascript' if path.startswith('/ui/') else 'text/html')
+        page.route('**/*',serve);page.goto('http://example.test/')
+        page.evaluate("""async () => {
+          const {renderTitleEditor,renderPublishPackage}=await import('/ui/publish.js');
+          window.saved=null;window.updated=false;
+          window.fetch=async (url,options)=>{saved={url,body:JSON.parse(options.body)};return {ok:true,json:async()=>({title:'New title'})};};
+          const s={title:'Old title',stages:[{name:'compose',status:'completed'},{name:'publish',status:'completed'}],publish_package:{title:'Old title',description:'Desc',caption:'Cap',revisions:{},thumbnails:[{path:'thumb.png',absolute_path:'thumb.png',prompt:'Actual prompt',generated:true}],videos:{}}};
+          document.body.append(renderTitleEditor(s,'project-a',async()=>{updated=true}),renderPublishPackage(s,'project-a'));
+        }""")
+        prompt=page.get_by_role('textbox',name='Prompt tạo thumbnail · có thể sửa để gen thủ công')
+        expect(prompt).to_have_value('Actual prompt');prompt.fill('Manual variation')
+        expect(prompt).to_have_value('Manual variation')
+        page.get_by_role('button',name='Sửa tiêu đề',exact=True).click()
+        page.get_by_role('textbox',name='Tên project trên Backlot').fill('New title')
+        page.get_by_role('button',name='Lưu tiêu đề',exact=True).click()
+        expect(page.locator('dialog')).to_have_count(0)
+        assert page.evaluate('saved.body')=={'title':'New title','expected_title':'Old title'}
+        assert page.evaluate('updated') is True
+        browser.close()
