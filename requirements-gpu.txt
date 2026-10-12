@@ -3,3 +3,4 @@
 torch>=2.0
 torchaudio>=2.0
 torchvision>=0.15
+vieneu>=3.8.3
