@@ -7,6 +7,33 @@ pytest.importorskip('playwright.sync_api')
 from playwright.sync_api import sync_playwright, expect
 
 
+def test_project_archive_link_after_publish():
+    ui = Path(__file__).resolve().parents[2] / 'backlot/ui'
+    with sync_playwright() as pw:
+        browser = pw.chromium.launch()
+        page = browser.new_page()
+        def serve(route):
+            path = route.request.url.split('example.test')[-1]
+            if path.startswith('/ui/'):
+                route.fulfill(body=(ui / path.split('/')[-1]).read_text(encoding='utf-8'), content_type='text/javascript')
+            else:
+                route.fulfill(body='<html><body></body></html>', content_type='text/html')
+        page.route('http://example.test/**', serve)
+        page.goto('http://example.test/')
+        page.evaluate('''async () => {
+            const {renderPublishPackage} = await import('/ui/publish.js');
+            const s = {stages:[{name:'publish',status:'pending'}], publish_package:{videos:{},thumbnails:[],revisions:{}}};
+            if (renderPublishPackage(s, 'film') !== null) throw new Error('Shown before publish');
+            s.stages[0].status = 'completed';
+            document.body.append(renderPublishPackage(s, 'film'));
+        }''')
+        link = page.get_by_role('link', name='Tải project (.zip)')
+        expect(link).to_be_visible()
+        expect(link).to_have_attribute('href', '/api/project/film/download')
+        expect(link).to_have_attribute('download', '')
+        browser.close()
+
+
 @pytest.mark.parametrize('field', ['caption', 'description'])
 def test_background_copy_regeneration(field):
     ui = Path(__file__).resolve().parents[2] / 'backlot/ui'

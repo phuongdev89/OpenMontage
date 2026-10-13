@@ -20,6 +20,7 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, HTMLResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
+from starlette.background import BackgroundTask
 from backlot.copywriter import CopywriterError, regenerate
 
 from backlot.state import PROJECTS_DIR, REPO_ROOT, list_projects, load_board_state, summarize_project
@@ -194,6 +195,23 @@ def create_app() -> FastAPI:
     async def project_state(project_id: str) -> dict:
         project_dir = _safe_project_dir(project_id)
         return await asyncio.to_thread(load_board_state, project_dir)
+
+    @app.get("/api/project/{project_id}/download")
+    def download_project(project_id: str) -> FileResponse:
+        from backlot.project_archive import build_archive
+        project = _safe_project_dir(project_id).resolve()
+        if not project.is_relative_to(PROJECTS_DIR.resolve()):
+            raise HTTPException(status_code=403, detail="path escapes projects")
+        state = load_board_state(project)
+        if not any(s['name'] == 'publish' and s['status'] == 'completed' for s in state['stages']):
+            raise HTTPException(status_code=409, detail="Project chưa hoàn tất publish.")
+        try:
+            archive = build_archive(project)
+        except OSError:
+            raise HTTPException(status_code=500, detail="Không tạo được bản nén project.")
+        return FileResponse(archive, media_type="application/zip", filename=f"{project_id}.zip",
+                            headers={"Cache-Control": "no-store"},
+                            background=BackgroundTask(archive.unlink, missing_ok=True))
 
     @app.post('/api/project/{project_id}/title')
     async def edit_project_title(project_id: str, body: TitleRevisionRequest, request: Request) -> dict:

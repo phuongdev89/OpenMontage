@@ -86,6 +86,43 @@ def _write_png(path: Path, color: tuple[int, int, int] = (200, 40, 80)) -> None:
 
 
 class TestBacklotServerApi:
+    def test_project_download_requires_publish(self, client, projects_root):
+        _make_project(projects_root)
+        assert client.get('/api/project/film/download').status_code == 409
+        assert client.get('/api/project/missing/download').status_code == 404
+
+    def test_project_download_contents_and_cleanup(self, client, projects_root, monkeypatch):
+        import zipfile
+        from backlot import project_archive
+        project = _make_project(projects_root)
+        _write_json(project / 'checkpoint_publish.json', {
+            'stage': 'publish', 'status': 'completed', 'artifacts': {},
+        })
+        (project / '.env').write_text('SECRET=value')
+        (project / 'node_modules').mkdir()
+        (project / 'node_modules/ignored.js').write_text('dependency')
+        (project / 'exports/conversation').mkdir(parents=True)
+        (project / 'exports/conversation/chat.md').write_text('conversation')
+        archives = []
+        original = project_archive.build_archive
+        def capture(project):
+            result = original(project)
+            archives.append(result)
+            return result
+        monkeypatch.setattr(project_archive, 'build_archive', capture)
+        response = client.get('/api/project/film/download')
+        assert response.status_code == 200
+        assert response.headers['content-type'] == 'application/zip'
+        assert 'film.zip' in response.headers['content-disposition']
+        with zipfile.ZipFile(io.BytesIO(response.content)) as archive:
+            assert archive.testzip() is None
+            assert archive.read('film/exports/conversation/chat.md') == b'conversation'
+            assert 'film/project.json' in archive.namelist()
+            assert 'film/checkpoint_publish.json' in archive.namelist()
+            assert 'film/.env' not in archive.namelist()
+            assert 'film/node_modules/ignored.js' not in archive.namelist()
+        assert archives and not archives[0].exists()
+
     def test_health(self, client):
         response = client.get("/api/health")
         assert response.status_code == 200

@@ -92,6 +92,7 @@ export function renderPublishPackage(s, projectId, onUpdated = null) {
   if (!p || !s.stages.some(stage => stage.name === 'publish' && stage.status === 'completed')) return null;
   const section = el('section', {class: 'posting-package', 'aria-label': 'Hỗ trợ đăng video'},
     el('h2', {}, 'Hỗ trợ đăng video'),
+    el('a', {href: `/api/project/${encodeURIComponent(projectId)}/download`, download: ''}, 'Tải project (.zip)'),
     copyField('Tiêu đề video', p.title),
     copyField('Description · YouTube', p.description, {label: 'Tạo lại description', projectId, field: 'description', package: p, onUpdated}),
     copyField('Caption · Facebook / TikTok', p.caption, {label: 'Tạo lại caption', projectId, field: 'caption', package: p, onUpdated}));
