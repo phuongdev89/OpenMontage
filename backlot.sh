@@ -19,6 +19,21 @@ import time
 import urllib.request
 
 url = "http://127.0.0.1:4751"
+pid_path = Path(".backlot/backlot.pid")
+pid_path.parent.mkdir(exist_ok=True)
+
+def saved_backlot_pid():
+    try:
+        pid = int(pid_path.read_text().strip())
+        proc = Path(f"/proc/{pid}")
+        args = (proc / "cmdline").read_bytes().split(b"\0")
+        if (pid > 1 and b"backlot.server:app" in args and b"--port" in args
+                and args[args.index(b"--port") + 1] == b"4751"
+                and Path(os.readlink(proc / "cwd")).resolve() == Path.cwd().resolve()):
+            return pid
+    except (ValueError, OSError, IndexError):
+        pass
+    return None
 
 def healthy():
     try:
@@ -27,7 +42,8 @@ def healthy():
     except Exception:
         return False
 
-if healthy():
+saved_pid = saved_backlot_pid()
+if saved_pid is not None or healthy():
     # Identify the listener rather than killing every uvicorn/Backlot process.
     sockets = set()
     for table in ("/proc/net/tcp", "/proc/net/tcp6"):
@@ -35,8 +51,8 @@ if healthy():
             fields = line.split()
             if int(fields[1].split(":")[1], 16) == 4751 and fields[3] == "0A":
                 sockets.add(f"socket:[{fields[9]}]")
-    listeners = set()
-    for proc in Path("/proc").iterdir():
+    listeners = {saved_pid} if saved_pid is not None else set()
+    for proc in ([] if saved_pid is not None else Path("/proc").iterdir()):
         if not proc.name.isdigit():
             continue
         try:
@@ -51,7 +67,8 @@ if healthy():
             args = Path(f"/proc/{pid}/cmdline").read_bytes().split(b"\0")
         except OSError:
             sys.exit(f"Cannot verify listener PID {pid}. Restart aborted.")
-        if b"backlot.server:app" not in args:
+        if (b"backlot.server:app" not in args
+                or Path(os.readlink(Path(f"/proc/{pid}/cwd"))).resolve() != Path.cwd().resolve()):
             sys.exit(f"Port 4751 belongs to an unrecognized process (PID {pid}). Restart aborted.")
     print(f"Backlot already running: {url}. Restarting...", flush=True)
     for pid in listeners:
@@ -67,6 +84,7 @@ if healthy():
         time.sleep(0.25)
     else:
         sys.exit("Backlot did not stop within 20 seconds. Restart aborted.")
+    pid_path.unlink(missing_ok=True)
 
 cache = Path(".cache")
 cache.mkdir(exist_ok=True)
@@ -77,8 +95,10 @@ with log_path.open("ab", buffering=0) as log:
          "--host", "0.0.0.0", "--port", "4751"],
         stdin=subprocess.DEVNULL, stdout=log, stderr=log, start_new_session=True,
     )
+pid_path.write_text(str(process.pid) + "\n")
 for _ in range(40):
     if process.poll() is not None:
+        pid_path.unlink(missing_ok=True)
         sys.exit(f"Backlot failed to start. See {log_path.resolve()}")
     if healthy():
         print(f"Backlot running in background (PID {process.pid}): {url}")

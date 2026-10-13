@@ -97,6 +97,7 @@ venv/
 
 # Backlot local cache (thumbnails)
 .backlot/
+prompt_chat/data/files/
 
 # Workspace-local third-party runtimes (for example the portable Blender LTS
 # used by blender_world). These are checksum-verified but never committed.
