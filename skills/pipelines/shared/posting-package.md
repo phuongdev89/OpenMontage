@@ -49,6 +49,10 @@ Use the two 2026-10-12 refreshed thumbnails as quality references:
   pinned 1/2/4 clues with red string, mystery envelope, warm desk lamp;
   short readable Vietnamese headline “MANH MỐI BÍ ẨN”.
 These are composition references, not a template to reuse for every problem.
+Their headlines demonstrate short readable text, not sufficient hook strength:
+“BA ĐOẠN DÂY” names a prop and “MANH MỐI BÍ ẨN” is generic. Neither alone
+passes the hook gate below; the actual scene must carry a specific unresolved
+question grounded in the source problem.
 Build each thumbnail from that problem's concept, character, prop and coherent
 setting. Favor expressive faces, tactile scenery, layered light/shadow and a
 clear curiosity cue readable at mobile size. Do not replace the scene with a
@@ -101,10 +105,45 @@ Example:
 }}
 ```
 
+## Thumbnail hook gate (binding)
+
+Before generation, develop three distinct hook candidates grounded in the
+actual source problem and approved concept. For each record the source fact,
+the specific question the viewer should want answered, the visual action or
+contrast that communicates it, and optional short Vietnamese headline.
+Choose the strongest candidate and record why; this is an internal review,
+not a new human approval gate or permission to generate before publish approval.
+
+The hook must communicate a concrete question, surprising relationship or
+challenge. A topic/prop label, generic “mystery”, decorative question mark,
+thought bubble or expressive face alone is insufficient. Do not invent stakes,
+mathematical conditions, difficulty claims or claims about other viewers.
+Do not reveal the answer or completed solution. Optional text supports the
+visual question; omitting text does not waive hook strength.
+
+Review the actual generated image at approximately 320×180, not just its prompt
+or full-resolution preview. Record in each thumbnail's `review`:
+- `hook`: PASS or FAIL;
+- `viewer_question`: one concrete sentence explaining what the viewer wants to
+  find out, specific to this source problem;
+- `source_fact`: the actual problem fact supporting that question;
+- `visual_evidence`: visible action/contrast/prop relationship communicating it;
+- `mobile_preview_size`: the size actually inspected;
+- `readability`, `factual_accuracy`, `no_answer_leak`: PASS or FAIL with reasons
+  for failures.
+
+Store the three candidates, chosen candidate and selection reason in the
+thumbnail generation record. If a reviewer cannot identify a specific viewer
+question from the actual small image, hook is FAIL even if the image is beautiful.
+Any FAIL blocks thumbnail acceptance and publish completion; revise within the
+project's authorized scope or leave thumbnail pending with the reason.
+Do not use an average score or a generic PASS to override this gate.
+
 ## Agent-owned reusable thumbnail prompt
 
 Agent MUST read `skills/pipelines/shared/thumbnail-prompt.txt`, fill only
-{{HOOK_SCENE}} from the actual hook with character/action/prop/setting/curiosity,
+{{HOOK_SCENE}} from the selected candidate, including the source fact, specific
+viewer question, character/action/prop/setting and visible unresolved relationship,
 and send the fully resolved prompt to image generation. The user is not asked
 to fill it. Save that exact submitted prompt (not a summary) in each thumbnail's
 `prompt` metadata so Backlot can display/copy it. Save final refinements as the

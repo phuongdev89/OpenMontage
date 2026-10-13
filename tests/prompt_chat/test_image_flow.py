@@ -1,7 +1,6 @@
 import base64
 import io
 import json
-import zipfile
 from types import SimpleNamespace
 
 import pytest
@@ -86,7 +85,7 @@ def test_missing_metadata_asks_before_prompt_or_zip(harness, monkeypatch):
     assert client.get(messages[0]["metadata"]["images"][0]["url"]).status_code == 200
 
 
-def test_confirmed_metadata_crops_and_exports_zip(harness, monkeypatch):
+def test_confirmed_metadata_crops_and_exports_individual_files(harness, monkeypatch):
     client, conv = harness
     analysis = {"source": "Sách A", "grade": "Lớp 2", "solution_mode": "open", "questions": "Đếm hình",
                 "has_diagram": True, "crops": [{"image_index": 0, "box": [100, 200, 800, 900], "question": "1"}]}
@@ -95,14 +94,18 @@ def test_confirmed_metadata_crops_and_exports_zip(harness, monkeypatch):
     metadata = done["metadata"]
     assert metadata["kind"] == "prompt"
     assert len(calls) == 4
-    with zipfile.ZipFile(io.BytesIO(client.get(metadata["zip_url"]).content)) as archive:
-        assert set(archive.namelist()) == {"prompt.txt", "figure_01.png", "manifest.json"}
-        assert not archive.read("prompt.txt").startswith(b"```")
-        with Image.open(io.BytesIO(archive.read("figure_01.png"))) as image:
-            assert image.size == (140, 70)
+    assert "zip_url" not in metadata
+    assert metadata["prompts"][0]["file"] == "dem-hinh.txt"
+    assert metadata["crops"][0]["file"] == "dem-hinh.png"
+    assert not client.get(metadata["raw_url"]).content.startswith(b"```")
+    crop_response = client.get(metadata["crops"][0]["url"])
+    assert 'dem-hinh.png' in crop_response.headers['content-disposition']
+    with Image.open(io.BytesIO(crop_response.content)) as image:
+        assert image.size == (140, 70)
     assert client.get(metadata["raw_url"]).status_code == 200
     stored = client.get(f"/api/conversations/{conv}").json()["messages"][-1]
-    assert stored["metadata"]["zip_url"] == metadata["zip_url"]
+    assert stored["metadata"]["prompts"] == metadata["prompts"]
+    assert not list(server.DATA_DIR.rglob('*.zip'))
 
 
 def test_bad_crop_review_blocks_prompt(harness, monkeypatch):
@@ -148,3 +151,27 @@ def test_failed_prompt_review_without_correction_blocks_package(harness, monkeyp
     done = events(client.post(f"/api/conversations/{conv}/messages", json={"content": "Q"}))[-1]
     assert "error" in done
     assert "metadata" not in done
+
+
+def test_question_slugs_and_multiple_downloads(tmp_path):
+    analysis = {"questions": [{"number": 1, "text": "Đếm số hình?"}, {"number": 2, "text": "Đếm số hình?"}]}
+    questions = attachments.question_items(analysis)
+    assert [q['slug'] for q in questions] == ['dem-so-hinh', 'dem-so-hinh-2']
+    metadata = attachments.package_prompt('```text\nCâu một\n```\n```text\nCâu hai\n```', [], tmp_path, analysis)
+    assert [p['file'] for p in metadata['prompts']] == ['dem-so-hinh.txt', 'dem-so-hinh-2.txt']
+    assert (tmp_path/'dem-so-hinh-2.txt').read_text(encoding='utf-8') == 'Câu hai'
+    assert not list(tmp_path.glob('*.zip'))
+
+
+def test_multiple_crops_share_question_slug(harness, tmp_path):
+    request = server.ImageRequest(**image_input())
+    images = attachments.store_images([request])
+    crops = [{'image_index': 0, 'box': [0, 0, 500, 500], 'question': '25'}] * 2
+    result = attachments.crop_images(crops, images, tmp_path, attachments.question_items(
+        {'questions': [{'number': 25, 'text': 'Chu vi hình chữ nhật?'}]}))
+    assert [c['file'] for c in result] == ['chu-vi-hinh-chu-nhat.png', 'chu-vi-hinh-chu-nhat-anh-2.png']
+
+
+def test_wrong_prompt_count_blocks_export(tmp_path):
+    with pytest.raises(ValueError, match='Số prompt'):
+        attachments.package_prompt('```text\nMột block\n```', [], tmp_path, {'questions': ['A', 'B']})

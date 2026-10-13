@@ -5,7 +5,7 @@ import json
 import math
 import re
 import uuid
-import zipfile
+import unicodedata
 from pathlib import Path
 
 from fastapi import HTTPException
@@ -50,8 +50,33 @@ def image_part(image):
     return {"type": "image_url", "image_url": {"url": "data:image/png;base64," + encoded}}
 
 
-def crop_images(crops, images, output):
+def question_items(analysis):
+    questions = analysis.get("questions") or []
+    if not isinstance(questions, list):
+        questions = [questions]
+    result, used = [], set()
+    for index, question in enumerate(questions):
+        if isinstance(question, dict):
+            text = question.get("text") or question.get("question") or question.get("title") or ""
+            number = question.get("number", question.get("id", index + 1))
+        else:
+            text, number = str(question), index + 1
+        ascii_text = unicodedata.normalize("NFKD", str(text).lower().replace("đ", "d")).encode("ascii", "ignore").decode()
+        slug = re.sub(r"[^a-z0-9]+", "-", ascii_text).strip("-")[:100].rstrip("-") or f"cau-hoi-{index + 1}"
+        if slug in {"con", "prn", "aux", "nul", *(f"com{i}" for i in range(1, 10)), *(f"lpt{i}" for i in range(1, 10))}:
+            slug = "cau-hoi-" + slug
+        base, suffix = slug, 2
+        while slug in used:
+            slug = f"{base}-{suffix}"
+            suffix += 1
+        used.add(slug)
+        result.append({"number": str(number), "text": str(text), "slug": slug})
+    return result
+
+
+def crop_images(crops, images, output, questions):
     result = []
+    counts = {}
     for index, crop in enumerate(crops):
         source_index = crop.get("image_index")
         box = crop.get("box")
@@ -61,27 +86,44 @@ def crop_images(crops, images, output):
             type(v) not in (int, float) or not math.isfinite(v) or not 0 <= v <= 1000 for v in box
         ) or box[0] >= box[2] or box[1] >= box[3]:
             raise ValueError("Tọa độ crop không hợp lệ")
+        question_ref = str(crop.get("question", ""))
+        matches = [question for question in questions if question_ref in {question["number"], question["text"]}]
+        if len(matches) == 1:
+            question = matches[0]
+        elif len(questions) == 1:
+            question = questions[0]
+        else:
+            raise ValueError("Không xác định được câu hỏi tương ứng với ảnh crop")
+        slug = question["slug"]
+        counts[slug] = counts.get(slug, 0) + 1
+        name = slug + (f"-anh-{counts[slug]}" if counts[slug] > 1 else "") + ".png"
+        # A slug from a different question can collide with a numbered image.
+        while (output / name).exists():
+            counts[slug] += 1
+            name = f"{slug}-anh-{counts[slug]}.png"
         source = images[source_index]
         with Image.open(DATA_DIR / source["file"]) as image:
             # Outward rounding preserves edge labels. Coordinates include padding.
             pixels = (math.floor(box[0] * image.width / 1000), math.floor(box[1] * image.height / 1000),
                       math.ceil(box[2] * image.width / 1000), math.ceil(box[3] * image.height / 1000))
-            name = f"figure_{index + 1:02d}.png"
             image.crop(pixels).save(output / name)
         result.append({"file": name, "source": source["file"], "box": pixels,
-                       "question": crop.get("question", ""), "description": crop.get("description", "")})
+                       "question": question["number"], "slug": slug, "description": crop.get("description", "")})
     return result
 
 
 def package_prompt(prompt, crops, directory, analysis):
-    raw = "\n\n".join(re.findall(r"```[^\n]*\n(.*?)```", prompt, re.S)).strip() or prompt.strip()
-    (directory / "prompt.txt").write_text(raw, encoding="utf-8")
+    blocks = [block.strip() for block in re.findall(r"```[^\n]*\n(.*?)```", prompt, re.S)] or [prompt.strip()]
+    questions = question_items(analysis)
+    if len(blocks) != len(questions):
+        raise ValueError("Số prompt không khớp số câu hỏi; cần một block đầy đủ cho mỗi câu")
+    base = f"/api/packages/{directory.name}"
+    prompts = []
+    for question, raw in zip(questions, blocks):
+        name = question["slug"] + ".txt"
+        (directory / name).write_text(raw, encoding="utf-8")
+        prompts.append({"file": name, "url": base + "/" + name, "question": question["number"]})
     (directory / "manifest.json").write_text(json.dumps({"analysis": analysis, "crops": crops},
                                                        ensure_ascii=False, indent=2), encoding="utf-8")
-    with zipfile.ZipFile(directory / "package.zip", "w", zipfile.ZIP_DEFLATED) as archive:
-        for path in sorted(directory.iterdir()):
-            if path.suffix in {".png", ".txt", ".json"}:
-                archive.write(path, path.name)
-    base = f"/api/packages/{directory.name}"
-    return {"raw_url": base + "/prompt.txt", "zip_url": base + "/package.zip",
+    return {"raw_url": prompts[0]["url"], "prompts": prompts,
             "crops": [{**crop, "url": base + "/" + crop["file"]} for crop in crops]}

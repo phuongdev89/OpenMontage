@@ -35,6 +35,10 @@ Store in `publish_log.metadata`:
 
 - metadata fits the actual animation mode,
 - thumbnail concept matches the final visual system,
+- thumbnail passes the binding hook gate in
+  `skills/pipelines/shared/posting-package.md`: three candidates before generation,
+  actual image reviewed at approximately 320×180, specific viewer question and
+  visible evidence; generic labels or decorative mystery alone fail,
 - exports are labeled by purpose and platform,
 - the package is usable without extra manual work.
 

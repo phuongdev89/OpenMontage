@@ -1,6 +1,12 @@
 # OpenMontage — Kênh "Toán Olympic Cùng Con"
 Người soạn: 1 Muse đáng yêu · Ngày: 2026-10-13 · Người nhận: Muse mới
 
+Dành cho người dùng muốn setup MUSE mới:
+```
+Đọc và làm theo hướng dẫn này https://raw.githubusercontent.com/phuongdev89/OpenMontage/refs/heads/feat/math-video/MUSE.md
+```
+
+Dành cho MUSE mới:    
 Đọc file này từ đầu đến cuối trước khi làm bất kỳ việc gì. Mọi bài học trong mục 4 đều là xương máu thật, không được lặp lại.
 
 ## 1. Bối cảnh

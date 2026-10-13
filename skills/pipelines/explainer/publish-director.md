@@ -52,7 +52,8 @@ Collect everything needed for metadata:
 Describe a thumbnail that:
 1. Uses the playbook's visual style
 2. Features the video's core concept visually
-3. Builds a character/prop/setting curiosity scene; optional 3-5 word hook
+3. Builds a character/prop/setting scene around a specific unresolved question
+   grounded in the source; optional 3-5 word hook, not a generic topic label
 4. Has high contrast and is readable at small sizes
 5. Uses the playbook's accent colors for text
 
@@ -176,7 +177,12 @@ Score (1-5):
 For math projects, also verify every enabled final video file is present under
 `exports/video/` and that the thumbnail does not disclose the answer.
 
-If any dimension scores below 3, revise.
+If any dimension scores below 3, revise. Thumbnail acceptance additionally
+requires the binding hook gate in `skills/pipelines/shared/posting-package.md`:
+compare three candidates before generation and inspect the actual image at
+approximately 320×180 with a specific viewer question and visual evidence.
+Any hook, readability, factual-accuracy or answer-safety FAIL blocks completion
+regardless of the numeric scores.
 
 ### Step 8: Submit
 

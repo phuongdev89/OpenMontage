@@ -582,10 +582,12 @@
     function applyMetadata(block, metadata) {
       block.header.querySelector('span').textContent = metadata.kind === 'clarification' ? 'CẦN BỔ SUNG THÔNG TIN' : 'VIDEO PROMPT RAW';
       block.btnCopy.hidden = metadata.kind === 'clarification';
-      if (metadata.zip_url) {
+      if (metadata.raw_url || metadata.prompts?.length) {
         const downloads = document.createElement('div'); downloads.className = 'downloads';
-        for (const [label, url] of [['Tải prompt TXT', metadata.raw_url], ['Tải ZIP + ảnh crop', metadata.zip_url]]) {
-          const link = document.createElement('a'); link.textContent = label; link.href = url; link.download = ''; downloads.append(link);
+        const prompts = metadata.prompts || [{file: 'prompt.txt', url: metadata.raw_url}];
+        for (const file of [...prompts, ...(metadata.crops || [])]) {
+          const link = document.createElement('a'); link.textContent = 'Tải ' + file.file;
+          link.href = file.url; link.download = file.file; downloads.append(link);
         }
         block.msgEl.append(downloads);
         (metadata.crops || []).forEach(crop => {

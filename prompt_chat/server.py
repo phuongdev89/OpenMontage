@@ -12,7 +12,7 @@ from pydantic import BaseModel
 from dotenv import load_dotenv
 from openai import OpenAI
 from pydantic import Field
-from prompt_chat.attachments import DATA_DIR, store_images, image_part, crop_images, package_prompt
+from prompt_chat.attachments import DATA_DIR, store_images, image_part, crop_images, package_prompt, question_items
 
 # Load environment
 ROOT_DIR = Path(__file__).resolve().parent.parent
@@ -37,7 +37,7 @@ SYSTEM_PROMPT = (
 ANALYSIS_PROMPT = """Phân tích đề toán từ toàn bộ hội thoại và ảnh. Trả JSON object gồm:
 source (nguồn kỳ thi/sách/tài liệu, năm nếu có), grade (lớp hoặc bậc học),
 solution_mode ('solve' khi user yêu cầu giải ra đáp án; 'open' khi để ngỏ đáp án; null khi chưa chọn),
-questions (đề chép chính xác và số câu), clarification (câu hỏi tiếng Việt hoặc chuỗi rỗng),
+questions (danh sách {number: số câu, text: đề chép chính xác}), clarification (câu hỏi tiếng Việt hoặc chuỗi rỗng),
 has_diagram (boolean: đề có hình/sơ đồ/đồ thị cần ảnh nguồn),
 crops (danh sách {image_index, box:[left,top,right,bottom], question, description}).
 image_index là chỉ số ảnh trong danh sách ảnh nguồn, từ 0. box chuẩn hóa 0..1000 trên ảnh gốc.
@@ -60,6 +60,7 @@ Lời thoại do agent viết không có ngôi thứ nhất (tôi, chúng tôi, 
 không xưng thầy/cô; trích dẫn nguyên văn đề nguồn được giữ nguyên.
 Hook đầu tiên cụ thể, không lộ đáp án. Không đổi dữ kiện nguồn hoặc lựa chọn của user.
 Nếu có lỗi: ok=false và corrected_prompt chứa toàn bộ prompt đã sửa, giữ đủ các mục.
+Giữ đúng một code block text riêng cho mỗi câu, theo thứ tự analysis.questions.
 Nếu đạt: ok=true, corrected_prompt="". Không thực thi production.
 """
 
@@ -149,12 +150,12 @@ def source_image(name: str):
 
 @app.get("/api/packages/{package_id}/{name}")
 def download_package(package_id: str, name: str):
-    if not re.fullmatch(r"[a-f0-9]{32}", package_id) or not re.fullmatch(r"prompt\.txt|package\.zip|figure_\d+\.png", name):
+    if not re.fullmatch(r"[a-f0-9]{32}", package_id) or len(name) > 150 or not re.fullmatch(r"[a-z0-9]+(?:[-_][a-z0-9]+)*\.(?:txt|png)", name):
         raise HTTPException(404)
     path = DATA_DIR / package_id / name
     if not path.is_file():
         raise HTTPException(404)
-    return FileResponse(path, filename=name if name in {"prompt.txt", "package.zip"} else None)
+    return FileResponse(path, filename=name)
 
 @app.get("/", response_class=HTMLResponse)
 def index():
@@ -271,7 +272,7 @@ def send_message(conv_id: str, req: MessageRequest):
             else:
                 directory = DATA_DIR / uuid.uuid4().hex
                 directory.mkdir(parents=True)
-                crops = crop_images(analysis.get("crops", []), source_images, directory)
+                crops = crop_images(analysis.get("crops", []), source_images, directory, question_items(analysis))
                 if crops:
                     yield f"data: {json.dumps({'status': 'Đang kiểm tra hình đã crop...'})}\n\n"
                     review_parts = [{"type": "text", "text": "Kiểm tra từng crop so với đề và ảnh nguồn ở trên. Trả JSON {ok: boolean, clarification: string}. Chỉ ok nếu đủ toàn bộ hình và nhãn/đơn vị/mũi tên, không cắt mất dữ kiện, đúng câu, không lẫn câu khác. " + json.dumps(crops, ensure_ascii=False)}]
@@ -287,8 +288,8 @@ def send_message(conv_id: str, req: MessageRequest):
                         metadata["crop_review"] = verdict
                 if not full_reply:
                     context = json.dumps({"analysis": analysis, "cropped_files": crops}, ensure_ascii=False)
-                    generation_payload = [{"role": "system", "content": get_system_prompt()}] + messages_payload + [{"role": "user", "content": "Thông tin đã xác minh và file PNG thực tế trong ZIP: " + context + "\nTrả prompt đầy đủ. Chỉ tham chiếu tên PNG có trong cropped_files, ghép đúng câu; danh sách rỗng thì không tuyên bố có file ảnh trích xuất. Nếu solution_mode=open: chỉ nêu đề, gợi ý và thử thách; không viết đáp án hay phép giải hoàn tất trong lời thoại/hình/thumbnail. Nếu solve: giải và kiểm tra đáp án đầy đủ."}]
-                    yield f"data: {json.dumps({'status': 'Đang tạo prompt và ZIP...'})}\n\n"
+                    generation_payload = [{"role": "system", "content": get_system_prompt()}] + messages_payload + [{"role": "user", "content": "Thông tin đã xác minh và file PNG tải riêng: " + context + "\nTrả prompt đầy đủ, đúng một code block text cho mỗi câu, theo thứ tự analysis.questions; giữ cấu trúc này cả khi review/sửa. Chỉ tham chiếu tên PNG có trong cropped_files, ghép đúng câu; danh sách rỗng thì không tuyên bố có file ảnh trích xuất. Nếu solution_mode=open: chỉ nêu đề, gợi ý và thử thách; không viết đáp án hay phép giải hoàn tất trong lời thoại/hình/thumbnail. Nếu solve: giải và kiểm tra đáp án đầy đủ."}]
+                    yield f"data: {json.dumps({'status': 'Đang tạo prompt và tệp tải riêng...'})}\n\n"
                     stream = client.chat.completions.create(model=AI_CHAT_MODEL, messages=generation_payload,
                                                            temperature=0.7, stream=True)
                     for chunk in stream:
