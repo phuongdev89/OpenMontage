@@ -110,3 +110,4 @@ prompt_chat/data/files/
 .remotion/
 projects_work/
 .env-*
+prompt_chat/data/
