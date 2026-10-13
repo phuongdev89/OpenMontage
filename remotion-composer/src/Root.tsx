@@ -17,6 +17,15 @@ import { CaptionOverlay, WordCaption } from "./components/CaptionOverlay";
 import { CollageBurst, CollageBurstProps } from "./CollageBurst";
 import { LyricOverlay, LyricOverlayProps } from "./LyricOverlay";
 import { MathCoinsPortrait, MathCoinsLandscape } from "./math/MathCoins";
+import { MathCandyJarsPortrait, MathCandyJarsLandscape } from "./math/MathCandyJars";
+import {
+  MathMultipliedBy10Portrait,
+  MathMultipliedBy10Landscape,
+} from "./math/MathMultipliedBy10";
+import {
+  MathDetectivePortrait,
+  MathDetectiveLandscape,
+} from "./math/MathDetectiveQ25";
 
 // ---------------------------------------------------------------------------
 // Theme System — prevents every video from looking like dark fintech
@@ -334,7 +343,7 @@ export const Root: React.FC = () => {
       <Composition
         id="MathCoinsPortrait"
         component={MathCoinsPortrait}
-        durationInFrames={4206}
+        durationInFrames={3735}
         fps={30}
         width={1080}
         height={1920}
@@ -342,7 +351,55 @@ export const Root: React.FC = () => {
       <Composition
         id="MathCoinsLandscape"
         component={MathCoinsLandscape}
-        durationInFrames={4206}
+        durationInFrames={3735}
+        fps={30}
+        width={1920}
+        height={1080}
+      />
+      <Composition
+        id="MathCandyJarsPortrait"
+        component={MathCandyJarsPortrait}
+        durationInFrames={3924}
+        fps={30}
+        width={1080}
+        height={1920}
+      />
+      <Composition
+        id="MathCandyJarsLandscape"
+        component={MathCandyJarsLandscape}
+        durationInFrames={3924}
+        fps={30}
+        width={1920}
+        height={1080}
+      />
+      <Composition
+        id="MathMultipliedBy10Portrait"
+        component={MathMultipliedBy10Portrait}
+        durationInFrames={2490}
+        fps={30}
+        width={1080}
+        height={1920}
+      />
+      <Composition
+        id="MathMultipliedBy10Landscape"
+        component={MathMultipliedBy10Landscape}
+        durationInFrames={2490}
+        fps={30}
+        width={1920}
+        height={1080}
+      />
+      <Composition
+        id="MathDetectivePortrait"
+        component={MathDetectivePortrait}
+        durationInFrames={4230}
+        fps={30}
+        width={1080}
+        height={1920}
+      />
+      <Composition
+        id="MathDetectiveLandscape"
+        component={MathDetectiveLandscape}
+        durationInFrames={4230}
         fps={30}
         width={1920}
         height={1080}

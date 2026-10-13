@@ -1,36 +1,45 @@
 identity:
   name: "Math — Bảng Phấn"
-  visual_concept: "chalkboard"
-  category: math-video
+  category: custom
   mood: classic, educational, warm
-  pace: steady
+  pace: deliberate
   best_for: "Mọi cấp lớp, đặc biệt tiểu học và THCS; bài hình học, đại số cơ bản"
+
+visual_concept: chalkboard
 
 visual_language:
   color_palette:
     primary: ["#E8E8E8", "#F5F5F0"]   # phấn trắng, phấn ngà
     accent: ["#FFD700", "#FF9500"]    # phấn vàng highlight, phấn cam
     background: "#2D4A3E"             # bảng xanh đen
-    background_alt: "#243B32"         # bảng tối hơn cho contrast
     text: "#E8E8E8"                   # phấn trắng
     muted: "#9BB5A8"
-    equation_highlight: "#FFD700"     # phấn vàng cho bước quan trọng
-    chalk_dust: "#C8D8C8"             # màu bụi phấn mờ
-    border_chalk: "#B0C4B8"           # viền phấn
   composition: "full-width blackboard, lines appear left-to-right as written, title at top-center"
   texture: "subtle chalk texture on dark green board, slight grain"
+
+math_palette:
+  background_alt: "#243B32"         # bảng tối hơn cho contrast
+  border_chalk: "#B0C4B8"           # viền phấn
+  chalk_dust: "#C8D8C8"             # màu bụi phấn mờ
+  equation_highlight: "#FFD700"     # phấn vàng cho bước quan trọng
 
 typography:
   headings:
     font: "Caveat"
-    fallback: "Comic Sans MS, cursive"
     weight: 700
     tracking: "0.01em"
   body:
     font: "Caveat"
-    fallback: "Comic Sans MS, cursive"
     weight: 400
     line_height: 1.9
+  scale_system: "perfect_fourth"
+  weight_matrix:
+    title: 700
+    heading: 600
+    body: 400
+    caption: 400
+
+math_typography:
   equation:
     font: "KaTeX"
     size_multiplier: 1.4
@@ -40,12 +49,6 @@ typography:
     weight: 400
     color: "#FFD700"
     style: italic
-  scale_system: "perfect_fourth"
-  weight_matrix:
-    title: 700
-    heading: 600
-    body: 400
-    caption: 400
 
 motion:
   transitions: [fade, wipe-left]
@@ -58,6 +61,8 @@ motion:
     transition_duration_seconds: 0.4
   entrance: "dòng chữ/công thức xuất hiện từ trái sang phải như đang viết, tốc độ đều"
   exit: "xóa từ phải sang trái nhẹ, hoặc fade"
+
+math_motion:
   equation_reveal: "viết từng ký tự/từng dòng từ trái theo lời đọc; highlight bằng phấn vàng"
   underline: "gạch chân phấn vàng cho kết quả quan trọng"
 
@@ -83,14 +88,16 @@ overlays:
   stat_card:
     bg: "#243B32"
     border: "#B0C4B8"
-    border_style: "dashed"       # viền nét đứt như khung phấn
     radius: 4
     shadow: "none"
   key_term:
     bg: "transparent"
     text: "#FFD700"
-    underline: true              # gạch chân phấn vàng
     radius: 0
+
+math_overlays:
+  stat_card_border_style: "dashed"       # viền nét đứt như khung phấn
+  key_term_underline: true              # gạch chân phấn vàng
   equation_box:
     bg: "transparent"
     border: "#B0C4B8"
