@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import time
 from contextlib import asynccontextmanager, suppress
 from pathlib import Path
@@ -30,9 +31,11 @@ THUMB_CACHE_DIR = REPO_ROOT / ".backlot" / "thumbs"
 THUMB_WIDTHS = (320, 640, 960)
 
 # Paths inside a project whose changes are pure noise for the board.
-_IGNORE_PARTS = {"node_modules", ".git", "__pycache__", ".cache"}
+_IGNORE_PARTS = {"node_modules", ".git", "__pycache__", ".cache", ".backlot-trash"}
 
 SSE_HEARTBEAT_SECONDS = 15
+RECONCILE_SECONDS = 5
+logger = logging.getLogger(__name__)
 
 
 class TitleRevisionRequest(BaseModel):
@@ -44,6 +47,28 @@ class CopyRevisionRequest(BaseModel):
     field: Literal['caption', 'description']
     instruction: str = Field(min_length=1, max_length=4000)
     expected_revision: str = Field(pattern=r'^[a-f0-9]{64}$')
+
+
+class SupportRequest(BaseModel):
+    expected_revision: str = Field(pattern=r'^[a-f0-9]{64}$')
+
+
+class PathRequest(BaseModel):
+    path: str = Field(min_length=1, max_length=1000)
+
+
+class FileWriteRequest(PathRequest):
+    content: str = Field(max_length=24 * 1024 * 1024)
+    encoding: Literal['utf8', 'base64'] = 'utf8'
+    expected_revision: str | None = Field(default=None, pattern=r'^[a-f0-9]{64}$')
+
+
+class FileDeleteRequest(PathRequest):
+    expected_revision: str = Field(pattern=r'^[a-f0-9]{64}$')
+
+
+class RestoreRequest(BaseModel):
+    token: str = Field(pattern=r'^[a-f0-9]{32}$')
 
 
 def _ui_html(name: str, assets: tuple[str, ...]) -> HTMLResponse:
@@ -133,35 +158,86 @@ _PROJECTS_ROOT_STR = _os.path.normcase(str(PROJECTS_DIR.resolve()))
 
 def _project_of_change(path_str: str) -> Optional[str]:
     """Map a changed filesystem path to a project id (None = irrelevant)."""
-    norm = _os.path.normcase(_os.path.normpath(path_str))
-    if not norm.startswith(_PROJECTS_ROOT_STR):
+    original = _os.path.normpath(path_str)
+    norm = _os.path.normcase(original)
+    if not norm.startswith(_PROJECTS_ROOT_STR + _os.sep):
         return None
-    rel = norm[len(_PROJECTS_ROOT_STR):].lstrip("\\/")
+    rel = original[len(_PROJECTS_ROOT_STR):].lstrip("\\/")
     if not rel:
         return None
     parts = rel.replace("\\", "/").split("/")
-    if _IGNORE_PARTS.intersection(parts):
+    if _IGNORE_PARTS.intersection(p.lower() for p in parts):
         return None
     return parts[0]
 
 
-async def _watch_projects() -> None:
-    """Background task: watch projects/ and publish debounced changes."""
+def _project_signatures() -> dict[str, tuple]:
+    """Stat files, never read media bytes; prune dependency/build noise."""
+    result = {}
+    if not PROJECTS_DIR.is_dir():
+        return result
+    for project in PROJECTS_DIR.iterdir():
+        if not project.is_dir() or project.name.startswith(("_", ".")):
+            continue
+        files = []
+        for directory, dirs, names in _os.walk(project, followlinks=False):
+            dirs[:] = [d for d in dirs if d.lower() not in _IGNORE_PARTS
+                       and d.lower() not in {".venv", "venv"}
+                       and not Path(directory, d).is_symlink()]
+            for name in sorted(names):
+                path = Path(directory, name)
+                try:
+                    stat = path.stat()
+                except OSError:
+                    continue  # atomic replace/delete in progress; next scan catches it
+                files.append((str(path.relative_to(project)), stat.st_mtime_ns, stat.st_size))
+        result[project.name] = tuple(sorted(files))
+    return result
+
+
+async def _watch_native() -> None:
+    """Native fast path; errors are visible and retried, polling stays alive."""
     try:
         from watchfiles import awatch
     except ImportError:
-        return  # watcher unavailable → board still works via manual refresh
-    if not PROJECTS_DIR.is_dir():
+        logger.warning("Backlot: watchfiles unavailable; using filesystem reconciliation")
         return
-    async for changes in awatch(PROJECTS_DIR, recursive=True, step=400):
-        touched: set[str] = set()
-        for _change, path_str in changes:
-            pid = _project_of_change(path_str)
-            if pid:
-                touched.add(pid)
-        for pid in touched:
-            _invalidate_summary(pid)
-            hub.publish(pid)
+    while True:
+        try:
+            if PROJECTS_DIR.is_dir():
+                async for changes in awatch(PROJECTS_DIR, recursive=True, step=400):
+                    touched = {_project_of_change(path) for _, path in changes}
+                    for pid in touched - {None}:
+                        _invalidate_summary(pid)
+                        hub.publish(pid)
+        except Exception:
+            logger.exception("Backlot native watcher failed; retrying (reconciliation remains active)")
+        await asyncio.sleep(RECONCILE_SECONDS)
+
+
+async def _watch_projects() -> None:
+    """Native notifications plus periodic recovery of missed filesystem changes."""
+    previous = await asyncio.to_thread(_project_signatures)
+    # A new lifespan must not reuse summaries from an earlier watch session.
+    _summary_cache.clear()
+    native = asyncio.create_task(_watch_native())
+    try:
+        while True:
+            await asyncio.sleep(RECONCILE_SECONDS)
+            try:
+                current = await asyncio.to_thread(_project_signatures)
+            except OSError:
+                logger.exception("Backlot filesystem reconciliation failed; retrying")
+                continue
+            for pid in previous.keys() | current.keys():
+                if previous.get(pid) != current.get(pid):
+                    _invalidate_summary(pid)
+                    hub.publish(pid)
+            previous = current
+    finally:
+        native.cancel()
+        with suppress(asyncio.CancelledError):
+            await native
 
 
 @asynccontextmanager
@@ -195,6 +271,74 @@ def create_app() -> FastAPI:
     async def project_state(project_id: str) -> dict:
         project_dir = _safe_project_dir(project_id)
         return await asyncio.to_thread(load_board_state, project_dir)
+
+    def same_origin(request: Request):
+        origin = request.headers.get('origin')
+        if origin and urlsplit(origin).netloc != request.url.netloc:
+            raise HTTPException(status_code=403, detail='Yêu cầu phải gửi từ Backlot đang mở.')
+
+    async def file_operation(project_id, operation, *args, changed=False):
+        try:
+            result = await asyncio.to_thread(operation, _safe_project_dir(project_id), *args)
+        except CopywriterError as exc:
+            raise HTTPException(status_code=exc.status, detail=str(exc))
+        except OSError:
+            raise HTTPException(status_code=500, detail='Không truy cập được tệp. Kiểm tra quyền đọc/ghi của project.')
+        if changed:
+            _invalidate_summary(project_id)
+            hub.publish(project_id)
+        return result
+
+    @app.get('/api/project/{project_id}/files')
+    async def files(project_id: str):
+        from backlot.file_manager import list_files
+        return await file_operation(project_id, list_files)
+
+    @app.get('/api/project/{project_id}/files/read')
+    async def file_read(project_id: str, path: str):
+        from backlot.file_manager import read_file
+        return await file_operation(project_id, read_file, path)
+
+    @app.get('/api/project/{project_id}/files/revision')
+    async def file_revision(project_id: str, path: str):
+        from backlot.file_manager import file_revision
+        return await file_operation(project_id, file_revision, path)
+
+    @app.post('/api/project/{project_id}/files/write')
+    async def file_write(project_id: str, body: FileWriteRequest, request: Request):
+        same_origin(request)
+        from backlot.file_manager import write_file, decode_upload
+        try:
+            content = decode_upload(body.content) if body.encoding == 'base64' else body.content.encode('utf-8')
+            if body.encoding == 'utf8' and len(content) > 2 * 1024 * 1024:
+                raise CopywriterError('Sửa văn bản tối đa 2 MB.', 413)
+        except CopywriterError as exc:
+            raise HTTPException(status_code=exc.status, detail=str(exc))
+        return await file_operation(project_id, write_file, body.path, content, body.expected_revision, changed=True)
+
+    @app.post('/api/project/{project_id}/files/delete')
+    async def file_delete(project_id: str, body: FileDeleteRequest, request: Request):
+        same_origin(request)
+        from backlot.file_manager import delete_file
+        return await file_operation(project_id, delete_file, body.path, body.expected_revision, changed=True)
+
+    @app.post('/api/project/{project_id}/files/restore')
+    async def file_restore(project_id: str, body: RestoreRequest, request: Request):
+        same_origin(request)
+        from backlot.file_manager import restore_file
+        return await file_operation(project_id, restore_file, body.token, changed=True)
+
+    @app.post('/api/project/{project_id}/posting-support')
+    async def posting_support(project_id: str, body: SupportRequest, request: Request):
+        same_origin(request)
+        from backlot.posting_support import create_support
+        return await file_operation(project_id, create_support, body.expected_revision, changed=True)
+
+    @app.post('/api/project/{project_id}/thumbnail')
+    async def thumbnail_selection(project_id: str, body: PathRequest, request: Request):
+        same_origin(request)
+        from backlot.posting_support import select_thumbnail
+        return await file_operation(project_id, select_thumbnail, body.path, changed=True)
 
     @app.get("/api/project/{project_id}/download")
     def download_project(project_id: str) -> FileResponse:
@@ -354,19 +498,28 @@ def create_app() -> FastAPI:
     async def library_page() -> HTMLResponse:
         return _ui_html("index.html", ("board.css", "library.js"))
 
+    @app.get('/ui/tokens.css')
+    def studio_tokens():
+        return FileResponse(REPO_ROOT / 'tokens.css', media_type='text/css')
+
     if UI_DIR.is_dir():
         app.mount("/ui", StaticFiles(directory=UI_DIR), name="ui")
 
     # The board is a long-lived SPA: a tab keeps running whatever board.js it
     # loaded, and browsers heuristically cache /ui assets. no-cache forces a
     # conditional revalidation (cheap 304 via ETag) on every load so UI fixes
-    # show up on a plain refresh. Media/thumb responses keep normal caching.
+    # show up on a plain refresh. Media/thumb URLs can be overwritten in place:
+    # revalidate those too so updated bytes aren't hidden by browser caching.
     @app.middleware("http")
     async def ui_no_cache(request, call_next):
         response = await call_next(request)
         path = request.url.path
         if path == "/" or path.startswith("/ui") or path.startswith("/p/"):
             response.headers["Cache-Control"] = "no-cache"
+        elif path.startswith(("/media/", "/thumb/")):
+            response.headers["Cache-Control"] = "no-cache"
+        elif path.startswith("/api/") and not path.endswith("/events"):
+            response.headers["Cache-Control"] = "no-store"
         return response
 
     return app

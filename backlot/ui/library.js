@@ -1,8 +1,22 @@
 import { el, fmtAgo, getJSON, subscribe, thumbURL } from "/ui/lib.js";
+import '/ui/gallery.js';
 
 const grid = document.getElementById("grid");
 const THEME_KEY = "backlot.theme";
 let currentTheme = localStorage.getItem(THEME_KEY) === "light" ? "light" : "dark";
+let view = localStorage.getItem('backlot.libraryView') === 'item' ? 'item' : 'grid';
+let projects = [];
+const search = el('input', {type: 'search', placeholder: 'Tìm project…', 'aria-label': 'Tìm project'});
+const filter = el('select', {'aria-label': 'Lọc trạng thái'},
+  el('option', {value: ''}, 'Tất cả'), el('option', {value: 'published'}, 'Đã publish'),
+  el('option', {value: 'awaiting'}, 'Chờ duyệt'), el('option', {value: 'live'}, 'Đang chạy'));
+const views = el('div', {class: 'view-switch', role: 'group', 'aria-label': 'Kiểu hiển thị'});
+for (const [value, label] of [['grid', 'Grid view'], ['item', 'Item view']]) views.append(el('button', {type: 'button', 'data-view': value, onclick: () => {
+  view = value; localStorage.setItem('backlot.libraryView', view); draw();
+}}, label));
+const toolbar = el('div', {class: 'library-toolbar'}, search, filter, views);
+grid.before(toolbar);
+search.oninput = draw; filter.onchange = draw;
 
 function applyTheme(theme) {
   currentTheme = theme === "light" ? "light" : "dark";
@@ -66,23 +80,55 @@ function card(p) {
   return el("a", { class: `lib-card${p.live ? " live-card" : ""}`, href: `/p/${p.project_id}${staticSuffix}`, style: "text-decoration:none;color:inherit" },
     poster,
     el("div", { class: "lib-body" },
-      el("h3", {}, (p.title || p.project_id).toUpperCase()),
+      el("h3", {}, p.title || p.project_id),
       meta,
       p.stage_states.length ? miniRail(p.stage_states) : null,
     ),
   );
 }
 
+function projectTable(items) {
+  const body = el('tbody');
+  const table = el('table', {class: 'projects-table', 'aria-label': 'Danh sách project'},
+    el('thead', {}, el('tr', {}, ...['Project', 'Pipeline', 'Trạng thái', 'Cập nhật'].map((name, i) =>
+      el('th', {scope: 'col', class: `column-${i}`}, name)))), body);
+  for (const p of items) {
+    const done = p.stage_states.some(s => s.name === 'publish' && s.status === 'completed');
+    const status = done ? 'Đã publish' : p.awaiting_human ? 'Chờ duyệt' : p.active_stage ? p.active_stage : 'Chưa publish';
+    const staticSuffix = new URLSearchParams(location.search).has('static') ? '?static=1' : '';
+    const poster = p.poster ? el('img', {class: 'table-poster', src: thumbURL(p.project_id, p.poster, 320), loading: 'lazy', alt: ''}) : null;
+    body.append(el('tr', {'data-project': p.project_id},
+      el('td', {class: 'column-0'}, el('a', {class: 'table-project', href: `/p/${encodeURIComponent(p.project_id)}${staticSuffix}`},
+        poster, el('div', {}, el('strong', {}, p.title || p.project_id),
+          el('small', {}, `${p.scene_count || 0} cảnh · ${p.render_count || 0} video`)))),
+      el('td', {class: 'column-1'}, p.pipeline_type || 'unknown'),
+      el('td', {class: 'column-2'}, el('span', {class: done ? 'table-published' : ''}, status)),
+      el('td', {class: 'column-3'}, fmtAgo(p.last_activity) || '—')));
+  }
+  return table;
+}
+
 async function render() {
-  const projects = await getJSON("/api/projects");
+  projects = await getJSON("/api/projects");
+  draw();
+}
+
+function draw() {
   document.getElementById("count").textContent = `${projects.length} projects`;
   const liveCount = projects.filter((p) => p.live).length;
   const badge = document.getElementById("liveBadge");
   badge.classList.toggle("idle", liveCount === 0);
   document.getElementById("liveText").textContent = liveCount ? `${liveCount} LIVE` : "IDLE";
   grid.innerHTML = "";
+  grid.classList.toggle('lib-table', view === 'grid');
+  grid.classList.remove('lib-items');
+  for (const button of views.children) button.setAttribute('aria-pressed', String(button.dataset.view === view));
   document.getElementById("empty").style.display = projects.length ? "none" : "block";
-  for (const p of projects) grid.append(card(p));
+  const shown = projects.filter(p => (p.title + ' ' + p.project_id).toLowerCase().includes(search.value.toLowerCase()) &&
+    (!filter.value || (filter.value === 'published' ? p.stage_states.some(s => s.name === 'publish' && s.status === 'completed') : filter.value === 'awaiting' ? p.awaiting_human : p.live)));
+  if (view === 'grid' && shown.length) grid.append(projectTable(shown));
+  else for (const p of shown) grid.append(card(p));
+  if (!shown.length && projects.length) grid.append(el('p', {class: 'empty-state'}, 'Không có project khớp bộ lọc.'));
 }
 
 render().catch(console.error);

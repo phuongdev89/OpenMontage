@@ -1,5 +1,52 @@
 # Backlot — the living storyboard
 
+## Realtime filesystem updates
+
+Native filesystem events update the board and Library through SSE. A metadata
+scan every five seconds also detects missed writes, additions, renames and
+deletions, including when `watchfiles` is unavailable or its watcher fails.
+Dependency/cache directories are excluded; media bytes are not read by this scan.
+The watcher retries after errors and waits for a missing projects root to appear.
+Browsers refetch on SSE reconnect and when returning to the tab. Media URLs are
+revalidated so overwriting an image at the same path shows the new content.
+`?static=1` intentionally disables live updates for screenshots/exports.
+
+## Studio workspace
+
+Library supports persistent Grid (table)/Item (cards), search and status filters. Published
+projects open Player and Hỗ trợ đăng video; production sections collapse once on
+the transition to publish completed and remain available as expandable sections.
+Reopened sections, manual prompt drafts and video playback survive SSE updates.
+Project has no Grid/Item button. Double-click the heading (or press F2/Enter)
+to rename inline after compose/publish; Escape cancels. Only the display override
+changes, never the video's publishing title.
+
+The player uses locally hosted Video.js 8.24.1 with seeking, ±10 seconds,
+playback speed, fullscreen and picture-in-picture (where supported). It discovers
+exported video variants independently of copy. The detail workspace puts player
+and posting side by side; copy/thumbnail tabs keep it compact. The full video path
+with copy/download actions appears immediately below the player for uploading first.
+
+Tạo hỗ trợ uses configured AI_CHAT to fill missing title/description/caption and
+prepare a thumbnail prompt from project-only source artifacts. It saves
+`artifacts/posting_support.json`, retains existing copy, checks revisions and
+never advances checkpoints or creates media. Provider failures leave data intact.
+The prompt is visible even when no image exists; drafts/prepared prompts are
+distinguished from recorded image-generation prompts. All images under
+`exports/thumbnails/` appear alongside metadata-registered images. Selecting one
+saves `artifacts/thumbnail_selection.json` and updates the Library poster.
+
+Quản lý tệp opens a live modal with a folder tree left and a single Detail pane
+right, search, upload, UTF-8 create/edit, downloads, reversible delete and Undo.
+Async reads are guarded against selection races; current editor drafts survive
+SSE changes and reselecting the same file. All project images (Library, storyboard,
+thumbnails and file previews) open a gallery dialog with navigation/download.
+Uploads are capped at
+16 MB and text edits at 2 MB. Revision checks reject stale edits. Operations are
+project-scoped, reject traversal/outside symlinks, and keep project markers and
+checkpoint files read-only. Deleted files remain in `.backlot-trash` and are
+excluded from media scans and project ZIPs.
+
 ## Revise posting copy
 
 After publish, the posting section has **Tạo lại caption** and
@@ -31,7 +78,7 @@ python -m backlot serve --port 4750   # run the server in the foreground
 
 ## How it stays live
 
-No agent involvement. A `watchfiles` watcher on `projects/` publishes change
+No agent involvement. A `watchfiles` watcher on the configured projects root publishes change
 notifications over SSE; the browser refetches board state. State sources:
 
 | Board element | Disk source |

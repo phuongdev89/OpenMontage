@@ -21,7 +21,7 @@ MEDIA_VIDEO_EXT = {".mp4", ".webm", ".mov"}
 MEDIA_AUDIO_EXT = {".mp3", ".wav", ".m4a", ".ogg"}
 
 # Directories inside a project we never scan for media (build noise).
-SCAN_EXCLUDE = {"node_modules", ".git", "__pycache__", "history", ".cache"}
+SCAN_EXCLUDE = {"node_modules", ".git", "__pycache__", "history", ".cache", ".backlot-trash"}
 
 # Stages every pipeline shares (fallback rail when the manifest is unknown).
 FALLBACK_STAGES = [
@@ -538,6 +538,10 @@ def _scan_media(project_dir: Path) -> dict[str, list[dict]]:
 def _find_poster(project_dir: Path, state: dict) -> Optional[str]:
     """Best poster for the library card (image path, or a video path —
     the /thumb endpoint extracts a frame from videos)."""
+    from backlot.posting_support import selected_thumbnail
+    selected = selected_thumbnail(project_dir)
+    if selected:
+        return selected
     # Published thumbnails take priority over storyboard images and snapshots.
     thumbnails = project_dir / "exports/thumbnails"
     if thumbnails.is_dir():

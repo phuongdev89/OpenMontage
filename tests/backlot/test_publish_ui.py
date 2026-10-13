@@ -94,13 +94,15 @@ def test_title_editor_and_editable_thumbnail_prompt():
           const s={title:'Old title',stages:[{name:'compose',status:'completed'},{name:'publish',status:'completed'}],publish_package:{title:'Old title',description:'Desc',caption:'Cap',revisions:{},thumbnails:[{path:'thumb.png',absolute_path:'thumb.png',prompt:'Actual prompt',generated:true}],videos:{}}};
           document.body.append(renderTitleEditor(s,'project-a',async()=>{updated=true}),renderPublishPackage(s,'project-a'));
         }""")
+        page.get_by_role('tab',name='Thumbnail',exact=True).click()
         prompt=page.get_by_role('textbox',name='Prompt tạo thumbnail · có thể sửa để gen thủ công')
         expect(prompt).to_have_value('Actual prompt');prompt.fill('Manual variation')
         expect(prompt).to_have_value('Manual variation')
-        page.get_by_role('button',name='Sửa tiêu đề',exact=True).click()
+        page.get_by_role('heading',name='Old title',exact=True).dblclick()
         page.get_by_role('textbox',name='Tên project trên Backlot').fill('New title')
         page.get_by_role('button',name='Lưu tiêu đề',exact=True).click()
         expect(page.locator('dialog')).to_have_count(0)
         assert page.evaluate('saved.body')=={'title':'New title','expected_title':'Old title'}
         assert page.evaluate('updated') is True
+        expect(page.get_by_role('heading',name='New title',exact=True)).to_be_visible()
         browser.close()

@@ -462,6 +462,8 @@
         const data = await res.json();
         currentConvTitle.textContent = data.conversation.title || 'Hội thoại';
         renderMessages(data.messages);
+        if (data.job?.status === 'running') resumeJob(id);
+        else if (data.job?.status === 'failed') appendAssistantBlock(`[Lỗi: ${data.job.detail}]`);
       } catch (err) {
         console.error('Lỗi tải hội thoại:', err);
       }
@@ -601,6 +603,35 @@
       messagesContainer.scrollTop = messagesContainer.scrollHeight;
     }
 
+    async function resumeJob(convId) {
+      if (sending) return;
+      sending = true;
+      promptInput.disabled = btnSend.disabled = btnAttach.disabled = true;
+      loadingStatus.style.display = 'flex';
+      try {
+        while (activeConvId === convId) {
+          const response = await fetch(`/api/conversations/${convId}`);
+          if (!response.ok) throw new Error('Không tải được trạng thái hội thoại.');
+          const data = await response.json();
+          currentConvTitle.textContent = data.conversation.title;
+          if (data.job?.status !== 'running') {
+            renderMessages(data.messages);
+            if (data.job?.status === 'failed') appendAssistantBlock(`[Lỗi: ${data.job.detail}]`);
+            await fetchConversations();
+            break;
+          }
+          loadingStatus.querySelector('span').textContent = data.job.detail || 'Yêu cầu đang chạy ngầm…';
+          await new Promise(resolve => setTimeout(resolve, 1500));
+        }
+      } catch (err) {
+        appendAssistantBlock(`[Lỗi kết nối: ${err.message}. Tác vụ vẫn chạy trên server; hãy tải lại trang để theo dõi.]`);
+      } finally {
+        sending = false;
+        promptInput.disabled = btnSend.disabled = btnAttach.disabled = false;
+        loadingStatus.style.display = 'none';
+      }
+    }
+
     async function sendMessage() {
       const content = promptInput.value.trim();
       if ((!content && !pendingImages.length) || !activeConvId || sending) return;
@@ -655,6 +686,10 @@
             const jsonStr = trimmed.slice(6);
             try {
               const parsed = JSON.parse(jsonStr);
+              if (parsed.title) {
+                currentConvTitle.textContent = parsed.title;
+                fetchConversations();
+              }
               if (parsed.status) loadingStatus.querySelector('span').textContent = parsed.status;
               if (parsed.chunk) {
                 streamedRaw += parsed.chunk;
@@ -684,6 +719,7 @@
         sending = false;
         loadingStatus.style.display = 'none';
         promptInput.focus();
+        await selectConversation(convId);
       }
     }
 

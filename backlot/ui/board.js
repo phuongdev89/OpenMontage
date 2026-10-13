@@ -5,6 +5,8 @@ import {
   getJSON, mediaURL, subscribe, thumbURL, waveBars,
 } from "/ui/lib.js";
 import {renderPublishPackage, renderTitleEditor} from '/ui/publish.js';
+import {renderPlayer, openFileManager, capturePlayer} from '/ui/workspace.js';
+import {openProjectGallery} from '/ui/gallery.js';
 
 const rawProjectPath = location.pathname.split("/p/")[1] || "";
 const projectId = decodeURIComponent(rawProjectPath);
@@ -20,6 +22,24 @@ let selectedStage = null;   // stage drawer open for this stage name
 let activeRender = 0;
 let replay = null;          // {t0, t1, t, playing} — replay mode when non-null
 let firstPaint = true;
+const boardView = 'grid';
+const foldKey = `backlot.sections.${projectId}`;
+let sectionOpen = {};
+try { sectionOpen = JSON.parse(localStorage.getItem(foldKey) || '{}'); } catch {}
+const published = s => s?.stages?.some(x => x.name === 'publish' && x.status === 'completed');
+function fold(id, label, body, defaultOpen) {
+  if (!body) return null;
+  const open = sectionOpen[id] ?? defaultOpen;
+  const details = el('details', {class: `studio-section section-${id}`, 'data-section': id, open: open ? '' : null},
+    el('summary', {}, el('span', {}, label), el('span', {class: 'fold-indicator', 'aria-hidden': 'true'}, '+')),
+    el('div', {class: 'section-body'}, body));
+  details.addEventListener('toggle', () => {
+    if (!details.isConnected) return;
+    sectionOpen[id] = details.open;
+    localStorage.setItem(foldKey, JSON.stringify(sectionOpen));
+  });
+  return details;
+}
 
 function applyTheme(theme) {
   currentTheme = theme === "light" ? "light" : "dark";
@@ -94,12 +114,12 @@ function renderSlate(s, projectId, refresh) {
     el("div", { class: "clapper" }),
     el("div", {},
       el("a", { class: "wordmark", href: "/", style: "text-decoration:none" }, "Backlot"),
-      el("h1", {}, s.title),
       renderTitleEditor(s, projectId, refresh),
     ),
     ...chips,
     el("div", { class: "spacer" }),
     renderThemeToggle(),
+    el('button', {type: 'button', onclick: () => openFileManager(projectId, refresh)}, 'Quản lý tệp'),
     liveEl,
     cost,
   );
@@ -719,6 +739,10 @@ function sceneCard(s, card) {
       };
       thumb = el("div", { class: "thumb approved" }, img,
         v.snapshot ? el("span", { class: "badge" }, "snapshot") : (badge ? el("span", { class: "badge" }, badge) : null));
+      thumb.setAttribute('role', 'button'); thumb.tabIndex = 0;
+      thumb.setAttribute('aria-label', `Xem ảnh ${card.id}`);
+      thumb.onclick = () => openProjectGallery(s.project_id, v.path);
+      thumb.onkeydown = event => { if (['Enter', ' '].includes(event.key)) { event.preventDefault(); openProjectGallery(s.project_id, v.path); } };
     }
   } else if (card.type === "animation") {
     // Bespoke/atelier scene with no snapshot yet — name it as such rather
@@ -805,6 +829,22 @@ function sceneCard(s, card) {
 function renderStoryboard(s) {
   const board = s.storyboard;
   if (!board) return null;
+  if (boardView === 'grid') {
+    const body = el('tbody');
+    const table = el('table', {class: 'storyboard-table', 'aria-label': 'Storyboard dạng bảng'},
+      el('thead', {}, el('tr', {}, ...['Cảnh', 'Visual', 'Lời đọc'].map(label => el('th', {scope: 'col'}, label)))), body);
+    for (const card of board.scenes) {
+      const visual = sceneCard(s, card).querySelector('.thumb');
+      const audio = card.audio.find(a => a.exists);
+      body.append(el('tr', {}, el('td', {}, el('strong', {}, card.id), el('small', {}, `${fmtDuration(card.start_seconds)}–${fmtDuration(card.end_seconds)}`)),
+        el('td', {}, visual),
+        el('td', {}, el('p', {class: 'table-narration'}, card.narration || card.description || 'Chưa có lời đọc'),
+          el('div', {class: 'posting-actions'},
+            card.narration ? el('button', {type: 'button', onclick: () => openNarrModal(card)}, 'Xem lời đọc') : null,
+            audio ? el('button', {type: 'button', onclick: () => { player.src = mediaURL(s.project_id, audio.path); player.play().catch(() => {}); }}, 'Nghe') : null))));
+    }
+    return el('div', {class: 'table-scroll'}, table);
+  }
   const strip = el("div", { class: "filmstrip" });
   for (const card of board.scenes) strip.append(sceneCard(s, card));
   return el("div", {},
@@ -1055,51 +1095,64 @@ function tickReplay() {
 
 function render() {
   if (!state) return;
+  const focused = document.activeElement;
+  const focusLabel = app.contains(focused) && focused.getAttribute('aria-label');
+  const selection = focused?.tagName === 'TEXTAREA' ? [focused.selectionStart, focused.selectionEnd] : null;
+  const scrollTop = window.scrollY;
   const s = replay ? stateAt(state, replay.t) : state;
   document.title = `Backlot — ${s.title}`;
   document.body.classList.toggle("first", firstPaint);
   firstPaint = false;
+  capturePlayer(projectId);
   app.innerHTML = "";
+  app.classList.toggle('studio-item', boardView === 'item');
   app.append(renderSlate(s, projectId, refresh));
-  app.append(renderRail(s));
+  const done = published(s);
+  let sectionTarget = app;
+  const add = (id, label, body, open = !done) => {
+    const section = fold(id, label, body, open); if (section) sectionTarget.append(section);
+  };
+  // Published projects put viewing and handoff before the production history.
+  if (done) {
+    const workbench = el('div', {class: 'project-workbench'});
+    app.append(workbench); sectionTarget = workbench;
+    add('player', 'Player', renderPlayer(s), true);
+    add('posting', 'Hỗ trợ đăng video', renderPublishPackage(s, projectId, refresh), true);
+    const history = el('div', {class: 'project-history'});
+    app.append(history); sectionTarget = history;
+  }
+  add('pipeline', 'Tiến độ pipeline', renderRail(s));
   const replayBar = renderReplayBar(state);
-  if (replayBar) app.append(replayBar);
+  if (replayBar) add('replay', 'Xem lại quá trình', replayBar);
   const drawer = renderDrawer(s);
-  if (drawer) app.append(drawer);
+  if (drawer) add('stage', 'Chi tiết stage', drawer);
   const awaitingNotice = renderAwaitingNotice(s);
-  if (awaitingNotice) app.append(awaitingNotice);
+  if (awaitingNotice) add('awaiting', 'Chờ duyệt', awaitingNotice);
   const noState = renderNoState(s);
-  if (noState) app.append(noState);
+  if (noState) add('state', 'Trạng thái project', noState);
 
-  const main = el("div", { class: "main-col" });
   const approvalReview = renderApprovalReview(s);
-  if (approvalReview) main.append(approvalReview);
   const script = renderScriptCard(s);
-  if (script) main.append(script);
-  const aside = el("aside", {});
   const decisions = renderDecisions(s);
   const activity = renderActivity(s);
-  if (decisions) aside.append(decisions);
-  if (activity) aside.append(activity);
 
   // Media sections live INSIDE the main column so a tall decisions rail
   // never pushes them below the fold — the column flows beside the rail.
   const storyboard = renderStoryboard(s);
   const found = renderFoundMedia(s);
-  const renders = renderRenders(s);
-  const posting = renderPublishPackage(s, projectId, refresh);
-
-  if (approvalReview || script || decisions || activity) {
-    for (const section of [storyboard, found, renders, posting]) {
-      if (section) main.append(section);
-    }
-    const hasAside = Boolean(decisions || activity);
-    app.append(el("div", { class: `board${hasAside ? "" : " solo"}` }, main, hasAside ? aside : null));
-  } else {
-    for (const section of [storyboard, found, renders, posting]) {
-      if (section) app.append(section);
-    }
+  add('review', 'Review & duyệt', approvalReview);
+  add('script', 'Kịch bản', script);
+  add('storyboard', 'Storyboard', storyboard);
+  add('media', 'Tệp media', found);
+  if (!done && s.media.renders.length) add('player', 'Player', renderPlayer(s), true);
+  add('decisions', 'Quyết định', decisions);
+  add('activity', 'Hoạt động', activity);
+  if (focusLabel) {
+    const replacement = app.querySelector(`[aria-label="${CSS.escape(focusLabel)}"]`);
+    replacement?.focus({preventScroll: true});
+    if (selection && replacement?.tagName === 'TEXTAREA') replacement.setSelectionRange(...selection);
   }
+  window.scrollTo({top: scrollTop, behavior: 'instant'});
 }
 
 // Defensive normalization (F-02): the server contract guarantees these
@@ -1129,7 +1182,13 @@ function normalize(s) {
 }
 
 async function refresh() {
-  state = normalize(await getJSON(`/api/project/${encodeURIComponent(projectId)}/state`));
+  const next = normalize(await getJSON(`/api/project/${encodeURIComponent(projectId)}/state`));
+  if (state && !published(state) && published(next)) {
+    sectionOpen = Object.fromEntries(Object.keys(sectionOpen).map(key => [key, ['player', 'posting'].includes(key)]));
+    sectionOpen.player = sectionOpen.posting = true;
+    localStorage.setItem(foldKey, JSON.stringify(sectionOpen));
+  }
+  state = next;
   render();
 }
 

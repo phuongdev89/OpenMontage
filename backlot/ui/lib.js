@@ -1,7 +1,7 @@
 // Shared helpers for the Backlot UI.
 
 export async function getJSON(url) {
-  const res = await fetch(url);
+  const res = await fetch(url, { cache: "no-store" });
   if (!res.ok) throw new Error(`${res.status} ${url}`);
   return res.json();
 }
@@ -65,18 +65,46 @@ export function thumbURL(projectId, relPath, w = 640) {
 // Subscribe to a server-sent change feed; call onChange (debounced) per burst.
 export function subscribe(url, onChange) {
   let timer = null;
+  let running = false;
+  let pending = false;
   const source = new EventSource(url);
+  const update = async () => {
+    if (running) { pending = true; return; }
+    running = true;
+    try {
+      do {
+        pending = false;
+        await onChange();
+      } while (pending);
+    } catch (err) {
+      console.error("Backlot refresh failed", err);
+    } finally {
+      running = false;
+    }
+  };
+  const schedule = () => {
+    clearTimeout(timer);
+    timer = setTimeout(update, 250);
+  };
   source.onmessage = (msg) => {
     try {
       const data = JSON.parse(msg.data);
-      if (data.type !== "change") return;
+      // A reconnect cannot replay events lost while the tab was disconnected.
+      if (data.type !== "change" && data.type !== "hello") return;
     } catch {
       return;
     }
-    clearTimeout(timer);
-    timer = setTimeout(onChange, 250);
+    schedule();
   };
   source.onerror = () => { /* EventSource auto-reconnects */ };
+  const visible = () => { if (!document.hidden) schedule(); };
+  document.addEventListener("visibilitychange", visible);
+  const close = source.close.bind(source);
+  source.close = () => {
+    clearTimeout(timer);
+    document.removeEventListener("visibilitychange", visible);
+    close();
+  };
   return source;
 }
 

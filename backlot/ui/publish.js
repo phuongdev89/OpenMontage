@@ -1,9 +1,12 @@
 import {el, mediaURL} from '/ui/lib.js';
+import {requestJSON} from '/ui/workspace.js';
+import {openProjectGallery} from '/ui/gallery.js';
 
-let selectedRatio = 'portrait';
 // Keep pending requests across the board's SSE-driven DOM replacements.
 const copyRequests = new Map();
 const copyViews = new Map();
+const supportRequests = new Map();
+const postingTabs = new Map();
 
 function copyField(label, value, regenerate = null) {
   const button = el('button', {type: 'button', disabled: value ? null : '', onclick: async () => {
@@ -15,9 +18,17 @@ function copyField(label, value, regenerate = null) {
       button.textContent = 'Chọn nội dung để sao chép';
     }
   }}, 'Sao chép');
-  const field = el('textarea', {readonly: '', rows: label.includes('path') ? '2' : '4', 'aria-label': label}, value || 'Chưa có nội dung');
+  const field = el('textarea', {readonly: '', rows: label.includes('path') || label === 'Tiêu đề video' ? '2' : '5', 'aria-label': label}, value || 'Chưa có nội dung');
   const actions = el('div', {class: 'posting-actions'}, button);
   if (regenerate?.editable) field.removeAttribute('readonly');
+  if (regenerate?.editable && regenerate.projectId) {
+    const key = `backlot.promptDraft.${regenerate.projectId}`;
+    try {
+      const saved = JSON.parse(localStorage.getItem(key) || 'null');
+      if (saved?.source === value) field.value = saved.content;
+    } catch {}
+    field.oninput = () => localStorage.setItem(key, JSON.stringify({source: value, content: field.value}));
+  }
   if (regenerate && !regenerate.editable) {
     const key = `${regenerate.projectId}:${regenerate.field}`;
     const retry = el('button', {type: 'button', onclick: () => {
@@ -96,56 +107,107 @@ export function renderPublishPackage(s, projectId, onUpdated = null) {
     copyField('Tiêu đề video', p.title),
     copyField('Description · YouTube', p.description, {label: 'Tạo lại description', projectId, field: 'description', package: p, onUpdated}),
     copyField('Caption · Facebook / TikTok', p.caption, {label: 'Tạo lại caption', projectId, field: 'caption', package: p, onUpdated}));
+  const pending = supportRequests.get(projectId);
+  const supportStatus = el('p', {role: 'status'}, pending?.error || '');
+  const create = el('button', {type: 'button', disabled: pending?.busy ? '' : null, 'aria-busy': String(!!pending?.busy), onclick: async () => {
+    if (supportRequests.get(projectId)?.busy) return;
+    const request = {busy: true}; supportRequests.set(projectId, request);
+    create.disabled = true; create.setAttribute('aria-busy', 'true'); create.textContent = 'Đang tạo…';
+    try {
+      const result = await requestJSON(`/api/project/${encodeURIComponent(projectId)}/posting-support`, {expected_revision: p.support_revision});
+      supportStatus.textContent = result.message || 'Đã tạo nội dung còn thiếu';
+      if (onUpdated) await onUpdated();
+    } catch(error) { request.error = error.message; supportStatus.textContent = request.error; }
+    finally { request.busy = false; create.disabled = false; create.setAttribute('aria-busy', 'false'); create.textContent = 'Tạo hỗ trợ'; if (onUpdated) await onUpdated(); }
+  }}, pending?.busy ? 'Đang tạo…' : 'Tạo hỗ trợ');
+  const download = section.querySelector('a[download]');
+  section.querySelector('h2').after(el('div', {class: 'posting-create'}, create, download), supportStatus);
+  const contentPanel = el('div', {class: 'posting-subpanel', role: 'tabpanel', id: `posting-copy-${projectId}`});
+  for (const field of section.querySelectorAll(':scope > .posting-field')) contentPanel.append(field);
+  const thumbnailPanel = el('div', {class: 'posting-subpanel', role: 'tabpanel', id: `posting-thumb-${projectId}`});
+  const tablist = el('div', {class: 'posting-work-tabs', role: 'tablist', 'aria-label': 'Hỗ trợ đăng'});
+  const panels = {copy: contentPanel, thumb: thumbnailPanel};
+  const selectTab = key => {
+    postingTabs.set(projectId, key);
+    for (const [name, panel] of Object.entries(panels)) panel.hidden = name !== key;
+    for (const tab of tablist.children) {
+      const selected = tab.dataset.tab === key;
+      tab.setAttribute('aria-selected', String(selected)); tab.tabIndex = selected ? 0 : -1;
+    }
+  };
+  for (const [key, name] of [['copy', 'Nội dung'], ['thumb', 'Thumbnail']]) {
+    const tab = el('button', {type: 'button', role: 'tab', 'data-tab': key, id: `posting-tab-${key}-${projectId}`, 'aria-controls': panels[key].id, onclick: () => selectTab(key)}, name);
+    panels[key].setAttribute('aria-labelledby', tab.id);
+    tab.addEventListener('keydown', event => {
+      if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+      event.preventDefault(); const next = key === 'copy' ? 'thumb' : 'copy'; selectTab(next); tablist.querySelector(`[data-tab=${next}]`).focus();
+    });
+    tablist.append(tab);
+  }
+  section.append(tablist, contentPanel, thumbnailPanel);
+  selectTab(postingTabs.get(projectId) || 'copy');
   if (p.copy_warning) section.append(el('p', {role: 'alert'}, p.copy_warning));
   const thumbnails = el('div', {class: 'posting-thumbnails'});
   for (const thumb of p.thumbnails || []) {
-    thumbnails.append(el('div', {},
-      el('a', {href: mediaURL(projectId, thumb.path), target: '_blank', rel: 'noopener'},
+    const selectStatus = el('p', {role: 'status'});
+    const choose = thumb.selected ? el('span', {class: 'selected-thumbnail'}, '✓ Thumbnail đang chọn') : el('button', {type: 'button', onclick: async () => {
+      choose.disabled = true;
+      try { await requestJSON(`/api/project/${encodeURIComponent(projectId)}/thumbnail`, {path: thumb.path}); if (onUpdated) await onUpdated(); }
+      catch(error) { selectStatus.textContent = error.message; choose.disabled = false; }
+    }}, 'Chọn làm thumbnail');
+    thumbnails.append(el('figure', {class: `thumbnail-candidate${thumb.selected ? ' is-selected' : ''}`},
+      el('button', {type: 'button', class: 'gallery-thumb', 'aria-label': `Xem ${thumb.label || thumb.path}`, onclick: () => openProjectGallery(projectId, thumb.path)},
         el('img', {src: mediaURL(projectId, thumb.path), alt: thumb.label || 'Thumbnail', loading: 'lazy'})),
-      thumb.generated ? null : el('p', {class: 'posting-note'}, 'Thumbnail cũ · chưa xác minh tạo bằng image-generate'),
-      copyField('Thumbnail path', thumb.absolute_path),
-      copyField('Prompt tạo thumbnail · có thể sửa để gen thủ công', thumb.prompt || '', {editable: true})));
+      thumb.generated ? null : el('p', {class: 'posting-note'}, 'Chưa có metadata tạo ảnh'),
+      choose, selectStatus,
+      el('details', {class: 'technical-path'}, el('summary', {}, 'Đường dẫn ảnh'), copyField('Thumbnail path', thumb.absolute_path))));
   }
-  section.append(el('h3', {}, 'Thumbnail'), thumbnails);
-  if (!p.thumbnails?.length) section.append(el('p', {}, 'Chưa có thumbnail.'));
-  const tabs = el('div', {role: 'tablist', 'aria-label': 'Tỷ lệ video', class: 'posting-tabs'});
-  const preview = el('div', {class: 'posting-preview'});
-  const available = Object.keys(p.videos || {});
-  if (!available.includes(selectedRatio)) selectedRatio = available[0];
-  function select(ratio) {
-    selectedRatio = ratio;
-    for (const button of tabs.children) button.setAttribute('aria-selected', String(button.dataset.ratio === ratio));
-    preview.replaceChildren();
-    const video = p.videos[ratio];
-    if (!video) return;
-    preview.append(el('video', {controls: '', preload: 'metadata', src: mediaURL(projectId, video.path), class: ratio}),
-      el('a', {href: mediaURL(projectId, video.path), download: ''}, 'Tải video'),
-      copyField('Video path', video.absolute_path));
-  }
-  for (const ratio of available) tabs.append(el('button', {type: 'button', role: 'tab', 'data-ratio': ratio, onclick: () => select(ratio)}, ratio === 'portrait' ? 'Dọc · 9:16' : 'Ngang · 16:9'));
-  section.append(el('h3', {}, 'Video đã xuất'), tabs, preview);
-  if (selectedRatio) select(selectedRatio);
+  thumbnailPanel.append(
+    copyField('Prompt tạo thumbnail · có thể sửa để gen thủ công', p.thumbnail_prompt || p.thumbnails?.find(t => t.prompt)?.prompt || '', {editable: true, projectId}));
+  if (p.thumbnail_prompt_source === 'draft') thumbnailPanel.append(el('p', {class: 'posting-note'}, 'Prompt nháp · Tạo hỗ trợ để bổ sung cảnh hook theo video.'));
+  if (p.thumbnail_prompt_source === 'prepared') thumbnailPanel.append(el('p', {class: 'posting-note'}, 'Prompt đã chuẩn bị để tạo ảnh thủ công.'));
+  thumbnailPanel.append(thumbnails);
+  if (!p.thumbnails?.length) thumbnailPanel.append(el('p', {}, 'Chưa có thumbnail.'));
   return section;
 }
 
+const titleEdits = new Map();
+const titleMounts = new Map();
 export function renderTitleEditor(s, projectId, onUpdated) {
-  if (!s.stages.some(x => ['compose','publish'].includes(x.name) && x.status === 'completed')) return null;
-  return el('button', {type:'button', onclick: () => {
-    const dialog = el('dialog', {class:'copy-dialog'});
-    const input = el('input', {value:s.title, maxlength:'300', 'aria-label':'Tên project trên Backlot'});
-    const status = el('p', {role:'alert'});
-    const save = el('button', {type:'button', onclick:async () => {
-      save.disabled=true;
+  const root = el('div', {class: 'project-title'});
+  const editable = s.stages.some(x => ['compose', 'publish'].includes(x.name) && x.status === 'completed');
+  const draw = () => {
+    const edit = titleEdits.get(projectId);
+    root.replaceChildren();
+    if (!edit) {
+      const heading = el('h1', {tabindex: editable ? '0' : null, title: editable ? 'Nhấn đúp hoặc F2 để sửa tên' : null}, s.title);
+      const start = () => {
+        if (!editable) return;
+        titleEdits.set(projectId, {value: s.title, expected: s.title, busy: false});
+        draw(); root.querySelector('input').focus(); root.querySelector('input').select();
+      };
+      heading.ondblclick = start;
+      heading.onkeydown = event => { if (['Enter', 'F2'].includes(event.key)) { event.preventDefault(); start(); } };
+      root.append(heading); return;
+    }
+    const input = el('input', {value: edit.value, maxlength: '300', 'aria-label': 'Tên project trên Backlot', disabled: edit.busy ? '' : null});
+    input.oninput = () => { edit.value = input.value; };
+    const cancel = () => { if (edit.busy) return; titleEdits.delete(projectId); titleMounts.get(projectId)?.(); };
+    const save = async () => {
+      if (edit.busy) return;
+      edit.busy = true; edit.error = ''; titleMounts.get(projectId)?.();
       try {
-        const response=await fetch(`/api/project/${encodeURIComponent(projectId)}/title`, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title:input.value,expected_title:s.title})});
-        const data=await response.json();
-        if (!response.ok) throw new Error(data.detail || 'Không lưu được tiêu đề');
-        dialog.close(); await onUpdated();
-      } catch(error) {status.textContent=error.message;}
-      finally {save.disabled=false;}
-    }}, 'Lưu tiêu đề');
-    dialog.addEventListener('close',()=>dialog.remove());
-    dialog.append(el('h2',{},'Đổi tên project trên Backlot'),input,status,save,el('button',{type:'button',onclick:()=>dialog.close()},'Đóng'));
-    document.body.append(dialog);dialog.showModal();input.focus();
-  }}, 'Sửa tiêu đề');
+        const data = await requestJSON(`/api/project/${encodeURIComponent(projectId)}/title`, {title: edit.value, expected_title: edit.expected});
+        s.title = data.title; titleEdits.delete(projectId); titleMounts.get(projectId)?.();
+        if (onUpdated) await onUpdated();
+      } catch(error) { edit.error = error.message; }
+      finally { edit.busy = false; titleMounts.get(projectId)?.(); }
+    };
+    input.onkeydown = event => { if (event.key === 'Enter') { event.preventDefault(); save(); } if (event.key === 'Escape') { event.preventDefault(); cancel(); } };
+    root.append(el('div', {class: 'title-edit-row'}, input,
+      el('button', {type: 'button', disabled: edit.busy ? '' : null, 'aria-busy': String(edit.busy), onclick: save}, edit.busy ? 'Đang lưu…' : 'Lưu tiêu đề'),
+      el('button', {type: 'button', disabled: edit.busy ? '' : null, onclick: cancel}, 'Hủy')));
+    if (edit.error) root.append(el('p', {role: 'alert'}, edit.error));
+  };
+  titleMounts.set(projectId, draw); draw(); return root;
 }

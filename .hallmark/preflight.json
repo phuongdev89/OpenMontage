@@ -1,0 +1,8 @@
+{
+  "date": "2026-10-13",
+  "scope": "Backlot Library and project board",
+  "framework": "vanilla HTML, ES modules, FastAPI",
+  "existing": "board.css dark/light variables, SSE, native video",
+  "preserve": ["routes", "project state", "copy regeneration", "project display title", "dark/light"],
+  "introduce": ["studio.css", "tokens.css", "local fonts", "collapsible workspace", "item/grid library"]
+}

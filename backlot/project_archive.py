@@ -5,7 +5,7 @@ import zipfile
 from pathlib import Path
 
 
-EXCLUDED_DIRS = {"node_modules", ".git", "__pycache__", ".cache", ".venv", "venv"}
+EXCLUDED_DIRS = {"node_modules", ".git", "__pycache__", ".cache", ".venv", "venv", ".backlot-trash"}
 
 
 def build_archive(project: Path) -> Path:

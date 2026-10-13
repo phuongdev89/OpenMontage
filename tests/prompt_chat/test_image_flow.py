@@ -175,3 +175,130 @@ def test_multiple_crops_share_question_slug(harness, tmp_path):
 def test_wrong_prompt_count_blocks_export(tmp_path):
     with pytest.raises(ValueError, match='Số prompt'):
         attachments.package_prompt('```text\nMột block\n```', [], tmp_path, {'questions': ['A', 'B']})
+
+
+def wait_for_job(client, conv):
+    import time
+    deadline = time.monotonic() + 8
+    while time.monotonic() < deadline:
+        data = client.get(f'/api/conversations/{conv}').json()
+        if data['job'] and data['job']['status'] != 'running':
+            return data
+        time.sleep(.02)
+    pytest.fail('Background job did not finish')
+
+
+def test_job_runs_without_consuming_response_and_blocks_overlap(harness, monkeypatch):
+    import threading
+    client, conv = harness
+    calls = mock_ai(monkeypatch, {'questions': 'Q'})
+    ai = server.get_ai_client()
+    original = ai.chat.completions.create
+    started, release = threading.Event(), threading.Event()
+    def blocked(**kwargs):
+        started.set()
+        assert release.wait(5)
+        return original(**kwargs)
+    ai.chat.completions.create = blocked
+    monkeypatch.setattr(server, 'get_ai_client', lambda: ai)
+    response = server.send_message(conv, server.MessageRequest(content='  Đếm hình\n   tam giác  '))
+    try:
+        assert started.wait(2)
+        data = client.get(f'/api/conversations/{conv}').json()
+        assert data['conversation']['title'] == 'Đếm hình tam giác'
+        assert data['job']['status'] == 'running'
+        assert client.post(f'/api/conversations/{conv}/messages', json={'content': 'Another'}).status_code == 409
+        assert client.delete(f'/api/conversations/{conv}').status_code == 409
+    finally:
+        release.set()
+    data = wait_for_job(client, conv)
+    assert data['job']['status'] == 'completed'
+    assert data['messages'][-1]['role'] == 'assistant'
+    assert len(calls) == 1
+    assert response.media_type == 'text/event-stream'
+
+
+def test_title_is_only_set_once_and_image_title_uses_analysis(harness, monkeypatch):
+    client, conv = harness
+    mock_ai(monkeypatch, {'source': 'AMO', 'grade': '2', 'questions': 'Đếm tam giác'})
+    client.post(f'/api/conversations/{conv}/messages', json={'images': [image_input()]})
+    first = client.get(f'/api/conversations/{conv}').json()['conversation']['title']
+    assert first == 'AMO · 2 · Đếm tam giác'
+    client.post(f'/api/conversations/{conv}/messages', json={'content': 'Yêu cầu tiếp theo'})
+    assert client.get(f'/api/conversations/{conv}').json()['conversation']['title'] == first
+
+
+def test_background_failure_is_persisted(harness, monkeypatch):
+    client, conv = harness
+    ai = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=lambda **kwargs: (_ for _ in ()).throw(RuntimeError('provider unavailable')))))
+    monkeypatch.setattr(server, 'get_ai_client', lambda: ai)
+    server.send_message(conv, server.MessageRequest(content='Question'))
+    data = wait_for_job(client, conv)
+    assert data['job']['status'] == 'failed'
+    assert data['job']['detail'] == 'provider unavailable'
+
+
+def test_browser_close_then_reopen_receives_background_result(harness, monkeypatch):
+    import socket
+    import threading
+    import time
+    import uvicorn
+    pw_api = pytest.importorskip('playwright.sync_api')
+    client, conv = harness
+    mock_ai(monkeypatch, {'source': 'AMO', 'grade': '2', 'solution_mode': 'open', 'questions': 'Đếm hình'})
+    ai = server.get_ai_client()
+    original = ai.chat.completions.create
+    started, release = threading.Event(), threading.Event()
+    def blocked(**kwargs):
+        started.set()
+        assert release.wait(10)
+        return original(**kwargs)
+    ai.chat.completions.create = blocked
+    monkeypatch.setattr(server, 'get_ai_client', lambda: ai)
+    sock = socket.socket()
+    sock.bind(('127.0.0.1', 0))
+    port = sock.getsockname()[1]
+    live = uvicorn.Server(uvicorn.Config(server.app, log_level='error'))
+    thread = threading.Thread(target=live.run, kwargs={'sockets': [sock]}, daemon=True)
+    thread.start()
+    deadline = time.monotonic() + 5
+    while not live.started and time.monotonic() < deadline:
+        time.sleep(.02)
+    try:
+        assert live.started
+        with pw_api.sync_playwright() as pw:
+            browser = pw.chromium.launch()
+            page = browser.new_page()
+            page.goto(f'http://127.0.0.1:{port}')
+            pw_api.expect(page.locator('#promptInput')).to_be_visible()
+            page.locator('#promptInput').fill('Đếm hình tam giác')
+            page.locator('#btnSend').click()
+            assert started.wait(3)
+            pw_api.expect(page.locator('#currentConvTitle')).to_have_text('Đếm hình tam giác')
+            browser.close()
+            # Reopen while still running: UI must restore pending state.
+            browser = pw.chromium.launch()
+            page = browser.new_page()
+            page.goto(f'http://127.0.0.1:{port}')
+            pw_api.expect(page.locator('#btnSend')).to_be_disabled()
+            release.set()
+            pw_api.expect(page.locator('#messagesContainer')).to_contain_text('chế độ để ngỏ', timeout=8000)
+            pw_api.expect(page.locator('#btnSend')).to_be_enabled()
+            browser.close()
+            data = wait_for_job(client, conv)
+            assert data['job']['status'] == 'completed'
+            raw_url = data['messages'][-1]['metadata']['raw_url']
+            assert client.get(raw_url).status_code == 200
+            browser = pw.chromium.launch()
+            page = browser.new_page()
+            page.goto(f'http://127.0.0.1:{port}')
+            pw_api.expect(page.locator('#messagesContainer')).to_contain_text('chế độ để ngỏ')
+            pw_api.expect(page.locator('#btnSend')).to_be_enabled()
+            pw_api.expect(page.locator('#currentConvTitle')).to_have_text('Đếm hình tam giác')
+            browser.close()
+    finally:
+        release.set()
+        wait_for_job(client, conv)
+        live.should_exit = True
+        thread.join(5)
+        sock.close()

@@ -111,3 +111,4 @@ prompt_chat/data/files/
 projects_work/
 .env-*
 prompt_chat/data/
+.hallmark/

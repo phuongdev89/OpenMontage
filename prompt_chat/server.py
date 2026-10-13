@@ -3,6 +3,9 @@ import json
 import sqlite3
 import uuid
 import re
+import asyncio
+import queue
+import threading
 from pathlib import Path
 from typing import Optional, List
 from fastapi import FastAPI, HTTPException
@@ -116,6 +119,18 @@ def init_db():
             )
         """)
         conn.commit()
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS jobs (
+                id TEXT PRIMARY KEY,
+                conversation_id TEXT NOT NULL,
+                status TEXT NOT NULL,
+                detail TEXT NOT NULL DEFAULT '',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS one_running_job ON jobs(conversation_id) WHERE status = 'running'")
+        conn.execute("UPDATE jobs SET status = 'failed', detail = 'Server đã khởi động lại trước khi yêu cầu hoàn tất. Hãy gửi lại yêu cầu.' WHERE status = 'running'")
+        conn.commit()
         columns = {row[1] for row in conn.execute("PRAGMA table_info(messages)")}
         if "metadata" not in columns:
             conn.execute("ALTER TABLE messages ADD COLUMN metadata TEXT NOT NULL DEFAULT '{}'")
@@ -192,11 +207,17 @@ def get_conversation(conv_id: str):
             "SELECT id, role, content, created_at, metadata FROM messages WHERE conversation_id = ? ORDER BY id ASC",
             (conv_id,)
         ).fetchall()
-        return {"conversation": dict(conv), "messages": [{**dict(m), "metadata": json.loads(m["metadata"])} for m in messages]}
+        job = conn.execute("SELECT id, status, detail FROM jobs WHERE conversation_id = ? ORDER BY rowid DESC LIMIT 1", (conv_id,)).fetchone()
+        return {"conversation": dict(conv), "messages": [{**dict(m), "metadata": json.loads(m["metadata"])} for m in messages],
+                "job": dict(job) if job else None}
 
 @app.delete("/api/conversations/{conv_id}")
 def delete_conversation(conv_id: str):
     with get_db() as conn:
+        conn.execute('BEGIN IMMEDIATE')
+        if conn.execute("SELECT 1 FROM jobs WHERE conversation_id = ? AND status = 'running'", (conv_id,)).fetchone():
+            raise HTTPException(409, "Hội thoại đang xử lý yêu cầu. Hãy chờ hoàn tất trước khi xóa.")
+        conn.execute("DELETE FROM jobs WHERE conversation_id = ?", (conv_id,))
         conn.execute("DELETE FROM messages WHERE conversation_id = ?", (conv_id,))
         conn.execute("DELETE FROM conversations WHERE id = ?", (conv_id,))
         conn.commit()
@@ -208,45 +229,54 @@ def send_message(conv_id: str, req: MessageRequest):
     if not user_text and not req.images:
         raise HTTPException(status_code=400, detail="Empty message")
 
+    client = get_ai_client()
+    job_id = uuid.uuid4().hex
     with get_db() as conn:
+        conn.execute('BEGIN IMMEDIATE')
         conv = conn.execute("SELECT id, title FROM conversations WHERE id = ?", (conv_id,)).fetchone()
         if not conv:
             raise HTTPException(status_code=404, detail="Conversation not found")
+        if conn.execute("SELECT 1 FROM jobs WHERE conversation_id = ? AND status = 'running'", (conv_id,)).fetchone():
+            raise HTTPException(409, "Hội thoại đang xử lý yêu cầu trước.")
 
         images = store_images(req.images)
         conn.execute(
             "INSERT INTO messages (conversation_id, role, content, metadata) VALUES (?, 'user', ?, ?)",
             (conv_id, user_text, json.dumps({"images": images}))
         )
-        if conv["title"] in ("Hội thoại mới", "New Chat"):
-            new_title = user_text[:35] + ("..." if len(user_text) > 35 else "") if user_text else "Đề bài từ ảnh"
+        first_message = conn.execute("SELECT COUNT(*) FROM messages WHERE conversation_id = ? AND role = 'user'", (conv_id,)).fetchone()[0] == 1
+        auto_title = first_message and conv["title"] in ("Hội thoại mới", "New Chat")
+        new_title = conv['title']
+        if auto_title:
+            title_text = ' '.join(user_text.split())
+            new_title = title_text[:60] + ("…" if len(title_text) > 60 else "") if title_text else "Đề bài từ ảnh"
             conn.execute("UPDATE conversations SET title = ? WHERE id = ?", (new_title, conv_id))
 
         history_rows = conn.execute(
             "SELECT role, content, metadata FROM messages WHERE conversation_id = ? ORDER BY id ASC",
             (conv_id,)
         ).fetchall()
+        conn.execute("INSERT INTO jobs (id, conversation_id, status) VALUES (?, ?, 'running')", (job_id, conv_id))
+        conn.execute("UPDATE conversations SET updated_at = CURRENT_TIMESTAMP WHERE id = ?", (conv_id,))
         conn.commit()
-
-    client = get_ai_client()
-    messages_payload = []
-    source_images = []
-    for row in history_rows:
-        attachments = json.loads(row["metadata"]).get("images", [])
-        if attachments:
-            parts = [{"type": "text", "text": row["content"] or "Phân tích đề bài trong ảnh."}]
-            for attachment in attachments:
-                parts.append({"type": "text", "text": f"Ảnh nguồn image_index={len(source_images)}"})
-                parts.append(image_part(attachment))
-                source_images.append(attachment)
-            messages_payload.append({"role": row["role"], "content": parts})
-        else:
-            messages_payload.append({"role": row["role"], "content": row["content"]})
 
     def event_generator():
         full_reply = []
         metadata = {}
         try:
+            messages_payload = []
+            source_images = []
+            for row in history_rows:
+                attachments = json.loads(row["metadata"]).get("images", [])
+                if attachments:
+                    parts = [{"type": "text", "text": row["content"] or "Phân tích đề bài trong ảnh."}]
+                    for attachment in attachments:
+                        parts.append({"type": "text", "text": f"Ảnh nguồn image_index={len(source_images)}"})
+                        parts.append(image_part(attachment))
+                        source_images.append(attachment)
+                    messages_payload.append({"role": row["role"], "content": parts})
+                else:
+                    messages_payload.append({"role": row["role"], "content": row["content"]})
             yield f"data: {json.dumps({'status': 'Đang đọc đề và kiểm tra thông tin...'})}\n\n"
             response = client.chat.completions.create(
                 model=AI_CHAT_MODEL, temperature=0,
@@ -254,6 +284,12 @@ def send_message(conv_id: str, req: MessageRequest):
                 messages=[{"role": "system", "content": ANALYSIS_PROMPT}] + messages_payload,
             )
             analysis = parse_ai_json(response.choices[0].message.content)
+            if auto_title and not user_text:
+                questions = question_items(analysis)
+                title_text = ' · '.join(str(v) for v in (analysis.get('source'), analysis.get('grade'), questions[0].get('text') if questions else None) if v)
+                if title_text:
+                    with get_db() as conn:
+                        conn.execute("UPDATE conversations SET title = ? WHERE id = ?", (title_text[:60] + ('…' if len(title_text) > 60 else ''), conv_id))
             missing = []
             if not str(analysis.get("source") or "").strip():
                 missing.append("Nguồn đề bài (kỳ thi/sách/tài liệu, năm nếu có) là gì?")
@@ -335,4 +371,43 @@ def send_message(conv_id: str, req: MessageRequest):
 
         yield f"data: {json.dumps({'done': True, 'id': msg_id, 'content': full_content, 'metadata': metadata})}\n\n"
 
-    return StreamingResponse(event_generator(), media_type="text/event-stream")
+    events = queue.Queue()
+    def run_job():
+        try:
+            events.put(f"data: {json.dumps({'title': new_title, 'job_id': job_id})}\n\n")
+            failed = False
+            detail = ''
+            for event in event_generator():
+                payload = json.loads(event[6:].strip())
+                if 'error' in payload:
+                    failed, detail = True, payload['error']
+                elif 'status' in payload:
+                    detail = payload['status']
+                    with get_db() as conn:
+                        conn.execute("UPDATE jobs SET detail = ? WHERE id = ?", (detail, job_id))
+                events.put(event)
+            with get_db() as conn:
+                conn.execute("UPDATE jobs SET status = ?, detail = ? WHERE id = ?",
+                             ('failed' if failed else 'completed', detail if failed else '', job_id))
+        except Exception as exc:
+            with get_db() as conn:
+                conn.execute("UPDATE jobs SET status = 'failed', detail = ? WHERE id = ?", (str(exc), job_id))
+            events.put(f"data: {json.dumps({'error': str(exc)})}\n\n")
+        finally:
+            events.put(None)
+
+    # The producer belongs to the server, never to the HTTP response iterator.
+    threading.Thread(target=run_job, name=f'prompt-chat-{job_id}', daemon=True).start()
+
+    async def subscribe():
+        while True:
+            try:
+                event = events.get_nowait()
+            except queue.Empty:
+                await asyncio.sleep(0.1)
+                continue
+            if event is None:
+                break
+            yield event
+
+    return StreamingResponse(subscribe(), media_type="text/event-stream", headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
