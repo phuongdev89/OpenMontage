@@ -542,7 +542,10 @@ def _find_poster(project_dir: Path, state: dict) -> Optional[str]:
     thumbnails = project_dir / "exports/thumbnails"
     if thumbnails.is_dir():
         try:
-            for f in sorted(thumbnails.iterdir()):
+            for f in sorted(
+                thumbnails.iterdir(),
+                key=lambda f: (f.suffix.lower() != ".png", f.name),
+            ):
                 if f.is_file() and f.suffix.lower() in MEDIA_IMAGE_EXT:
                     return _rel(project_dir, f)
         except OSError:

@@ -11,6 +11,8 @@ fi
 # A new session and redirected standard streams survive terminal closure.
 .venv/bin/python - <<'PY'
 from pathlib import Path
+import os
+import signal
 import subprocess
 import sys
 import time
@@ -26,8 +28,45 @@ def healthy():
         return False
 
 if healthy():
-    print(f"Backlot already running: {url}")
-    sys.exit(0)
+    # Identify the listener rather than killing every uvicorn/Backlot process.
+    sockets = set()
+    for table in ("/proc/net/tcp", "/proc/net/tcp6"):
+        for line in Path(table).read_text().splitlines()[1:]:
+            fields = line.split()
+            if int(fields[1].split(":")[1], 16) == 4751 and fields[3] == "0A":
+                sockets.add(f"socket:[{fields[9]}]")
+    listeners = set()
+    for proc in Path("/proc").iterdir():
+        if not proc.name.isdigit():
+            continue
+        try:
+            if any(os.readlink(fd) in sockets for fd in (proc / "fd").iterdir()):
+                listeners.add(int(proc.name))
+        except (OSError, PermissionError):
+            continue
+    if not listeners:
+        sys.exit("Backlot is running, but its listener PID could not be identified. Restart aborted.")
+    for pid in listeners:
+        try:
+            args = Path(f"/proc/{pid}/cmdline").read_bytes().split(b"\0")
+        except OSError:
+            sys.exit(f"Cannot verify listener PID {pid}. Restart aborted.")
+        if b"backlot.server:app" not in args:
+            sys.exit(f"Port 4751 belongs to an unrecognized process (PID {pid}). Restart aborted.")
+    print(f"Backlot already running: {url}. Restarting...", flush=True)
+    for pid in listeners:
+        try:
+            os.kill(pid, signal.SIGTERM)
+        except ProcessLookupError:
+            pass
+        except PermissionError:
+            sys.exit(f"Cannot stop Backlot PID {pid}: permission denied.")
+    for _ in range(80):
+        if all(not Path(f"/proc/{pid}").exists() for pid in listeners):
+            break
+        time.sleep(0.25)
+    else:
+        sys.exit("Backlot did not stop within 20 seconds. Restart aborted.")
 
 cache = Path(".cache")
 cache.mkdir(exist_ok=True)
