@@ -538,6 +538,15 @@ def _scan_media(project_dir: Path) -> dict[str, list[dict]]:
 def _find_poster(project_dir: Path, state: dict) -> Optional[str]:
     """Best poster for the library card (image path, or a video path —
     the /thumb endpoint extracts a frame from videos)."""
+    # Published thumbnails take priority over storyboard images and snapshots.
+    thumbnails = project_dir / "exports/thumbnails"
+    if thumbnails.is_dir():
+        try:
+            for f in sorted(thumbnails.iterdir()):
+                if f.is_file() and f.suffix.lower() in MEDIA_IMAGE_EXT:
+                    return _rel(project_dir, f)
+        except OSError:
+            pass
     board = state.get("storyboard") or {}
     for card in board.get("scenes", []):
         visual = card.get("visual")
@@ -546,7 +555,7 @@ def _find_poster(project_dir: Path, state: dict) -> Optional[str]:
     for snap in (state.get("media") or {}).get("snapshots", []):
         return snap["path"]
     # Common image homes, in order of how representative they usually are.
-    for rel_dir in ("exports/thumbnails", "assets/images", "assets/frames", "exports", "assets", "."):
+    for rel_dir in ("assets/images", "assets/frames", "exports", "assets", "."):
         d = (project_dir / rel_dir) if rel_dir != "." else project_dir
         if not d.is_dir():
             continue

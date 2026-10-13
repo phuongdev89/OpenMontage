@@ -21,13 +21,19 @@ AI_CHAT_MODEL = os.getenv("AI_CHAT_MODEL", "gpt-4o")
 
 DB_PATH = Path(__file__).resolve().parent / "data" / "chat.db"
 STATIC_INDEX = Path(__file__).resolve().parent / "index.html"
+PROMPT_RULES_PATH = Path(__file__).resolve().parent / "prompt_rules.md"
 
 SYSTEM_PROMPT = (
     "You are an expert video generation prompt engineer. "
-    "Output ONLY the finalized video generation prompt inside a single markdown code block (```text\\n...\\n```). "
+    "Output ONLY finalized video generation prompts in markdown text code blocks. "
+    "Use one self-contained code block per question when there are multiple questions. "
     "Do NOT include greetings, conversational filler, reasoning, preamble, or outro. "
     "When user requests edits, return the entire updated video prompt inside the code block."
 )
+
+def get_system_prompt() -> str:
+    # Read on each request so edits to the rules apply without a server restart.
+    return SYSTEM_PROMPT + "\n\n" + PROMPT_RULES_PATH.read_text(encoding="utf-8")
 
 app = FastAPI(title="Video Prompt Chat Service")
 
@@ -151,7 +157,7 @@ def send_message(conv_id: str, req: MessageRequest):
         conn.commit()
 
     client = get_ai_client()
-    messages_payload: List[Dict[str, str]] = [{"role": "system", "content": SYSTEM_PROMPT}]
+    messages_payload: List[Dict[str, str]] = [{"role": "system", "content": get_system_prompt()}]
     for row in history_rows:
         messages_payload.append({"role": row["role"], "content": row["content"]})
 

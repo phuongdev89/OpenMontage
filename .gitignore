@@ -104,7 +104,8 @@ venv/
 
 # Local Wan / diffusers GPU environment
 .venv-wan/
-.scratch
-.cache
-.remotion
-projects_work
+.scratch/
+.cache/
+.remotion/
+projects_work/
+.env-*
