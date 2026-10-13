@@ -54,10 +54,16 @@ function miniRail(states) {
   return rail;
 }
 
-function card(p) {
+function card(p, index = 0) {
   const poster = el("div", { class: "lib-poster" });
   if (p.poster) {
-    poster.append(el("img", { src: thumbURL(p.project_id, p.poster, 640), loading: "lazy", alt: "" }));
+    const isLcp = index === 0;
+    poster.append(el("img", {
+      src: thumbURL(p.project_id, p.poster, 640),
+      loading: isLcp ? "eager" : "lazy",
+      fetchpriority: isLcp ? "high" : null,
+      alt: "",
+    }));
   } else {
     poster.append(el("span", { class: "lp-txt" }, "NO MEDIA YET"));
   }
@@ -92,11 +98,18 @@ function projectTable(items) {
   const table = el('table', {class: 'projects-table', 'aria-label': 'Danh sách project'},
     el('thead', {}, el('tr', {}, ...['Project', 'Pipeline', 'Trạng thái', 'Cập nhật'].map((name, i) =>
       el('th', {scope: 'col', class: `column-${i}`}, name)))), body);
-  for (const p of items) {
+  for (const [i, p] of items.entries()) {
     const done = p.stage_states.some(s => s.name === 'publish' && s.status === 'completed');
     const status = done ? 'Đã publish' : p.awaiting_human ? 'Chờ duyệt' : p.active_stage ? p.active_stage : 'Chưa publish';
     const staticSuffix = new URLSearchParams(location.search).has('static') ? '?static=1' : '';
-    const poster = p.poster ? el('img', {class: 'table-poster', src: thumbURL(p.project_id, p.poster, 320), loading: 'lazy', alt: ''}) : null;
+    const isLcp = i === 0;
+    const poster = p.poster ? el('img', {
+      class: 'table-poster',
+      src: thumbURL(p.project_id, p.poster, 320),
+      loading: isLcp ? 'eager' : 'lazy',
+      fetchpriority: isLcp ? 'high' : null,
+      alt: '',
+    }) : null;
     body.append(el('tr', {'data-project': p.project_id},
       el('td', {class: 'column-0'}, el('a', {class: 'table-project', href: `/p/${encodeURIComponent(p.project_id)}${staticSuffix}`},
         poster, el('div', {}, el('strong', {}, p.title || p.project_id),
@@ -127,7 +140,7 @@ function draw() {
   const shown = projects.filter(p => (p.title + ' ' + p.project_id).toLowerCase().includes(search.value.toLowerCase()) &&
     (!filter.value || (filter.value === 'published' ? p.stage_states.some(s => s.name === 'publish' && s.status === 'completed') : filter.value === 'awaiting' ? p.awaiting_human : p.live)));
   if (view === 'grid' && shown.length) grid.append(projectTable(shown));
-  else for (const p of shown) grid.append(card(p));
+  else for (const [i, p] of shown.entries()) grid.append(card(p, i));
   if (!shown.length && projects.length) grid.append(el('p', {class: 'empty-state'}, 'Không có project khớp bộ lọc.'));
 }
 

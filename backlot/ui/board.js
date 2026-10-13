@@ -160,7 +160,7 @@ function renderRail(s) {
     if (!STAGE_ICONS[st.status]) pendingIndex += 1;
     const node = el("div", {
       class: `stage ${cls}${selectedStage === st.name ? " selected" : ""}${st.undeclared ? " undeclared" : ""}`,
-      title: st.undeclared ? `"${st.name}" ran but isn't declared by this pipeline's manifest` : null,
+      title: st.undeclared ? `“${st.name}” ran but isn't declared by this pipeline's manifest` : null,
       onclick: () => toggleDrawer(st.name),
     },
       el("span", { class: "line" }),
