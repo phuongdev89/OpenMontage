@@ -6,7 +6,10 @@ Native filesystem events update the board and Library through SSE. A metadata
 scan every five seconds also detects missed writes, additions, renames and
 deletions, including when `watchfiles` is unavailable or its watcher fails.
 Dependency/cache directories are excluded; media bytes are not read by this scan.
-The watcher retries after errors and waits for a missing projects root to appear.
+The watcher retries transient errors and waits for a missing projects root to appear.
+On file-handle/inotify resource exhaustion, it logs one warning and uses only
+reconciliation for the rest of that server session, avoiding repeated tracebacks.
+Restart Backlot after resolving OS limits to retry native notifications.
 Browsers refetch on SSE reconnect and when returning to the tab. Media URLs are
 revalidated so overwriting an image at the same path shows the new content.
 `?static=1` intentionally disables live updates for screenshots/exports.

@@ -45,6 +45,37 @@ def test_project_change_preserves_case(tmp_path, monkeypatch):
     assert server._project_of_change(str(tmp_path / "projects-other" / "Film")) is None
 
 
+def test_native_resource_exhaustion_stops_retrying(tmp_path, monkeypatch, caplog):
+    import types
+
+    monkeypatch.setattr(server, "PROJECTS_DIR", tmp_path)
+    monkeypatch.setattr(server, "RECONCILE_SECONDS", 0.01)
+    calls = []
+
+    async def broken_watch(*args, **kwargs):
+        calls.append(True)
+        # watchfiles wraps OS errors in a Rust exception, not OSError.
+        raise RuntimeError("Error creating recommended watcher: Too many open files (os error 24)")
+        yield
+
+    monkeypatch.setitem(sys.modules, "watchfiles", types.SimpleNamespace(awatch=broken_watch))
+
+    async def run():
+        task = asyncio.create_task(server._watch_native())
+        try:
+            await asyncio.sleep(0.06)
+            assert task.done(), "Resource exhaustion must switch to reconciliation instead of retrying"
+            await task
+            assert len(calls) == 1
+        finally:
+            task.cancel()
+            with suppress(asyncio.CancelledError):
+                await task
+
+    asyncio.run(run())
+    assert "reconciliation" in caplog.text
+
+
 def test_reconciliation_survives_native_failure(tmp_path, monkeypatch):
     root = tmp_path / "projects"
     project = root / "Film"

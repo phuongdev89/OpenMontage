@@ -9,6 +9,7 @@ pipeline checkpoints and media remain disk-derived.
 from __future__ import annotations
 
 import asyncio
+import errno
 import json
 import logging
 import time
@@ -196,7 +197,7 @@ def _project_signatures() -> dict[str, tuple]:
 
 
 async def _watch_native() -> None:
-    """Native fast path; errors are visible and retried, polling stays alive."""
+    """Native fast path; reconciliation takes over on resource exhaustion."""
     try:
         from watchfiles import awatch
     except ImportError:
@@ -210,7 +211,22 @@ async def _watch_native() -> None:
                     for pid in touched - {None}:
                         _invalidate_summary(pid)
                         hub.publish(pid)
-        except Exception:
+        except Exception as exc:
+            # RustNotify wraps OS errors, so errno alone is insufficient.
+            message = str(exc).lower()
+            if (getattr(exc, "errno", None) in {errno.EMFILE, errno.ENFILE, errno.ENOSPC}
+                    or any(marker in message for marker in (
+                        "too many open files", "os error 24", "os error 23",
+                        "os error 28", "no space left on device",
+                        "inotify watch limit", "inotify instance limit",
+                    ))):
+                logger.warning(
+                    "Backlot native watcher disabled for this server session: %s; "
+                    "filesystem reconciliation remains active every %s seconds. "
+                    "Restart Backlot after resolving OS file/inotify limits to retry.",
+                    exc, RECONCILE_SECONDS,
+                )
+                return
             logger.exception("Backlot native watcher failed; retrying (reconciliation remains active)")
         await asyncio.sleep(RECONCILE_SECONDS)
 
