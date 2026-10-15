@@ -119,6 +119,12 @@ def delete_file(project: Path, raw: str, expected: str) -> dict:
             raise CopywriterError('Không tìm thấy tệp.', 404)
         if file_revision(project, raw)['revision'] != expected:
             raise CopywriterError('Tệp đã đổi. Mở lại trước khi xóa.', 409)
+        from backlot.state import load_board_state
+        from backlot.publish_package import build_publish_package
+        package = load_board_state(project).get('publish_package') or build_publish_package(project, {}, True)
+        thumbs = {item['path'] for item in package['thumbnails']}
+        if path.relative_to(project.resolve()).as_posix() in thumbs and len(thumbs) <= 1:
+            raise CopywriterError('Không thể xóa thumbnail cuối cùng. Thêm ảnh khác trước khi xóa.', 409)
         token = uuid.uuid4().hex
         trash = project / '.backlot-trash'
         if trash.is_symlink():

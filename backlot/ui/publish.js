@@ -1,4 +1,4 @@
-import {el, mediaURL} from '/ui/lib.js';
+import {el, getJSON, mediaURL} from '/ui/lib.js';
 import {requestJSON} from '/ui/workspace.js';
 import {openProjectGallery} from '/ui/gallery.js';
 
@@ -7,6 +7,47 @@ const copyRequests = new Map();
 const copyViews = new Map();
 const supportRequests = new Map();
 const postingTabs = new Map();
+const videoTitles = new Map();
+
+function videoTitleField(p, projectId) {
+  let state = videoTitles.get(projectId);
+  if (!state || (!state.busy && state.value === state.saved && !state.error)) {
+    state = {value: p.title || '', saved: p.title || '', revision: p.revisions.title};
+    videoTitles.set(projectId, state);
+  }
+  const root = copyField('Tiêu đề video', state.value);
+  const field = root.querySelector('textarea');
+  field.removeAttribute('readonly'); field.maxLength = 300;
+  field.value = state.value;
+  const status = el('span', {role: 'status'});
+  root.querySelector('.posting-actions').append(status);
+  state.show = () => {
+    status.textContent = state.busy ? 'Đang lưu…' : state.error || (state.value === state.saved ? 'Đã lưu' : 'Rời ô để lưu');
+    field.setAttribute('aria-busy', String(!!state.busy));
+  };
+  field.addEventListener('input', () => { state.value = field.value; state.error = ''; state.show(); });
+  field.addEventListener('blur', async () => {
+    state.queued = true;
+    if (state.busy) return;
+    while (state.queued) {
+      state.queued = false;
+      const title = state.value.trim();
+      if (title === state.saved) continue;
+      if (!title || /[\r\n]/.test(title)) { state.error = 'Tiêu đề cần có nội dung trên một dòng.'; state.show(); break; }
+      state.busy = true; state.error = ''; state.show();
+      try {
+        const result = await requestJSON(`/api/project/${encodeURIComponent(projectId)}/posting-copy/title`, {
+          title, expected_revision: state.revision,
+        });
+        state.saved = result.content; state.revision = result.revision;
+        p.title = result.content; p.revisions.title = result.revision;
+      } catch(error) { state.error = error.message; state.queued = false; }
+      finally { state.busy = false; state.show(); }
+    }
+  });
+  state.show();
+  return root;
+}
 
 function copyField(label, value, regenerate = null) {
   const button = el('button', {type: 'button', disabled: value ? null : '', onclick: async () => {
@@ -103,8 +144,7 @@ export function renderPublishPackage(s, projectId, onUpdated = null) {
   if (!p || !s.stages.some(stage => stage.name === 'publish' && stage.status === 'completed')) return null;
   const section = el('section', {class: 'posting-package', 'aria-label': 'Hỗ trợ đăng video'},
     el('h2', {}, 'Hỗ trợ đăng video'),
-    el('a', {href: `/api/project/${encodeURIComponent(projectId)}/download`, download: ''}, 'Tải project (.zip)'),
-    copyField('Tiêu đề video', p.title),
+    videoTitleField(p, projectId),
     copyField('Description · YouTube', p.description, {label: 'Tạo lại description', projectId, field: 'description', package: p, onUpdated}),
     copyField('Caption · Facebook / TikTok', p.caption, {label: 'Tạo lại caption', projectId, field: 'caption', package: p, onUpdated}));
   const pending = supportRequests.get(projectId);
@@ -145,9 +185,31 @@ export function renderPublishPackage(s, projectId, onUpdated = null) {
     tablist.append(tab);
   }
   section.append(tablist, contentPanel, thumbnailPanel);
+  section.append(renderPostingStatus(s.posting_status, projectId, onUpdated));
   selectTab(postingTabs.get(projectId) || 'copy');
   if (p.copy_warning) section.append(el('p', {role: 'alert'}, p.copy_warning));
   const thumbnails = el('div', {class: 'posting-thumbnails'});
+  const dots = el('div', {class: 'thumbnail-dots', 'aria-label': 'Chọn ảnh thumbnail'});
+  const updateDots = () => {
+    const slides = [...thumbnails.children];
+    const active = Math.max(0, slides.findIndex(slide => Math.abs(slide.offsetLeft - thumbnails.offsetLeft - thumbnails.scrollLeft) < thumbnails.clientWidth / 2));
+    [...dots.children].forEach((dot, i) => dot.setAttribute('aria-pressed', String(i === active)));
+  };
+  const syncSlides = () => {
+    const slides = [...thumbnails.children];
+    for (const button of thumbnails.querySelectorAll('.delete-thumbnail')) {
+      button.disabled = slides.length <= 1;
+      button.title = slides.length <= 1 ? 'Không thể xóa thumbnail cuối cùng' : 'Xóa thumbnail';
+    }
+    thumbnails.classList.toggle('thumbnail-carousel', slides.length > 1);
+    dots.hidden = slides.length <= 1;
+    dots.replaceChildren(...slides.map((slide, i) => el('button', {
+      type: 'button', 'aria-label': `Thumbnail ${i + 1}`, 'aria-pressed': String(i === 0),
+      onclick: () => thumbnails.scrollTo({left: slide.offsetLeft - thumbnails.offsetLeft, behavior: 'smooth'}),
+    })));
+    updateDots();
+  };
+  thumbnails.addEventListener('scroll', updateDots, {passive: true});
   for (const thumb of p.thumbnails || []) {
     const selectStatus = el('p', {role: 'status'});
     const choose = thumb.selected ? el('span', {class: 'selected-thumbnail'}, '✓ Thumbnail đang chọn') : el('button', {type: 'button', onclick: async () => {
@@ -155,20 +217,83 @@ export function renderPublishPackage(s, projectId, onUpdated = null) {
       try { await requestJSON(`/api/project/${encodeURIComponent(projectId)}/thumbnail`, {path: thumb.path}); if (onUpdated) await onUpdated(); }
       catch(error) { selectStatus.textContent = error.message; choose.disabled = false; }
     }}, 'Chọn làm thumbnail');
+    const remove = el('button', {type: 'button', class: 'delete-thumbnail', onclick: async () => {
+      if (thumbnails.children.length <= 1) return;
+      if (!window.confirm(`Xóa thumbnail này?\n${thumb.path}`)) return;
+      remove.disabled = true;
+      choose.disabled = true;
+      try {
+        const base = `/api/project/${encodeURIComponent(projectId)}`;
+        const revision = await getJSON(`${base}/files/revision?path=${encodeURIComponent(thumb.path)}`);
+        await requestJSON(`${base}/files/delete`, {path: thumb.path, expected_revision: revision.revision});
+        remove.closest('figure').remove();
+        syncSlides();
+        if (onUpdated) await onUpdated();
+      } catch(error) { selectStatus.textContent = error.message; }
+      finally { choose.disabled = false; syncSlides(); }
+    }}, 'Xóa');
     thumbnails.append(el('figure', {class: `thumbnail-candidate${thumb.selected ? ' is-selected' : ''}`},
       el('button', {type: 'button', class: 'gallery-thumb', 'aria-label': `Xem ${thumb.label || thumb.path}`, onclick: () => openProjectGallery(projectId, thumb.path)},
         el('img', {src: mediaURL(projectId, thumb.path), alt: thumb.label || 'Thumbnail', loading: 'lazy'})),
       thumb.generated ? null : el('p', {class: 'posting-note'}, 'Chưa có metadata tạo ảnh'),
-      choose, selectStatus,
-      el('details', {class: 'technical-path'}, el('summary', {}, 'Đường dẫn ảnh'), copyField('Thumbnail path', thumb.absolute_path))));
+      el('div', {class: 'posting-actions'}, choose, remove), selectStatus,
+      el('div', {class: 'technical-path'}, copyField('Thumbnail path', thumb.absolute_path))));
   }
   thumbnailPanel.append(
     copyField('Prompt tạo thumbnail · có thể sửa để gen thủ công', p.thumbnail_prompt || p.thumbnails?.find(t => t.prompt)?.prompt || '', {editable: true, projectId}));
   if (p.thumbnail_prompt_source === 'draft') thumbnailPanel.append(el('p', {class: 'posting-note'}, 'Prompt nháp · Tạo hỗ trợ để bổ sung cảnh hook theo video.'));
   if (p.thumbnail_prompt_source === 'prepared') thumbnailPanel.append(el('p', {class: 'posting-note'}, 'Prompt đã chuẩn bị để tạo ảnh thủ công.'));
-  thumbnailPanel.append(thumbnails);
+  syncSlides();
+  thumbnailPanel.append(thumbnails, dots);
   if (!p.thumbnails?.length) thumbnailPanel.append(el('p', {}, 'Chưa có thumbnail.'));
   return section;
+}
+
+const postingDrafts = new Map();
+function renderPostingStatus(saved, projectId, onUpdated) {
+  const root = el('section', {class: 'posting-confirmations', 'aria-label': 'Đã đăng'},
+    el('h3', {}, 'Đã đăng'),
+    el('p', {}, 'Tự xác nhận sau khi đăng video. Mỗi nền tảng cần đánh dấu và điền link.'));
+  if (saved?.error) return el('p', {role: 'alert'}, saved.error);
+  for (const [platform, label] of [['youtube', 'YouTube'], ['facebook', 'Facebook']]) {
+    const record = saved?.platforms?.[platform];
+    if (!record) continue;
+    const key = `${projectId}:${platform}`;
+    const draft = postingDrafts.get(key);
+    const value = draft || record;
+    const check = el('input', {type: 'checkbox', checked: value.confirmed ? '' : null});
+    const url = el('input', {type: 'url', value: value.url || '', required: value.confirmed ? '' : null,
+      placeholder: `https://… link ${label}`, 'aria-label': `Link ${label}`});
+    const feedback = el('p', {role: 'status'});
+    const button = el('button', {type: 'submit'}, 'Lưu');
+    const form = el('form', {class: 'posting-confirmation'},
+      el('label', {}, check, ` Đã đăng ${label}`), url, button,
+      record.confirmed_at ? el('small', {}, `Đã xác nhận: ${new Date(record.confirmed_at).toLocaleString('vi-VN')}`) : null,
+      feedback);
+    const remember = () => {
+      url.required = check.checked;
+      postingDrafts.set(key, {confirmed: check.checked, url: url.value});
+    };
+    check.addEventListener('change', remember); url.addEventListener('input', remember);
+    form.addEventListener('submit', async event => {
+      event.preventDefault();
+      if (!form.reportValidity() || button.disabled) return;
+      const submitted = {confirmed: check.checked, url: url.value.trim()};
+      button.disabled = true; check.disabled = true; url.disabled = true;
+      try {
+        await requestJSON(`/api/project/${encodeURIComponent(projectId)}/posted`, {
+          platform, ...submitted, expected_revision: record.revision,
+        });
+        postingDrafts.delete(key); feedback.textContent = 'Đã lưu';
+        if (onUpdated) await onUpdated();
+      } catch(error) { feedback.textContent = error.message; }
+      finally { button.disabled = false; check.disabled = false; url.disabled = false; }
+    });
+    root.append(form);
+  }
+  if (saved?.status === 'completed') root.append(el('p', {class: 'posting-cleanup-hint'},
+    '✓ Đã đăng đủ YouTube và Facebook. Có thể xem xét dọn cache và render nháp của project.'));
+  return root;
 }
 
 const titleEdits = new Map();

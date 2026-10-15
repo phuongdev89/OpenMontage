@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
 const listeners = new Map();
+globalThis.window = { addEventListener() {}, removeEventListener() {} };
 globalThis.document = {
   hidden: false,
   addEventListener: (type, fn) => listeners.set(type, fn),

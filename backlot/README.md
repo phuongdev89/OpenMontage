@@ -10,6 +10,8 @@ The watcher retries transient errors and waits for a missing projects root to ap
 On file-handle/inotify resource exhaustion, it logs one warning and uses only
 reconciliation for the rest of that server session, avoiding repeated tracebacks.
 Restart Backlot after resolving OS limits to retry native notifications.
+Reconciliation retries scan errors from startup onward; a failed first scan
+does not terminate live updates.
 Browsers refetch on SSE reconnect and when returning to the tab. Media URLs are
 revalidated so overwriting an image at the same path shows the new content.
 `?static=1` intentionally disables live updates for screenshots/exports.
@@ -39,16 +41,10 @@ distinguished from recorded image-generation prompts. All images under
 `exports/thumbnails/` appear alongside metadata-registered images. Selecting one
 saves `artifacts/thumbnail_selection.json` and updates the Library poster.
 
-Quản lý tệp opens a live modal with a folder tree left and a single Detail pane
-right, search, upload, UTF-8 create/edit, downloads, reversible delete and Undo.
-Async reads are guarded against selection races; current editor drafts survive
-SSE changes and reselecting the same file. All project images (Library, storyboard,
-thumbnails and file previews) open a gallery dialog with navigation/download.
-Uploads are capped at
-16 MB and text edits at 2 MB. Revision checks reject stale edits. Operations are
-project-scoped, reject traversal/outside symlinks, and keep project markers and
-checkpoint files read-only. Deleted files remain in `.backlot-trash` and are
-excluded from media scans and project ZIPs.
+Project file management is not available in Backlot. Library, storyboard and
+thumbnail images open a gallery with navigation/download. Thumbnail deletion
+retains revision checks, protects the last thumbnail and stores removed images
+in `.backlot-trash`, excluded from media scans.
 
 ## Revise posting copy
 
@@ -117,3 +113,20 @@ Thumbnail cards show the exact stored generation prompt, with editable copy text
 for manual generation; editing that textarea does not save provenance or call AI.
 Agents fill the shared thumbnail-prompt.txt template from the hook and record the
 fully resolved prompt in posting-package thumbnail metadata.
+
+### Manual upload confirmation
+
+After `publish` (ready to post), the posting package includes **Đã đăng**.
+For each of YouTube and Facebook, check the confirmation, enter its HTTPS
+post/video URL, and click **Lưu**. URLs must belong to the corresponding
+platform; Backlot does not contact the platform to verify an upload.
+Both confirmations and URLs are required for completion. Unchecking and saving
+reopens the milestone. Confirmation times and links survive page reloads.
+
+This writes `checkpoint_posted.json` through `lib.checkpoint.write_checkpoint()`
+with a `posted_log` artifact. `posted` is a manual post-production milestone,
+outside manifest stage order and production auto-approval settings. It requires
+a completed publish checkpoint and leaves production checkpoints unchanged.
+No existing project is automatically marked as posted. The library exposes a
+**Đã đăng** filter. A completed milestone shows a cleanup suggestion; it does
+not delete files or upload anything.

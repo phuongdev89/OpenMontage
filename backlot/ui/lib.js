@@ -18,6 +18,23 @@ export function el(tag, attrs = {}, ...children) {
     if (child == null) continue;
     node.append(child.nodeType ? child : document.createTextNode(String(child)));
   }
+  // Decorative CSS masks survive textContent updates (copy/saving/busy states).
+  // Leave image buttons, existing glyph controls and player chrome alone.
+  if ((tag === 'button' || (tag === 'a' && (attrs.class?.includes('studio-button') || attrs.download != null))) && !attrs['data-icon']) {
+    const label = children.flat().filter(child => typeof child === 'string').join(' ').trim();
+    const icons = [
+      [/^(Sao chép|Copy)/i, 'copy'], [/^(Tải|Download)/i, 'download'],
+      [/^(Tạo lại|Regenerate|Refresh)/i, 'refresh'], [/^(Lưu|Save)/i, 'save'],
+      [/^(Xóa|Delete)/i, 'trash'], [/^(Đóng|Hủy|Close|Cancel)/i, 'close'],
+      [/^(Quản lý|Về thư mục|Mở thư mục)/i, 'folder'],
+      [/^(Tạo|Thêm|Upload)/i, 'plus'], [/^(Sửa|Đổi|Edit)/i, 'edit'],
+      [/^(Hoàn tác|Undo)/i, 'undo'], [/^(Đánh dấu|Đã đăng|Xác nhận|Chọn làm)/i, 'check'],
+      [/^(Thumbnail|Ảnh)/i, 'image'], [/^(Caption|Description|Nội dung)/i, 'text'],
+      [/^Grid view$/i, 'list'], [/^Item view$/i, 'grid'],
+    ];
+    const match = icons.find(([pattern]) => pattern.test(label));
+    if (match) node.setAttribute('data-icon', match[1]);
+  }
   return node;
 }
 
@@ -27,6 +44,16 @@ export function fmtDuration(seconds) {
   const s = Math.max(0, Math.round(n));
   const m = Math.floor(s / 60);
   return `${m}:${String(s % 60).padStart(2, "0")}`;
+}
+
+export function postedProgress(postingStatus) {
+  const youtube = postingStatus?.platforms?.youtube?.confirmed === true;
+  const facebook = postingStatus?.platforms?.facebook?.confirmed === true;
+  return {
+    count: Number(youtube) + Number(facebook),
+    platform: youtube && facebook ? 'both' : youtube ? 'youtube' : facebook ? 'facebook' : 'none',
+    label: `${Number(youtube) + Number(facebook)}/2 · YouTube ${youtube ? 'đã đăng' : 'chưa đăng'} · Facebook ${facebook ? 'đã đăng' : 'chưa đăng'}`,
+  };
 }
 
 export function fmtMoney(v) {
@@ -62,12 +89,48 @@ export function thumbURL(projectId, relPath, w = 640) {
   return `/thumb/${encodeURIComponent(projectId)}/${relPath.split("/").map(encodeURIComponent).join("/")}?w=${w}`;
 }
 
-// Subscribe to a server-sent change feed; call onChange (debounced) per burst.
+// HTTP/1.1 has a small per-origin connection pool. Never reserve one SSE
+// connection per tab: enough open boards would block state/media requests.
+function sharedFeed() {
+  const source = { onmessage: null, onerror: null };
+  let worker = null;
+  let poll = null;
+  let closed = false;
+  const fallback = () => {
+    if (poll || closed) return;
+    worker?.port.close();
+    poll = setInterval(() => source.onmessage?.({ data: '{"type":"hello"}' }), 5000);
+  };
+  let lease = null;
+  try {
+    worker = new SharedWorker('/ui/realtime-worker.js', { name: 'backlot-realtime-v1' });
+    worker.port.onmessage = event => source.onmessage?.(event);
+    worker.onerror = () => { clearInterval(lease); fallback(); };
+    worker.port.start();
+    worker.port.postMessage('join');
+    lease = setInterval(() => worker.port.postMessage('alive'), 15000);
+  } catch {
+    fallback();
+  }
+  source.close = () => {
+    closed = true;
+    clearInterval(poll);
+    clearInterval(lease);
+    if (worker) {
+      worker.port.postMessage('leave');
+      worker.port.close();
+    }
+  };
+  return source;
+}
+
+// All tabs share the library feed; each refresh reads its own project state.
+// Reconcile every board on a change because the library feed coalesces bursts.
 export function subscribe(url, onChange) {
   let timer = null;
   let running = false;
   let pending = false;
-  const source = new EventSource(url);
+  const source = sharedFeed();
   const update = async () => {
     if (running) { pending = true; return; }
     running = true;
@@ -100,9 +163,12 @@ export function subscribe(url, onChange) {
   const visible = () => { if (!document.hidden) schedule(); };
   document.addEventListener("visibilitychange", visible);
   const close = source.close.bind(source);
+  const leaving = event => { if (!event.persisted) source.close(); };
+  window.addEventListener('pagehide', leaving);
   source.close = () => {
     clearTimeout(timer);
     document.removeEventListener("visibilitychange", visible);
+    window.removeEventListener('pagehide', leaving);
     close();
   };
   return source;

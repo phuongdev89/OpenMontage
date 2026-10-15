@@ -126,3 +126,35 @@ def test_signatures_detect_replace_rename_and_ignore_noise(tmp_path, monkeypatch
     assert after != before
     file.rename(project / "renamed.txt")
     assert server._project_signatures() != after
+
+
+def test_reconciliation_recovers_from_initial_scan_failure(monkeypatch):
+    import errno
+
+    scans = []
+    monkeypatch.setattr(server, "RECONCILE_SECONDS", 0.01)
+    monkeypatch.setattr(server, "hub", server.ChangeHub())
+    monkeypatch.setattr(server, "_summary_cache", {"Film": {"title": "stale"}})
+    monkeypatch.setitem(sys.modules, "watchfiles", None)
+
+    def scan():
+        scans.append(True)
+        if len(scans) == 1:
+            raise OSError(errno.EMFILE, "Too many open files")
+        return {"Film": ("updated",)}
+
+    monkeypatch.setattr(server, "_project_signatures", scan)
+
+    async def run():
+        q = server.hub.subscribe("Film")
+        task = asyncio.create_task(server._watch_projects())
+        try:
+            assert await asyncio.wait_for(q.get(), 0.5) == "Film"
+            assert not task.done()
+            assert "Film" not in server._summary_cache
+        finally:
+            task.cancel()
+            with suppress(asyncio.CancelledError, OSError):
+                await task
+
+    asyncio.run(run())

@@ -21,8 +21,7 @@ from urllib.parse import urlsplit
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, HTMLResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel, Field
-from starlette.background import BackgroundTask
+from pydantic import BaseModel, Field, StrictBool
 from backlot.copywriter import CopywriterError, regenerate
 
 from backlot.state import PROJECTS_DIR, REPO_ROOT, list_projects, load_board_state, summarize_project
@@ -50,6 +49,11 @@ class CopyRevisionRequest(BaseModel):
     expected_revision: str = Field(pattern=r'^[a-f0-9]{64}$')
 
 
+class VideoTitleRequest(BaseModel):
+    title: str = Field(min_length=1, max_length=300)
+    expected_revision: str = Field(pattern=r'^[a-f0-9]{64}$')
+
+
 class SupportRequest(BaseModel):
     expected_revision: str = Field(pattern=r'^[a-f0-9]{64}$')
 
@@ -58,18 +62,15 @@ class PathRequest(BaseModel):
     path: str = Field(min_length=1, max_length=1000)
 
 
-class FileWriteRequest(PathRequest):
-    content: str = Field(max_length=24 * 1024 * 1024)
-    encoding: Literal['utf8', 'base64'] = 'utf8'
-    expected_revision: str | None = Field(default=None, pattern=r'^[a-f0-9]{64}$')
+class PostedRequest(BaseModel):
+    platform: Literal['youtube', 'facebook']
+    confirmed: StrictBool
+    url: str = Field(max_length=2000)
+    expected_revision: str = Field(pattern=r'^[a-f0-9]{64}$')
 
 
 class FileDeleteRequest(PathRequest):
     expected_revision: str = Field(pattern=r'^[a-f0-9]{64}$')
-
-
-class RestoreRequest(BaseModel):
-    token: str = Field(pattern=r'^[a-f0-9]{32}$')
 
 
 def _ui_html(name: str, assets: tuple[str, ...]) -> HTMLResponse:
@@ -233,23 +234,24 @@ async def _watch_native() -> None:
 
 async def _watch_projects() -> None:
     """Native notifications plus periodic recovery of missed filesystem changes."""
-    previous = await asyncio.to_thread(_project_signatures)
+    previous = {}
     # A new lifespan must not reuse summaries from an earlier watch session.
     _summary_cache.clear()
     native = asyncio.create_task(_watch_native())
     try:
         while True:
-            await asyncio.sleep(RECONCILE_SECONDS)
             try:
                 current = await asyncio.to_thread(_project_signatures)
             except OSError:
                 logger.exception("Backlot filesystem reconciliation failed; retrying")
+                await asyncio.sleep(RECONCILE_SECONDS)
                 continue
             for pid in previous.keys() | current.keys():
                 if previous.get(pid) != current.get(pid):
                     _invalidate_summary(pid)
                     hub.publish(pid)
             previous = current
+            await asyncio.sleep(RECONCILE_SECONDS)
     finally:
         native.cancel()
         with suppress(asyncio.CancelledError):
@@ -305,32 +307,10 @@ def create_app() -> FastAPI:
             hub.publish(project_id)
         return result
 
-    @app.get('/api/project/{project_id}/files')
-    async def files(project_id: str):
-        from backlot.file_manager import list_files
-        return await file_operation(project_id, list_files)
-
-    @app.get('/api/project/{project_id}/files/read')
-    async def file_read(project_id: str, path: str):
-        from backlot.file_manager import read_file
-        return await file_operation(project_id, read_file, path)
-
     @app.get('/api/project/{project_id}/files/revision')
     async def file_revision(project_id: str, path: str):
         from backlot.file_manager import file_revision
         return await file_operation(project_id, file_revision, path)
-
-    @app.post('/api/project/{project_id}/files/write')
-    async def file_write(project_id: str, body: FileWriteRequest, request: Request):
-        same_origin(request)
-        from backlot.file_manager import write_file, decode_upload
-        try:
-            content = decode_upload(body.content) if body.encoding == 'base64' else body.content.encode('utf-8')
-            if body.encoding == 'utf8' and len(content) > 2 * 1024 * 1024:
-                raise CopywriterError('Sửa văn bản tối đa 2 MB.', 413)
-        except CopywriterError as exc:
-            raise HTTPException(status_code=exc.status, detail=str(exc))
-        return await file_operation(project_id, write_file, body.path, content, body.expected_revision, changed=True)
 
     @app.post('/api/project/{project_id}/files/delete')
     async def file_delete(project_id: str, body: FileDeleteRequest, request: Request):
@@ -338,40 +318,24 @@ def create_app() -> FastAPI:
         from backlot.file_manager import delete_file
         return await file_operation(project_id, delete_file, body.path, body.expected_revision, changed=True)
 
-    @app.post('/api/project/{project_id}/files/restore')
-    async def file_restore(project_id: str, body: RestoreRequest, request: Request):
-        same_origin(request)
-        from backlot.file_manager import restore_file
-        return await file_operation(project_id, restore_file, body.token, changed=True)
-
     @app.post('/api/project/{project_id}/posting-support')
     async def posting_support(project_id: str, body: SupportRequest, request: Request):
         same_origin(request)
         from backlot.posting_support import create_support
         return await file_operation(project_id, create_support, body.expected_revision, changed=True)
 
+    @app.post('/api/project/{project_id}/posted')
+    async def posted_confirmation(project_id: str, body: PostedRequest, request: Request):
+        same_origin(request)
+        from backlot.posted import confirm_posted
+        return await file_operation(project_id, confirm_posted, body.platform, body.confirmed,
+                                    body.url, body.expected_revision, changed=True)
+
     @app.post('/api/project/{project_id}/thumbnail')
     async def thumbnail_selection(project_id: str, body: PathRequest, request: Request):
         same_origin(request)
         from backlot.posting_support import select_thumbnail
         return await file_operation(project_id, select_thumbnail, body.path, changed=True)
-
-    @app.get("/api/project/{project_id}/download")
-    def download_project(project_id: str) -> FileResponse:
-        from backlot.project_archive import build_archive
-        project = _safe_project_dir(project_id).resolve()
-        if not project.is_relative_to(PROJECTS_DIR.resolve()):
-            raise HTTPException(status_code=403, detail="path escapes projects")
-        state = load_board_state(project)
-        if not any(s['name'] == 'publish' and s['status'] == 'completed' for s in state['stages']):
-            raise HTTPException(status_code=409, detail="Project chưa hoàn tất publish.")
-        try:
-            archive = build_archive(project)
-        except OSError:
-            raise HTTPException(status_code=500, detail="Không tạo được bản nén project.")
-        return FileResponse(archive, media_type="application/zip", filename=f"{project_id}.zip",
-                            headers={"Cache-Control": "no-store"},
-                            background=BackgroundTask(archive.unlink, missing_ok=True))
 
     @app.post('/api/project/{project_id}/title')
     async def edit_project_title(project_id: str, body: TitleRevisionRequest, request: Request) -> dict:
@@ -386,6 +350,12 @@ def create_app() -> FastAPI:
         _invalidate_summary(project_id)
         hub.publish(project_id)
         return result
+
+    @app.post('/api/project/{project_id}/posting-copy/title')
+    async def video_title(project_id: str, body: VideoTitleRequest, request: Request):
+        same_origin(request)
+        from backlot.copywriter import save_video_title
+        return await file_operation(project_id, save_video_title, body.title, body.expected_revision, changed=True)
 
     @app.post('/api/project/{project_id}/posting-copy/regenerate')
     async def regenerate_posting_copy(project_id: str, body: CopyRevisionRequest, request: Request) -> dict:

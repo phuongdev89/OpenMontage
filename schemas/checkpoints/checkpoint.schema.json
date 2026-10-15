@@ -10,7 +10,7 @@
     "project_id": { "type": "string" },
     "stage": {
       "type": "string",
-      "description": "Stage name — validated at runtime against the pipeline manifest's stage list"
+      "description": "Stage name — validated against the pipeline manifest or the manual post-production posted milestone"
     },
     "status": {
       "type": "string",

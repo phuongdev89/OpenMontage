@@ -19,6 +19,12 @@ posting package in `publish_log.metadata.posting_package` for Backlot.
 - `caption`: independently phrase the hook and comment invitation for Facebook/
   TikTok. Keep the mandatory problem/source blocks even when they make it longer;
   do not shorten away conditions or replace it with the YouTube description.
+  Include a separate searchable `Nguồn đề:` line: verified full competition/book
+  name and official abbreviation, year, round, grade, question number and page
+  when available. Prefer both `Grade N / Lớp N` and `Question N / Câu N` for easy
+  lookup. Do not use only an abbreviation or project filename; do not infer full
+  names from an abbreviation. Omit unknown fields and state what is unverified.
+  Do not add source URLs automatically.
 - Use a small set of topic-specific hashtags, e.g. #ToanOlympicCungCon,
   #ToanOlympic, a verified grade/competition tag and the mathematical topic.
   No unrelated trending tags or unverified competition names.

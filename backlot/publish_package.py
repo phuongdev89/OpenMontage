@@ -103,11 +103,11 @@ def build_publish_package(project: Path, publish_log: dict, completed: bool) -> 
     from backlot.copywriter import read_copy, revision, CopywriterError
     try:
         fields = read_copy(project).get('fields') or {}
-        for name in ('caption', 'description'):
+        for name in ('title', 'caption', 'description'):
             if isinstance(fields.get(name), str):
                 package[name] = fields[name]
     except CopywriterError:
         package['copy_warning'] = 'Không đọc được nội dung chỉnh sửa đã lưu.'
-    package['revisions'] = {name: revision(package[name]) for name in ('caption', 'description')}
+    package['revisions'] = {name: revision(package[name]) for name in ('title', 'caption', 'description')}
     package['support_revision'] = package_revision(package)
     return package

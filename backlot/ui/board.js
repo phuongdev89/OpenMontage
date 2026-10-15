@@ -2,10 +2,10 @@
 
 import {
   STAGE_ICONS, el, fmtAgo, fmtClock, fmtDuration, fmtMoney,
-  getJSON, mediaURL, subscribe, thumbURL, waveBars,
+  getJSON, mediaURL, subscribe, thumbURL, waveBars, postedProgress,
 } from "/ui/lib.js";
 import {renderPublishPackage, renderTitleEditor} from '/ui/publish.js';
-import {renderPlayer, openFileManager, capturePlayer} from '/ui/workspace.js';
+import {renderPlayer, capturePlayer} from '/ui/workspace.js';
 import {openProjectGallery} from '/ui/gallery.js';
 
 const rawProjectPath = location.pathname.split("/p/")[1] || "";
@@ -112,14 +112,13 @@ function renderSlate(s, projectId, refresh) {
 
   return el("header", { class: "slate" },
     el("div", { class: "clapper" }),
-    el("div", {},
+    el("div", {class: 'slate-identity'},
       el("a", { class: "wordmark", href: "/", style: "text-decoration:none" }, "Backlot"),
       renderTitleEditor(s, projectId, refresh),
+      el('div', {class: 'slate-metadata'}, ...chips),
     ),
-    ...chips,
     el("div", { class: "spacer" }),
     renderThemeToggle(),
-    el('button', {type: 'button', onclick: () => openFileManager(projectId, refresh)}, 'Quản lý tệp'),
     liveEl,
     cost,
   );
@@ -152,22 +151,32 @@ function renderRail(s) {
   const rail = el("nav", { class: "rail" });
   let pendingIndex = 1;
   for (const st of s.stages) {
-    const cls = st.status === "completed" ? "done"
+    const posted = st.name === 'posted' ? postedProgress(s.posting_status) : null;
+    const cls = posted ? `posted-stage posted-${posted.platform}${posted.count === 2 ? ' done' : ''}` : st.status === "completed" ? "done"
       : st.status === "in_progress" ? (st.stalled ? "active stalled" : "active")
       : st.status === "awaiting_human" ? "await"
       : st.status === "failed" ? "failed" : "";
-    const icon = STAGE_ICONS[st.status] || String(pendingIndex);
+    const icon = posted ? (posted.count === 2 ? '✓' : posted.count === 1 ? '½' : '○') : STAGE_ICONS[st.status] || String(pendingIndex);
     if (!STAGE_ICONS[st.status]) pendingIndex += 1;
     const node = el("div", {
       class: `stage ${cls}${selectedStage === st.name ? " selected" : ""}${st.undeclared ? " undeclared" : ""}`,
       title: st.undeclared ? `“${st.name}” ran but isn't declared by this pipeline's manifest` : null,
-      onclick: () => toggleDrawer(st.name),
+      onclick: () => {
+        if (!st.manual) return toggleDrawer(st.name);
+        const target = document.querySelector('.posting-confirmations');
+        if (target) {
+          for (let parent = target.parentElement; parent; parent = parent.parentElement) {
+            if (parent.tagName === 'DETAILS') parent.open = true;
+          }
+          target.scrollIntoView({block: 'center', behavior: 'smooth'});
+        }
+      },
     },
       el("span", { class: "line" }),
-      el("span", { class: "node" }, icon),
-      el("span", { class: "name" }, st.name),
+      el("span", { class: "node", title: posted?.label, 'aria-label': posted?.label }, icon),
+      el("span", { class: "name" }, st.label || st.name),
       el("span", { class: "sub", style: "white-space:pre-line" },
-        st.undeclared ? `${stageSub(st)}\nunlisted`.trim() : stageSub(st)),
+        posted ? posted.label : st.undeclared ? `${stageSub(st)}\nunlisted`.trim() : stageSub(st)),
     );
     rail.append(node);
   }
@@ -497,7 +506,7 @@ function artifactReviewTitle(name, artifact, s) {
 }
 
 function renderApprovalReview(s) {
-  const awaiting = s.stages.find((item) => item.status === "awaiting_human");
+  const awaiting = s.stages.find((item) => item.status === "awaiting_human" && !item.manual);
   if (!awaiting) return null;
 
   const names = artifactNamesForStage(awaiting);
@@ -922,6 +931,8 @@ function renderNoState(s) {
 function renderAwaitingNotice(s) {
   const awaiting = s.stages.find((x) => x.status === "awaiting_human");
   if (!awaiting) return null;
+  if (awaiting.manual) return el('div', {class: 'notice'},
+    'Chưa xác nhận đủ YouTube và Facebook. Đánh dấu và lưu link trong mục Đã đăng.');
   return el("div", { class: "notice" },
     el("span", { style: "font-size:calc(16px * var(--fs-scale))" }, "◈"),
     el("span", {},

@@ -628,6 +628,16 @@ def load_board_state(project_dir: Path) -> dict[str, Any]:
     media = _scan_media(project_dir)
 
     stages = _build_stage_rail(pipeline_meta, checkpoints, history)
+    # Manual distribution is outside the production manifest and cannot be
+    # advanced by an automated production run.
+    stages = [s for s in stages if s['name'] != 'posted']
+    if any(s['name'] == 'publish' for s in stages):
+        posted_cp = checkpoints.get('posted') or {}
+        stages.append({'name': 'posted', 'label': 'Đã đăng', 'manual': True,
+                       'status': posted_cp.get('status', 'pending'), 'gated': False,
+                       'produces': ['posted_log'], 'timestamp': posted_cp.get('timestamp'),
+                       'versions': len(history.get('posted', [])) + bool(posted_cp),
+                       'history_entries': []})
 
     # Cost: latest checkpoint snapshot wins; fall back to manifest total.
     cost = None
@@ -681,6 +691,11 @@ def load_board_state(project_dir: Path) -> dict[str, Any]:
         project_dir, artifacts.get('publish_log') or {},
         any(s['name'] == 'publish' and s['status'] == 'completed' for s in stages),
     )
+    from backlot.posted import posting_state
+    try:
+        state['posting_status'] = posting_state(project_dir)
+    except Exception as exc:
+        state['posting_status'] = {'status': 'invalid', 'platforms': {}, 'error': str(exc)}
     return state
 
 

@@ -42,19 +42,14 @@ def test_file_writes_reject_escape_and_pipeline_state(workspace, path):
         write_file(workspace, path, b'data', None)
 
 
-def test_api_upload_delete_restore_and_cross_origin(workspace):
+@pytest.mark.parametrize('method,endpoint', [
+    ('get', '/files'), ('get', '/files/read'),
+    ('post', '/files/write'), ('post', '/files/restore'),
+])
+def test_file_manager_api_removed(workspace, method, endpoint):
     with TestClient(server.create_app()) as client:
-        base = '/api/project/Film'
-        body = {'path': 'exports/thumbnails/manual.png', 'content': base64.b64encode(b'binary\x00').decode(), 'encoding':'base64'}
-        assert client.post(base+'/files/write', json=body, headers={'Origin':'https://foreign.invalid'}).status_code == 403
-        result = client.post(base+'/files/write', json=body)
-        assert result.status_code == 200
-        assert client.get(base+'/files').json()[0]['path'] == body['path']
-        assert client.get(base+'/files/read', params={'path':body['path']}).status_code == 415
-        deleted = client.post(base+'/files/delete', json={'path':body['path'], 'expected_revision':result.json()['revision']}).json()
-        assert client.get(base+'/files').json() == []
-        assert client.post(base+'/files/restore', json={'token':deleted['undo_token']}).status_code == 200
-        assert client.get(base+'/files/read', params={'path':'../secret'}).status_code == 400
+        response = getattr(client, method)('/api/project/Film' + endpoint)
+        assert response.status_code == 404
 
 
 def test_all_thumbnails_and_selection_are_project_scoped(workspace):
@@ -71,6 +66,22 @@ def test_all_thumbnails_and_selection_are_project_scoped(workspace):
     assert state._find_poster(workspace, {}) == 'exports/thumbnails/b.png'
     with pytest.raises(CopywriterError):
         posting_support.select_thumbnail(workspace, '../other/a.png')
+
+
+def test_cannot_delete_last_thumbnail_via_api(workspace):
+    folder = workspace / 'exports/thumbnails'
+    folder.mkdir(parents=True)
+    (folder / 'a.png').write_bytes(b'a')
+    with TestClient(server.create_app()) as client:
+        base = '/api/project/Film/files/delete'
+        def remove(name):
+            raw = 'exports/thumbnails/' + name
+            return client.post(base, json={'path': raw, 'expected_revision': file_revision(workspace, raw)['revision']})
+        assert remove('a.png').status_code == 409
+        assert (folder / 'a.png').exists()
+        (folder / 'b.png').write_bytes(b'b')
+        assert remove('a.png').status_code == 200
+        assert remove('b.png').status_code == 409
 
 
 def test_prompt_exists_without_image_or_posting_metadata(workspace):
@@ -91,6 +102,7 @@ def test_create_support_fills_missing_without_overwriting(workspace, monkeypatch
     for key, value in {'AI_CHAT_URL':'https://provider.invalid/v1', 'AI_CHAT_KEY':'test-key', 'AI_CHAT_MODEL':'configured'}.items(): monkeypatch.setenv(key,value)
     def post(url, **kwargs):
         assert 'Verified project-only source' in kwargs['json']['messages'][1]['content']
+        assert 'Nguồn đề:' in kwargs['json']['messages'][0]['content']
         response=requests.Response(); response.status_code=200
         response._content=json.dumps({'choices':[{'message':{'content':json.dumps({'title':'Ignore replacement', 'description':'YouTube details', 'caption':'Social hook', 'hook_scene':'A child compares the actual source clues without showing the answer.'})}}]}).encode()
         return response

@@ -1,5 +1,4 @@
-import { el, fmtAgo, getJSON, subscribe, thumbURL } from "/ui/lib.js";
-import '/ui/gallery.js';
+import { el, fmtAgo, getJSON, subscribe, thumbURL, postedProgress } from "/ui/lib.js";
 
 const grid = document.getElementById("grid");
 const THEME_KEY = "backlot.theme";
@@ -8,7 +7,7 @@ let view = localStorage.getItem('backlot.libraryView') === 'item' ? 'item' : 'gr
 let projects = [];
 const search = el('input', {type: 'search', placeholder: 'Tìm project…', 'aria-label': 'Tìm project'});
 const filter = el('select', {'aria-label': 'Lọc trạng thái'},
-  el('option', {value: ''}, 'Tất cả'), el('option', {value: 'published'}, 'Đã publish'),
+  el('option', {value: ''}, 'Tất cả'), el('option', {value: 'published'}, 'Sẵn sàng đăng'), el('option', {value: 'posted'}, 'Đã đăng'),
   el('option', {value: 'awaiting'}, 'Chờ duyệt'), el('option', {value: 'live'}, 'Đang chạy'));
 const views = el('div', {class: 'view-switch', role: 'group', 'aria-label': 'Kiểu hiển thị'});
 for (const [value, label] of [['grid', 'Grid view'], ['item', 'Item view']]) views.append(el('button', {type: 'button', 'data-view': value, onclick: () => {
@@ -43,13 +42,23 @@ function renderThemeToggle() {
 applyTheme(currentTheme);
 document.getElementById("liveBadge").before(renderThemeToggle());
 
-function miniRail(states) {
+function miniRail(states, projectId) {
   const rail = el("div", { class: "mini-rail" });
   for (const s of states) {
     const cls = s.status === "completed" ? "d"
       : s.status === "in_progress" ? "a"
       : s.status === "awaiting_human" ? "w" : "";
-    rail.append(el("i", { class: cls, title: `${s.name}: ${s.status}` }));
+    const marker = el("i", { class: cls, title: `${s.name}: ${s.status}` });
+    rail.append(marker);
+    if (s.name === 'posted' && s.status === 'awaiting_human') {
+      // Only partial manual milestones need platform details; the library's
+      // lightweight summary already represents empty and completed milestones.
+      getJSON(`/api/project/${encodeURIComponent(projectId)}/state`).then(state => {
+        const progress = postedProgress(state.posting_status);
+        marker.className = `posted-${progress.platform}`;
+        marker.title = progress.label;
+      }).catch(error => console.error('Không đọc được trạng thái đăng', error));
+    }
   }
   return rail;
 }
@@ -67,6 +76,9 @@ function card(p, index = 0) {
   } else {
     poster.append(el("span", { class: "lp-txt" }, "NO MEDIA YET"));
   }
+  if (p.last_activity) poster.append(el('span', {
+    class: 'lp-when', title: new Date(p.last_activity * 1000).toLocaleString(),
+  }, fmtAgo(p.last_activity)));
   if (p.live && p.active_stage) {
     poster.append(el("span", { class: "lp-live" },
       el("span", { class: "dot" }),
@@ -78,8 +90,6 @@ function card(p, index = 0) {
   const meta = el("div", { class: "lb-meta" },
     el("span", { class: "chip" }, p.pipeline_type || "unknown"),
     p.scene_count ? el("span", { class: "chip" }, `${p.scene_count} scenes`) : null,
-    p.render_count ? el("span", { class: "chip" }, `${p.render_count} renders`) : null,
-    el("span", { class: "when" }, fmtAgo(p.last_activity)),
   );
 
   const staticSuffix = new URLSearchParams(location.search).has("static") ? "?static=1" : "";
@@ -88,7 +98,7 @@ function card(p, index = 0) {
     el("div", { class: "lib-body" },
       el("h3", {}, p.title || p.project_id),
       meta,
-      p.stage_states.length ? miniRail(p.stage_states) : null,
+      p.stage_states.length ? miniRail(p.stage_states, p.project_id) : null,
     ),
   );
 }
@@ -100,7 +110,8 @@ function projectTable(items) {
       el('th', {scope: 'col', class: `column-${i}`}, name)))), body);
   for (const [i, p] of items.entries()) {
     const done = p.stage_states.some(s => s.name === 'publish' && s.status === 'completed');
-    const status = done ? 'Đã publish' : p.awaiting_human ? 'Chờ duyệt' : p.active_stage ? p.active_stage : 'Chưa publish';
+    const posted = p.stage_states.some(s => s.name === 'posted' && s.status === 'completed');
+    const status = posted ? 'Đã đăng' : done ? 'Sẵn sàng đăng' : p.awaiting_human ? 'Chờ duyệt' : p.active_stage ? p.active_stage : 'Chưa publish';
     const staticSuffix = new URLSearchParams(location.search).has('static') ? '?static=1' : '';
     const isLcp = i === 0;
     const poster = p.poster ? el('img', {
@@ -138,7 +149,7 @@ function draw() {
   for (const button of views.children) button.setAttribute('aria-pressed', String(button.dataset.view === view));
   document.getElementById("empty").style.display = projects.length ? "none" : "block";
   const shown = projects.filter(p => (p.title + ' ' + p.project_id).toLowerCase().includes(search.value.toLowerCase()) &&
-    (!filter.value || (filter.value === 'published' ? p.stage_states.some(s => s.name === 'publish' && s.status === 'completed') : filter.value === 'awaiting' ? p.awaiting_human : p.live)));
+    (!filter.value || (filter.value === 'posted' ? p.stage_states.some(s => s.name === 'posted' && s.status === 'completed') : filter.value === 'published' ? p.stage_states.some(s => s.name === 'publish' && s.status === 'completed') : filter.value === 'awaiting' ? p.awaiting_human : p.live)));
   if (view === 'grid' && shown.length) grid.append(projectTable(shown));
   else for (const [i, p] of shown.entries()) grid.append(card(p, i));
   if (!shown.length && projects.length) grid.append(el('p', {class: 'empty-state'}, 'Không có project khớp bộ lọc.'));

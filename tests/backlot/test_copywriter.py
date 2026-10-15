@@ -57,11 +57,29 @@ def test_regeneration_uses_config_and_project_context_then_persists(setup, monke
         prompt = captured['json']['messages'][1]['content']
         assert 'Source for a' in prompt and 'Source for b' not in prompt
         assert 'Make a strong hook' in prompt and before[field] in prompt
+        assert copywriter.SOURCE_ATTRIBUTION_RULE in captured['json']['messages'][0]['content']
         assert board(root/'a')['publish_package'][field] == 'Correct new '+field
         other = 'description' if field == 'caption' else 'caption'
         assert board(root/'a')['publish_package'][other] == before[other]
         assert not (root/'b/artifacts/posting_copy.json').exists()
         assert 'private-test-key' not in (root/'a/artifacts/posting_copy.json').read_text()
+
+
+def test_manual_video_title_is_scoped_persistent_and_revision_checked(setup):
+    root, board = setup
+    before = board(root/'a')['publish_package']
+    with TestClient(server.create_app()) as client:
+        body = {'title': 'Tiêu đề tự sửa', 'expected_revision': before['revisions']['title']}
+        assert client.post('/api/project/a/posting-copy/title', json=body, headers={'Origin': 'https://evil.invalid'}).status_code == 403
+        response = client.post('/api/project/a/posting-copy/title', json=body)
+        assert response.status_code == 200, response.text
+        assert board(root/'a')['publish_package']['title'] == 'Tiêu đề tự sửa'
+        assert board(root/'b')['publish_package']['title'] == before['title']
+        assert board(root/'a')['title'] == 'Problem a'
+        assert client.post('/api/project/a/posting-copy/title', json=body).status_code == 409
+        body['expected_revision'] = response.json()['revision']
+        body['title'] = '   '
+        assert client.post('/api/project/a/posting-copy/title', json=body).status_code == 422
 
 
 def test_provider_error_and_empty_reply_do_not_overwrite(setup, monkeypatch):
