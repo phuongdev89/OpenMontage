@@ -47,16 +47,10 @@ def extract_facebook_video_id(url: str) -> Optional[str]:
     """Extract numeric Facebook video ID from URL if already present."""
     if not url:
         return None
-    match = re.search(r"(?:videos/|v=|reel/|posts/)(\d+)", url)
+    match = re.search(r"(?:videos/|v=|v%3D|reel/|posts/|story_fbid=)(\d+)", url)
     if match:
         return match.group(1)
     return None
-
-
-class _NoRedirectHandler(urllib.request.HTTPRedirectHandler):
-    def redirect_request(self, req, fp, code, msg, headers, newurl):
-        self.redirect_url = newurl
-        return None
 
 
 @lru_cache(maxsize=128)
@@ -81,18 +75,15 @@ def resolve_facebook_canonical_url(url: str, timeout: float = 5.0) -> tuple[str,
                 "Accept": "*/*",
             },
         )
-        handler = _NoRedirectHandler()
-        opener = urllib.request.build_opener(handler)
         redirect_target = ""
         try:
-            resp = opener.open(req, timeout=timeout)
-            redirect_target = getattr(handler, "redirect_url", resp.geturl())
-            if not redirect_target:
-                # If returned 200 without redirect, check canonical / og:url tag
-                html = resp.read(15000).decode("utf-8", errors="ignore")
-                m_og = re.search(r'<meta property="og:url" content="([^"]+)"', html)
-                if m_og:
-                    redirect_target = m_og.group(1)
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
+                redirect_target = resp.geturl()
+                if not extract_facebook_video_id(redirect_target):
+                    html = resp.read(15000).decode("utf-8", errors="ignore")
+                    m_og = re.search(r'<meta property="og:url" content="([^"]+)"', html)
+                    if m_og:
+                        redirect_target = m_og.group(1)
         except urllib.error.HTTPError as exc:
             redirect_target = exc.headers.get("Location") or ""
         except Exception:

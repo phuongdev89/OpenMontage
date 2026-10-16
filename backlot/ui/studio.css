@@ -778,18 +778,41 @@ dialog::backdrop { background: var(--color-overlay); }
   justify-content: space-between;
   align-items: center;
   padding: 6px;
-  gap: 4px;
+  gap: 6px;
 }
 .thumbnail-card-actions button,
 .thumbnail-card-actions .selected-thumbnail {
   font-size: 11px;
-  padding: 4px 6px;
-  min-height: 26px;
+  padding: 0;
+  width: 28px;
+  height: 28px;
+  min-height: 28px;
+  display: inline-grid;
+  place-items: center;
+  border-radius: var(--radius-sm);
+  background: var(--color-paper-2);
+  border: var(--rule);
+  color: var(--color-ink-2);
+  cursor: pointer;
   white-space: nowrap;
 }
+.thumbnail-card-actions button:hover:not(:disabled) {
+  background: var(--color-paper-3);
+  color: var(--color-ink);
+}
+.thumbnail-card-actions button[disabled] {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.thumbnail-card-actions [data-icon]::before {
+  margin-right: 0;
+  vertical-align: middle;
+}
 .thumbnail-card-actions .selected-thumbnail {
-  color: var(--color-accent);
-  font-weight: 600;
+  color: #3fb950;
+  background: rgba(63, 185, 80, 0.12);
+  border-color: rgba(63, 185, 80, 0.35);
+  cursor: default;
 }
 .thumb-status {
   font-size: 11px;

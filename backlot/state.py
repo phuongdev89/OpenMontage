@@ -558,7 +558,7 @@ def _find_poster(project_dir: Path, state: dict) -> Optional[str]:
     if thumbnails.is_dir():
         try:
             for f in sorted(
-                thumbnails.iterdir(),
+                thumbnails.rglob("*"),
                 key=lambda f: (f.suffix.lower() != ".png", f.name),
             ):
                 if f.is_file() and f.suffix.lower() in MEDIA_IMAGE_EXT:
@@ -741,7 +741,10 @@ def load_board_state(project_dir: Path) -> dict[str, Any]:
     state["completed_record"] = completed_record
     if is_cleaned and completed_record:
         from lib.embed_urls import build_platform_embeds
-        posted_links = completed_record.get("posted_links") or (state.get("posting_status") or {}).get("platforms") or {}
+        posted_links = dict(completed_record.get("posted_links") or {})
+        for p_name, p_data in ((state.get("posting_status") or {}).get("platforms") or {}).items():
+            if isinstance(p_data, dict) and p_data.get("url"):
+                posted_links[p_name] = p_data
         state["embeds"] = build_platform_embeds(posted_links)
     else:
         state["embeds"] = None

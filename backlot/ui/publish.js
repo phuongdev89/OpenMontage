@@ -61,7 +61,8 @@ function copyField(label, value, regenerate = null) {
       button.textContent = 'Chọn nội dung để sao chép';
     }
   }}, 'Sao chép');
-  const rows = label.includes('path') || label === 'Tiêu đề video' ? '2' : label.includes('Prompt tạo thumbnail') ? '8' : '5';
+  const isPathOrTitle = label.toLowerCase().includes('path') || label.toLowerCase().includes('đường dẫn') || label === 'Tiêu đề video';
+  const rows = isPathOrTitle ? '2' : label.includes('Prompt tạo thumbnail') ? '8' : '5';
   const field = el('textarea', {readonly: '', rows, 'aria-label': label}, value || 'Chưa có nội dung');
   const actions = el('div', {class: 'posting-actions'}, button);
   if (regenerate?.editable) field.removeAttribute('readonly');
@@ -409,32 +410,68 @@ function renderThumbnailsSection(p, projectId, onUpdated) {
   for (const thumb of items) {
     const selectStatus = el('p', {role: 'status', class: 'thumb-status'});
     const choose = thumb.selected
-      ? el('span', {class: 'selected-thumbnail'}, '✓ Đang chọn')
-      : el('button', {type: 'button', class: 'choose-thumb-btn', onclick: async () => {
-          choose.disabled = true;
-          try {
-            await requestJSON(`/api/project/${encodeURIComponent(projectId)}/thumbnail`, {path: thumb.path});
-            if (onUpdated) await onUpdated();
-          } catch(error) {
-            selectStatus.textContent = error.message;
-            choose.disabled = false;
+      ? el('span', {class: 'selected-thumbnail thumb-action-btn', 'data-icon': 'check', title: 'Đang chọn làm thumbnail chính', 'aria-label': 'Đang chọn làm thumbnail chính'})
+      : el('button', {
+          type: 'button',
+          class: 'choose-thumb-btn thumb-action-btn',
+          'data-icon': 'check',
+          title: 'Chọn làm thumbnail chính',
+          'aria-label': 'Chọn làm thumbnail chính',
+          onclick: async () => {
+            choose.disabled = true;
+            try {
+              await requestJSON(`/api/project/${encodeURIComponent(projectId)}/thumbnail`, {path: thumb.path});
+              if (onUpdated) await onUpdated();
+            } catch(error) {
+              selectStatus.textContent = error.message;
+              choose.disabled = false;
+            }
           }
-        }}, 'Chọn thumbnail');
+        });
 
-    const remove = el('button', {type: 'button', class: 'delete-thumbnail', onclick: async () => {
-      if (items.length <= 1) return;
-      if (!window.confirm(`Xóa thumbnail này?\n${thumb.path}`)) return;
-      remove.disabled = true;
-      try {
-        const base = `/api/project/${encodeURIComponent(projectId)}`;
-        const revision = await getJSON(`${base}/files/revision?path=${encodeURIComponent(thumb.path)}`);
-        await requestJSON(`${base}/files/delete`, {path: thumb.path, expected_revision: revision.revision});
-        if (onUpdated) await onUpdated();
-      } catch(error) {
-        selectStatus.textContent = error.message;
-        remove.disabled = false;
+    const copyPathBtn = el('button', {
+      type: 'button',
+      class: 'copy-thumb-path-btn thumb-action-btn',
+      'data-icon': 'copy',
+      title: 'Sao chép đường dẫn file',
+      'aria-label': 'Sao chép đường dẫn file',
+      onclick: async () => {
+        const pStr = thumb.absolute_path || thumb.path;
+        try {
+          await navigator.clipboard.writeText(pStr);
+          copyPathBtn.setAttribute('data-icon', 'check');
+          copyPathBtn.title = 'Đã sao chép!';
+          setTimeout(() => {
+            copyPathBtn.setAttribute('data-icon', 'copy');
+            copyPathBtn.title = 'Sao chép đường dẫn file';
+          }, 1500);
+        } catch {
+          window.prompt('Đường dẫn file thumbnail:', pStr);
+        }
       }
-    }}, 'Xóa');
+    });
+
+    const remove = el('button', {
+      type: 'button',
+      class: 'delete-thumbnail thumb-action-btn',
+      'data-icon': 'trash',
+      title: 'Xóa thumbnail này',
+      'aria-label': 'Xóa thumbnail này',
+      onclick: async () => {
+        if (items.length <= 1) return;
+        if (!window.confirm(`Xóa thumbnail này?\n${thumb.path}`)) return;
+        remove.disabled = true;
+        try {
+          const base = `/api/project/${encodeURIComponent(projectId)}`;
+          const revision = await getJSON(`${base}/files/revision?path=${encodeURIComponent(thumb.path)}`);
+          await requestJSON(`${base}/files/delete`, {path: thumb.path, expected_revision: revision.revision});
+          if (onUpdated) await onUpdated();
+        } catch(error) {
+          selectStatus.textContent = error.message;
+          remove.disabled = false;
+        }
+      }
+    });
 
     if (items.length <= 1) {
       remove.disabled = true;
@@ -448,7 +485,7 @@ function renderThumbnailsSection(p, projectId, onUpdated) {
         'aria-label': `Xem ${thumb.label || thumb.path}`,
         onclick: () => openProjectGallery(projectId, thumb.path),
       }, el('img', {src: mediaURL(projectId, thumb.path), alt: thumb.label || 'Thumbnail', loading: 'lazy'})),
-      el('div', {class: 'thumbnail-card-actions'}, choose, remove),
+      el('div', {class: 'thumbnail-card-actions'}, choose, copyPathBtn, remove),
       selectStatus
     );
     thumbnails.append(card);
@@ -456,6 +493,11 @@ function renderThumbnailsSection(p, projectId, onUpdated) {
 
   if (items.length) {
     root.append(thumbnails);
+    const selectedThumb = items.find(t => t.selected) || items[0];
+    const thumbPath = selectedThumb?.absolute_path || selectedThumb?.path || '';
+    if (thumbPath) {
+      root.append(copyField('Đường dẫn file thumbnail (để tải lên)', thumbPath));
+    }
   } else {
     root.append(el('p', {class: 'empty-note'}, 'Chưa có thumbnail.'));
   }

@@ -47,4 +47,20 @@ def confirm_posted(project: Path, platform: str, confirmed: bool, url: str, expe
                              metadata={'confirmation_source': 'backlot_manual'})
         except (CheckpointValidationError, ValueError) as exc:
             raise CopywriterError(str(exc), 409)
+
+        # Synchronize updated posted_links into completed_record if already cleaned
+        try:
+            cp_completed = read_checkpoint(project.parent, project.name, 'completed')
+            if cp_completed and cp_completed.get('status') == 'completed':
+                rec = cp_completed.get('artifacts', {}).get('completed_record')
+                if isinstance(rec, dict):
+                    rec_links = dict(rec.get('posted_links') or {})
+                    rec_links[platform] = log[platform]
+                    rec['posted_links'] = rec_links
+                    write_checkpoint(project.parent, project.name, 'completed', 'completed',
+                                     {'completed_record': rec},
+                                     metadata=cp_completed.get('metadata') or {})
+        except Exception:
+            pass
+
         return posting_state(project)
