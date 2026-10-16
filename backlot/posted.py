@@ -24,6 +24,11 @@ def confirm_posted(project: Path, platform: str, confirmed: bool, url: str, expe
         raise CopywriterError('Nền tảng không hợp lệ.', 422)
     try:
         url = validate_post_url(platform, url) if confirmed or url.strip() else ''
+        if confirmed and platform == 'facebook' and url:
+            from lib.embed_urls import resolve_facebook_canonical_url
+            canonical, vid = resolve_facebook_canonical_url(url)
+            if vid and canonical:
+                url = canonical
     except ValueError as exc:
         raise CopywriterError(str(exc), 422)
     with _storage_lock(project):

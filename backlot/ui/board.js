@@ -76,6 +76,7 @@ function renderSlate(s, projectId, refresh) {
       ? el("span", { class: "chip" }, `${board.scenes.length} scenes · ${fmtDuration(board.total_duration_seconds)}`)
       : null,
     s.style_playbook ? el("span", { class: "chip" }, s.style_playbook) : null,
+    s.is_cleaned ? el("span", { class: "chip chip-cleaned" }, "✓ Đã dọn hồ sơ") : null,
   ];
 
   const awaiting = s.stages.find((x) => x.status === "awaiting_human");
@@ -761,6 +762,12 @@ function sceneCard(s, card) {
         el("span", { class: "bespoke-tag" }, "◆ BESPOKE"),
         el("div", { class: "spec-desc" }, card.description || ""),
         el("div", { class: "spec-shot" }, "hand-authored composition")));
+  } else if (card.visual && card.visual.cleaned) {
+    thumb = el("div", { class: "thumb spec cleaned-thumb" },
+      el("div", { class: "spec-in" },
+        el("span", { class: "cleaned-tag" }, "✓ ĐÃ DỌN"),
+        el("div", { class: "spec-desc" }, card.description || "Media đã dọn"),
+        el("div", { class: "spec-shot" }, card.visual.label || "Xem video qua tab embed")));
   } else if (card.visual && !card.visual.exists) {
     thumb = el("div", { class: "thumb missing" },
       el("div", { class: "spec-in" },

@@ -8,6 +8,8 @@ export async function requestJSON(url, body) {
 }
 
 const players = new Map();
+const cleanedPlayerTabs = new Map();
+
 window.addEventListener('pagehide', event => {
   if (event.persisted) return; // BFCache retains the page and its live player tree.
   for (const session of players.values()) {
@@ -15,12 +17,106 @@ window.addEventListener('pagehide', event => {
   }
   players.clear();
 });
+
 export function capturePlayer(projectId) {
   const session = players.get(projectId);
   const p = session?.player;
   if (p && !p.isDisposed()) session.capture = {time: p.currentTime(), playing: !p.paused(), rate: p.playbackRate(), volume: p.volume()};
 }
+
+function renderCleanedEmbedPlayer(s) {
+  const id = s.project_id;
+  const section = el('section', {class: 'studio-player cleaned-embed-player', 'aria-label': 'Player embed sau khi dọn'});
+  const manifest = s.completed_record?.cleanup_manifest || {};
+  const freedMb = (manifest.bytes_freed ? manifest.bytes_freed / 1048576 : 0).toFixed(1);
+  const freedCount = manifest.files_freed || 0;
+
+  const badge = el('div', {class: 'cleaned-archive-badge'},
+    el('strong', {}, '✓ Đã dọn — lưu hồ sơ kinh nghiệm'),
+    el('span', {}, `Đã giải phóng ${freedMb} MB (${freedCount} tệp). Bản video local đã được thu hồi; hiển thị qua embed chính thức.`)
+  );
+  section.append(badge);
+
+  const embeds = s.embeds || {};
+  let currentPlatform = cleanedPlayerTabs.get(id) || 'youtube';
+  if (!embeds[currentPlatform]?.embed_url && embeds.youtube?.embed_url) currentPlatform = 'youtube';
+
+  const tabList = el('div', {class: 'embed-player-tabs', role: 'tablist', 'aria-label': 'Nền tảng video'});
+  const frameWrap = el('div', {class: 'embed-player-frame-wrap'});
+  const foot = el('div', {class: 'embed-player-foot'});
+
+  function switchTab(platform) {
+    cleanedPlayerTabs.set(id, platform);
+    currentPlatform = platform;
+    for (const btn of tabList.children) {
+      const active = btn.dataset.platform === platform;
+      btn.setAttribute('aria-selected', String(active));
+    }
+    frameWrap.replaceChildren();
+    foot.replaceChildren();
+
+    const info = embeds[platform] || {};
+    const embedUrl = info.embed_url;
+    const originalUrl = info.url;
+
+    // Strict client-side allowlist for iframe src
+    const allowed = embedUrl && (
+      embedUrl.startsWith('https://www.youtube-nocookie.com/embed/') ||
+      embedUrl.startsWith('https://www.youtube.com/embed/') ||
+      embedUrl.startsWith('https://www.facebook.com/plugins/video.php')
+    );
+
+    if (allowed) {
+      const iframe = el('iframe', {
+        src: embedUrl,
+        title: `${info.platform || platform} video player`,
+        allow: 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share',
+        allowfullscreen: '',
+        referrerpolicy: 'strict-origin-when-cross-origin',
+        loading: 'lazy',
+      });
+      frameWrap.append(iframe);
+    } else {
+      frameWrap.append(el('div', {class: 'embed-blocked-notice', style: 'display:flex;align-items:center;justify-content:center;height:100%;color:#fff;text-align:center;padding:20px;'},
+        el('p', {}, `Chưa có embed khả dụng cho ${platform.toUpperCase()}. Dùng nút bên dưới để mở bài gốc.`)));
+    }
+
+    const openBtn = el('a', {
+      class: 'original-link-btn',
+      href: originalUrl,
+      target: '_blank',
+      rel: 'noopener noreferrer',
+    }, `↗ Mở bài gốc trên ${platform === 'youtube' ? 'YouTube' : 'Facebook'}`);
+
+    const note = el('span', {class: 'embed-note'},
+      platform === 'youtube'
+        ? 'Nếu trình duyệt chặn cookie bên thứ ba hoặc hạn chế phát, mở bài gốc để xem chất lượng cao nhất.'
+        : 'Facebook có thể yêu cầu đăng nhập tài khoản để xem video. Nhấn Mở bài gốc để xem trực tiếp.');
+
+    foot.append(openBtn, note);
+  }
+
+  for (const [key, label] of [['youtube', 'YouTube Embed'], ['facebook', 'Facebook Embed']]) {
+    const btn = el('button', {
+      type: 'button',
+      role: 'tab',
+      'data-platform': key,
+      'aria-selected': String(key === currentPlatform),
+      onclick: () => switchTab(key),
+    }, label);
+    tabList.append(btn);
+  }
+
+  section.append(tabList, frameWrap, foot);
+  switchTab(currentPlatform);
+  return section;
+}
+
 export function renderPlayer(s) {
+  if (s.is_cleaned && s.embeds) {
+    return renderCleanedEmbedPlayer(s);
+  }
+
   const id = s.project_id;
   const videos = Object.entries(s.publish_package?.videos || {}).map(([label, v]) => ({...v, label}));
   if (!videos.length) videos.push(...s.media.renders.map(v => ({...v, label: v.path.split('/').pop()})));

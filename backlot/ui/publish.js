@@ -265,12 +265,135 @@ export function renderPublishPackage(s, projectId, onUpdated = null) {
   selectTab(panels[currentTab] ? currentTab : 'youtube');
 
   if (p.copy_warning) section.append(el('p', {role: 'alert'}, p.copy_warning));
-  if (s.posting_status?.status === 'completed') {
-    section.append(el('p', {class: 'posting-cleanup-hint'},
-      '✓ Đã đăng đủ YouTube và Facebook. Có thể xem xét dọn cache và render nháp của project.'));
+
+  if (s.is_cleaned) {
+    const manifest = s.completed_record?.cleanup_manifest || {};
+    const freedMb = (manifest.bytes_freed ? manifest.bytes_freed / 1048576 : 0).toFixed(1);
+    const freedCount = manifest.files_freed || 0;
+    section.append(el('div', {class: 'cleanup-box cleaned-box'},
+      el('div', {},
+        el('strong', {}, '✓ Đã dọn project — lưu hồ sơ kinh nghiệm'),
+        el('p', {style: 'margin-top:4px;font-size:13px;color:var(--color-ink-2)'},
+          `Đã giải phóng ${freedMb} MB (${freedCount} tệp). Bản video local đã được thu hồi; kịch bản, prompt, lịch sử và embed được bảo toàn vĩnh viễn.`)
+      )
+    ));
+  } else if (s.posting_status?.status === 'completed') {
+    const cleanupBtn = el('button', {
+      type: 'button',
+      class: 'studio-button',
+      onclick: () => openCleanupDialog(s, projectId, onUpdated),
+    }, 'Dọn dẹp project (Dry-run)…');
+
+    section.append(el('div', {class: 'cleanup-box'},
+      el('div', {},
+        el('strong', {}, '✓ Đã xác nhận đăng đủ YouTube & Facebook'),
+        el('p', {style: 'margin-top:4px;font-size:13px;color:var(--color-ink-2)'},
+          'Có thể dọn MP4 local, audio, source composition và cache. Quá trình sản xuất, kịch bản, prompt và video embed được bảo toàn.')
+      ),
+      cleanupBtn
+    ));
   }
 
   return section;
+}
+
+function openCleanupDialog(s, projectId, onUpdated) {
+  const dialog = el('dialog', {class: 'cleanup-dialog', 'aria-labelledby': 'cleanup-dialog-title'});
+  const title = el('h2', {id: 'cleanup-dialog-title'}, `Dọn dẹp project · ${s.title}`);
+  const statusMsg = el('p', {style: 'margin: 10px 0; color: var(--color-ink-2);'}, 'Đang phân tích dung lượng và tệp (dry-run)…');
+  const contentWrap = el('div');
+  const closeBtn = el('button', {type: 'button', class: 'studio-button', onclick: () => { dialog.close(); dialog.remove(); }}, 'Hủy');
+  const actions = el('div', {class: 'cleanup-dialog-actions'}, closeBtn);
+
+  dialog.append(title, statusMsg, contentWrap, actions);
+  document.body.append(dialog);
+  dialog.showModal();
+
+  getJSON(`/api/project/${encodeURIComponent(projectId)}/cleanup/preview`).then(preview => {
+    if (preview.already_cleaned) {
+      statusMsg.textContent = 'Project này đã được dọn hoàn tất từ trước.';
+      return;
+    }
+    statusMsg.textContent = 'Kết quả phân tích trước khi dọn:';
+
+    const beforeMb = (preview.bytes_before / 1048576).toFixed(1);
+    const afterMb = (preview.bytes_after / 1048576).toFixed(1);
+    const freedMb = (preview.bytes_freed / 1048576).toFixed(1);
+
+    const statGrid = el('div', {class: 'cleanup-stat-grid'},
+      el('div', {class: 'cleanup-stat-card'}, el('span', {class: 'num'}, `${beforeMb} MB`), el('span', {class: 'lbl'}, `Trước dọn (${preview.files_count_before} tệp)`)),
+      el('div', {class: 'cleanup-stat-card'}, el('span', {class: 'num', style: 'color:#3fb950;'}, `${afterMb} MB`), el('span', {class: 'lbl'}, `Sau dọn (${preview.files_count_after} tệp)`)),
+      el('div', {class: 'cleanup-stat-card'}, el('span', {class: 'num', style: 'color:#3fb950;'}, `-${freedMb} MB`), el('span', {class: 'lbl'}, `Giải phóng (${preview.pct_freed}%)`))
+    );
+
+    const catList = el('ul');
+    const categoryLabels = {
+      rendered_video: 'Bản video MP4 và local exports',
+      narration_audio: 'Tệp âm thanh lời đọc (WAV, MP3 stems)',
+      composition_source: 'Mã nguồn dựng video (TSX, fonts)',
+      inspection_frame: 'Ảnh kiểm tra dư (frames, verify)',
+      backup_draft: 'Bản nháp và thư mục backup cũ',
+      trash_cache: 'Thùng rác và cache nội bộ',
+    };
+    for (const [cat, data] of Object.entries(preview.categories || {})) {
+      const mb = (data.size / 1048576).toFixed(1);
+      catList.append(el('li', {},
+        el('span', {}, categoryLabels[cat] || cat),
+        el('strong', {}, `${data.count} tệp · ${mb} MB`)
+      ));
+    }
+
+    const categoriesBox = el('div', {class: 'cleanup-categories'},
+      el('strong', {}, 'Phân loại các tệp sẽ xóa:'),
+      catList
+    );
+
+    const keptBox = el('div', {class: 'cleanup-kept-list'},
+      el('strong', {}, '✓ Nội dung bảo toàn tuyệt đối không xóa:'),
+      el('ul', {},
+        el('li', {}, 'Toàn bộ Checkpoint hiện tại & 100% lịch sử (history/)'),
+        el('li', {}, 'Kịch bản cuối (script.json), Storyboard (scene_plan.json) & Lời giải (solution.md)'),
+        el('li', {}, 'Tất cả Prompt thực tế đã dùng & cấu hình model/voice'),
+        el('li', {}, 'Thumbnail đã chọn (exports/thumbnails) & Branding kênh'),
+        el('li', {}, 'Toàn bộ bản xuất hội thoại Markdown & JSON (exports/conversation/)'),
+        el('li', {}, 'Quyết định (decision_log.json), Event logs (events.jsonl) & Link bài đăng hai nền tảng')
+      )
+    );
+
+    const warning = el('p', {class: 'cleanup-warn'},
+      '⚠ Lưu ý: Các tệp video/audio cục bộ sẽ được giải phóng khỏi ổ đĩa. Backlot sẽ chuyển sang phát video qua embed YouTube & Facebook.');
+
+    contentWrap.replaceChildren(statGrid, categoriesBox, keptBox, warning);
+
+    const confirmBtn = el('button', {
+      type: 'button',
+      class: 'btn-danger',
+      onclick: async () => {
+        confirmBtn.disabled = true;
+        closeBtn.disabled = true;
+        confirmBtn.textContent = 'Đang dọn dẹp…';
+        try {
+          await requestJSON(`/api/project/${encodeURIComponent(projectId)}/cleanup/execute`, {
+            expected_revision: preview.plan_revision,
+          });
+          dialog.close();
+          dialog.remove();
+          if (onUpdated) await onUpdated();
+        } catch(error) {
+          warning.textContent = `Lỗi: ${error.message}`;
+          warning.style.color = '#cf222e';
+          confirmBtn.disabled = false;
+          closeBtn.disabled = false;
+          confirmBtn.textContent = 'Thử lại';
+        }
+      },
+    }, `Xác nhận xóa ${preview.files_freed} tệp (giải phóng ${freedMb} MB)`);
+
+    actions.prepend(confirmBtn);
+  }).catch(error => {
+    statusMsg.textContent = `Không tải được thông tin dọn dẹp: ${error.message}`;
+    statusMsg.style.color = '#cf222e';
+  });
 }
 
 function renderThumbnailsSection(p, projectId, onUpdated) {

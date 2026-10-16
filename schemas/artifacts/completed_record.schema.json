@@ -1,0 +1,151 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "openmontage/artifacts/completed_record",
+  "title": "Completed Record",
+  "description": "Post-cleanup experience archive record capturing full production provenance, preserved assets, and verified embed links.",
+  "type": "object",
+  "required": [
+    "version",
+    "project_id",
+    "cleaned_at",
+    "stage_snapshots",
+    "posted_links",
+    "display_data",
+    "cleanup_manifest"
+  ],
+  "properties": {
+    "version": { "type": "string", "const": "1.0" },
+    "project_id": { "type": "string", "minLength": 1 },
+    "cleaned_at": { "type": "string", "format": "date-time" },
+    "stage_snapshots": {
+      "type": "object",
+      "description": "True stage snapshots preserving original approval evidence and completion status.",
+      "additionalProperties": {
+        "type": "object",
+        "required": ["status"],
+        "properties": {
+          "status": { "type": "string", "enum": ["completed", "awaiting_human", "in_progress", "failed", "pending"] },
+          "timestamp": { "type": ["string", "null"] },
+          "human_approved": { "type": ["boolean", "null"] },
+          "human_approval_required": { "type": ["boolean", "null"] },
+          "approval_resolution": { "type": ["object", "null"] },
+          "review": { "type": ["object", "null"] },
+          "cost_snapshot": { "type": ["object", "null"] },
+          "error": { "type": ["string", "null"] }
+        },
+        "additionalProperties": true
+      }
+    },
+    "posted_links": {
+      "type": "object",
+      "required": ["youtube", "facebook"],
+      "properties": {
+        "youtube": {
+          "type": "object",
+          "required": ["confirmed", "url"],
+          "properties": {
+            "confirmed": { "type": "boolean" },
+            "url": { "type": "string" },
+            "confirmed_at": { "type": ["string", "null"] },
+            "source": { "type": "string" }
+          },
+          "additionalProperties": true
+        },
+        "facebook": {
+          "type": "object",
+          "required": ["confirmed", "url"],
+          "properties": {
+            "confirmed": { "type": "boolean" },
+            "url": { "type": "string" },
+            "confirmed_at": { "type": ["string", "null"] },
+            "source": { "type": "string" }
+          },
+          "additionalProperties": true
+        }
+      },
+      "additionalProperties": false
+    },
+    "display_data": {
+      "type": "object",
+      "required": ["title", "prompts"],
+      "properties": {
+        "title": { "type": "string" },
+        "script": { "type": ["object", "null"] },
+        "storyboard": { "type": ["object", "null"] },
+        "prompts": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["category", "content"],
+            "properties": {
+              "category": { "type": "string" },
+              "content": { "type": "string" },
+              "provider": { "type": ["string", "null"] },
+              "model": { "type": ["string", "null"] },
+              "voice": { "type": ["string", "null"] },
+              "parameters": { "type": ["object", "null"] },
+              "source_ref": { "type": ["string", "null"] }
+            },
+            "additionalProperties": true
+          }
+        },
+        "thumbnail_path": { "type": ["string", "null"] },
+        "posting_copy": { "type": ["object", "null"] },
+        "render_report": { "type": ["object", "null"] },
+        "decision_log": { "type": ["array", "object", "null"] },
+        "solution": { "type": ["string", "object", "null"] }
+      },
+      "additionalProperties": true
+    },
+    "cleanup_manifest": {
+      "type": "object",
+      "required": [
+        "bytes_before",
+        "bytes_after",
+        "bytes_freed",
+        "files_count_before",
+        "files_count_after",
+        "files_freed",
+        "kept_files",
+        "deleted_files"
+      ],
+      "properties": {
+        "bytes_before": { "type": "integer", "minimum": 0 },
+        "bytes_after": { "type": "integer", "minimum": 0 },
+        "bytes_freed": { "type": "integer", "minimum": 0 },
+        "files_count_before": { "type": "integer", "minimum": 0 },
+        "files_count_after": { "type": "integer", "minimum": 0 },
+        "files_freed": { "type": "integer", "minimum": 0 },
+        "kept_files": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["path", "size", "category"],
+            "properties": {
+              "path": { "type": "string" },
+              "size": { "type": "integer", "minimum": 0 },
+              "category": { "type": "string" }
+            },
+            "additionalProperties": true
+          }
+        },
+        "deleted_files": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["path", "size", "category"],
+            "properties": {
+              "path": { "type": "string" },
+              "size": { "type": "integer", "minimum": 0 },
+              "category": { "type": "string" },
+              "deleted_at": { "type": "string" }
+            },
+            "additionalProperties": true
+          }
+        }
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": false
+}

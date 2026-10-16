@@ -405,6 +405,7 @@ def _build_storyboard(
     project_dir: Path,
     artifacts: dict[str, dict],
     events: list[dict],
+    is_cleaned: bool = False,
 ) -> Optional[dict]:
     """Scene cards: scene_plan × script × asset_manifest (+ live events)."""
     scene_plan = artifacts.get("scene_plan")
@@ -456,9 +457,18 @@ def _build_storyboard(
         missing = [a for a in visuals if not a.get("exists") and a["type"] in ("image", "video", "diagram")]
         active_visual = (
             renderable[-1] if renderable
-            else missing[-1] if missing
+            else missing[-1] if (missing and not is_cleaned)
             else _find_scene_snapshot(project_dir, sid)
         )
+        if is_cleaned and not renderable and (missing or not active_visual):
+            active_visual = {
+                "id": f"cleaned_{sid}",
+                "type": "cleaned",
+                "exists": False,
+                "renderable": False,
+                "cleaned": True,
+                "label": "Media đã dọn · Xem video embed",
+            }
         cards.append({
             "id": sid,
             "type": scene.get("type"),
@@ -625,8 +635,26 @@ def load_board_state(project_dir: Path) -> dict[str, Any]:
 
     artifacts = _collect_artifacts(project_dir, checkpoints)
     events = read_events(project_dir, limit=250)
-    storyboard = _build_storyboard(project_dir, artifacts, events)
+
+    # Check for verified completed cleanup record
+    cp_completed = checkpoints.get("completed") or _read_json(project_dir / "checkpoint_completed.json")
+    is_cleaned = False
+    completed_record = None
+    if cp_completed and cp_completed.get("status") == "completed":
+        rec = (cp_completed.get("artifacts") or {}).get("completed_record")
+        if isinstance(rec, dict):
+            try:
+                from lib.completed_status import validate_completed_checkpoint
+                validate_completed_checkpoint(cp_completed)
+                is_cleaned = True
+                completed_record = rec
+            except Exception:
+                is_cleaned = False
+
+    storyboard = _build_storyboard(project_dir, artifacts, events, is_cleaned=is_cleaned)
     media = _scan_media(project_dir)
+    if is_cleaned:
+        media["renders"] = []
 
     stages = _build_stage_rail(pipeline_meta, checkpoints, history)
     # Manual distribution is outside the production manifest and cannot be
@@ -639,6 +667,14 @@ def load_board_state(project_dir: Path) -> dict[str, Any]:
                        'produces': ['posted_log'], 'timestamp': posted_cp.get('timestamp'),
                        'versions': len(history.get('posted', [])) + bool(posted_cp),
                        'history_entries': []})
+    if is_cleaned and cp_completed:
+        stages.append({
+            'name': 'completed', 'label': 'Đã dọn', 'manual': True,
+            'status': 'completed', 'gated': False,
+            'produces': ['completed_record'], 'timestamp': cp_completed.get('timestamp'),
+            'versions': len(history.get('completed', [])) + bool(cp_completed),
+            'history_entries': [],
+        })
 
     # Cost: latest checkpoint snapshot wins; fall back to manifest total.
     cost = None
@@ -687,6 +723,8 @@ def load_board_state(project_dir: Path) -> dict[str, Any]:
     if override_title:
         state['title'] = override_title
     state["poster"] = _find_poster(project_dir, state)
+    if not state["poster"] and is_cleaned and completed_record:
+        state["poster"] = (completed_record.get("display_data") or {}).get("thumbnail_path")
     from backlot.publish_package import build_publish_package
     state['publish_package'] = build_publish_package(
         project_dir, artifacts.get('publish_log') or {},
@@ -697,6 +735,20 @@ def load_board_state(project_dir: Path) -> dict[str, Any]:
         state['posting_status'] = posting_state(project_dir)
     except Exception as exc:
         state['posting_status'] = {'status': 'invalid', 'platforms': {}, 'error': str(exc)}
+
+    # Completed experience archive metadata & embeds
+    state["is_cleaned"] = is_cleaned
+    state["completed_record"] = completed_record
+    if is_cleaned and completed_record:
+        from lib.embed_urls import build_platform_embeds
+        posted_links = completed_record.get("posted_links") or (state.get("posting_status") or {}).get("platforms") or {}
+        state["embeds"] = build_platform_embeds(posted_links)
+    else:
+        state["embeds"] = None
+        if cp_completed and cp_completed.get("status") in ("in_progress", "failed"):
+            state["cleanup_status"] = cp_completed.get("status")
+            state["cleanup_error"] = cp_completed.get("error")
+
     return state
 
 
@@ -739,6 +791,9 @@ def summarize_project(project_dir: Path) -> dict[str, Any]:
         "completed_count": len(done),
         "render_count": len(state["media"]["renders"]),
         "scene_count": len((state["storyboard"] or {}).get("scenes", [])),
+        "is_cleaned": bool(state.get("is_cleaned")),
+        "bytes_freed": (state.get("completed_record") or {}).get("cleanup_manifest", {}).get("bytes_freed"),
+        "cleaned_at": (state.get("completed_record") or {}).get("cleaned_at"),
     }
 
 

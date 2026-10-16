@@ -38,6 +38,7 @@ CANONICAL_STAGE_ARTIFACTS = {
     "edit": "edit_decisions",
     "compose": "render_report",
     "publish": "publish_log",
+    "completed": "completed_record",
 }
 
 # Additional artifacts that may be produced alongside canonical ones.
@@ -51,6 +52,9 @@ SUPPLEMENTARY_ARTIFACTS = {
 # Manual distribution milestone; deliberately excluded from production stage
 # order so automated pipelines still finish at publish.
 MANUAL_POST_STAGES = frozenset({'posted'})
+
+# Post-cleanup completed milestone; preserves experience archive and embeds.
+POST_CLEANUP_STAGES = frozenset({'completed'})
 
 
 def get_pipeline_stages(pipeline_type: str | None) -> list[str]:
@@ -174,8 +178,8 @@ def validate_checkpoint(checkpoint: dict[str, Any]) -> None:
     pipeline_type = checkpoint.get("pipeline_type")
 
     valid_stages = (
-        set(get_pipeline_stages(pipeline_type)) | MANUAL_POST_STAGES if pipeline_type
-        else ALL_KNOWN_STAGES | MANUAL_POST_STAGES
+        set(get_pipeline_stages(pipeline_type)) | MANUAL_POST_STAGES | POST_CLEANUP_STAGES if pipeline_type
+        else ALL_KNOWN_STAGES | MANUAL_POST_STAGES | POST_CLEANUP_STAGES
     )
 
     if not isinstance(stage, str) or stage not in valid_stages:
@@ -192,6 +196,9 @@ def validate_checkpoint(checkpoint: dict[str, Any]) -> None:
     if stage == 'posted':
         from lib.posting_status import validate_posted_checkpoint
         validate_posted_checkpoint(checkpoint)
+    elif stage == 'completed':
+        from lib.completed_status import validate_completed_checkpoint
+        validate_completed_checkpoint(checkpoint)
 
     try:
         jsonschema.validate(instance=checkpoint, schema=_load_checkpoint_schema())
@@ -713,7 +720,7 @@ def write_checkpoint(
     auto_policy = _auto_approval_policy(marker)
     execution_mode = (marker.get('approval_policy') or {}).get('execution_mode') if isinstance(marker, dict) else None
     configured_gate = None
-    if execution_mode == 'stage_config' and stage not in MANUAL_POST_STAGES:
+    if execution_mode == 'stage_config' and stage not in (MANUAL_POST_STAGES | POST_CLEANUP_STAGES):
         policy = marker['approval_policy']
         approvals = policy.get('stage_approvals')
         if not isinstance(approvals, dict) or type(approvals.get(stage)) is not bool:
@@ -725,8 +732,8 @@ def write_checkpoint(
     _validate_style_playbook(style_playbook)
 
     valid_stages = (
-        set(get_pipeline_stages(pipeline_type)) | MANUAL_POST_STAGES if pipeline_type
-        else ALL_KNOWN_STAGES | MANUAL_POST_STAGES
+        set(get_pipeline_stages(pipeline_type)) | MANUAL_POST_STAGES | POST_CLEANUP_STAGES if pipeline_type
+        else ALL_KNOWN_STAGES | MANUAL_POST_STAGES | POST_CLEANUP_STAGES
     )
     if stage not in valid_stages:
         raise ValueError(
@@ -742,7 +749,7 @@ def write_checkpoint(
     # Enforcement happens at write time only: pre-existing checkpoints written
     # before gating (or by hand) still read as completed — deliberate
     # back-compat so in-flight and legacy projects keep resuming.
-    manifest_gate = _stage_requires_approval(pipeline_type, stage) if stage not in MANUAL_POST_STAGES else False
+    manifest_gate = _stage_requires_approval(pipeline_type, stage) if stage not in (MANUAL_POST_STAGES | POST_CLEANUP_STAGES) else False
     gated = (bool(manifest_gate) or human_approval_required or execution_mode == 'manual_all'
              or (execution_mode == 'concept_only' and
                  (stage in {'proposal', 'idea'} or (stage != 'research' and not auto_policy))))
@@ -759,6 +766,20 @@ def write_checkpoint(
         predecessor = read_checkpoint(pipeline_dir, project_id, 'publish', resolve_legacy_artifacts=True)
         if not predecessor or predecessor.get('status') != 'completed':
             raise CheckpointValidationError('PREREQUISITE VIOLATION: posted requires completed publish.')
+    elif stage in POST_CLEANUP_STAGES:
+        # Post-cleanup completed record is a milestone archive, not a production gate.
+        auto_policy = None
+        gated = False
+        human_approval_required = False
+        human_approved = False
+        predecessor = read_checkpoint(pipeline_dir, project_id, 'posted', resolve_legacy_artifacts=True)
+        if not predecessor or predecessor.get('status') != 'completed':
+            raise CheckpointValidationError('PREREQUISITE VIOLATION: completed requires completed posted stage.')
+        posted_log = (predecessor.get('artifacts') or {}).get('posted_log') or {}
+        yt = posted_log.get('youtube') or {}
+        fb = posted_log.get('facebook') or {}
+        if not (yt.get('confirmed') and yt.get('url') and fb.get('confirmed') and fb.get('url')):
+            raise CheckpointValidationError('PREREQUISITE VIOLATION: completed requires confirmed YouTube and Facebook URLs.')
     if gated:
         human_approval_required = True
         if status == "completed" and not human_approved and not auto_policy:

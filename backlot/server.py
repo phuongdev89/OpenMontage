@@ -79,6 +79,10 @@ class FileDeleteRequest(PathRequest):
     expected_revision: str = Field(pattern=r'^[a-f0-9]{64}$')
 
 
+class CleanupExecuteRequest(BaseModel):
+    expected_revision: str = Field(pattern=r'^[a-f0-9]{64}$')
+
+
 def _ui_html(name: str, assets: tuple[str, ...]) -> HTMLResponse:
     html = (UI_DIR / name).read_text(encoding="utf-8")
     for asset in assets:
@@ -343,6 +347,17 @@ def create_app() -> FastAPI:
         same_origin(request)
         from backlot.posting_support import select_thumbnail
         return await file_operation(project_id, select_thumbnail, body.path, changed=True)
+
+    @app.get('/api/project/{project_id}/cleanup/preview')
+    async def cleanup_preview(project_id: str):
+        from backlot.cleanup import preview_cleanup
+        return await file_operation(project_id, preview_cleanup)
+
+    @app.post('/api/project/{project_id}/cleanup/execute')
+    async def cleanup_execute(project_id: str, body: CleanupExecuteRequest, request: Request):
+        same_origin(request)
+        from backlot.cleanup import execute_cleanup
+        return await file_operation(project_id, execute_cleanup, body.expected_revision, changed=True)
 
     @app.post('/api/project/{project_id}/title')
     async def edit_project_title(project_id: str, body: TitleRevisionRequest, request: Request) -> dict:

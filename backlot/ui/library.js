@@ -7,8 +7,12 @@ let view = localStorage.getItem('backlot.libraryView') === 'item' ? 'item' : 'gr
 let projects = [];
 const search = el('input', {type: 'search', placeholder: 'Tìm project…', 'aria-label': 'Tìm project'});
 const filter = el('select', {'aria-label': 'Lọc trạng thái'},
-  el('option', {value: ''}, 'Tất cả'), el('option', {value: 'published'}, 'Sẵn sàng đăng'), el('option', {value: 'posted'}, 'Đã đăng'),
-  el('option', {value: 'awaiting'}, 'Chờ duyệt'), el('option', {value: 'live'}, 'Đang chạy'));
+  el('option', {value: ''}, 'Tất cả'),
+  el('option', {value: 'cleaned'}, 'Đã dọn'),
+  el('option', {value: 'posted'}, 'Đã đăng'),
+  el('option', {value: 'published'}, 'Sẵn sàng đăng'),
+  el('option', {value: 'awaiting'}, 'Chờ duyệt'),
+  el('option', {value: 'live'}, 'Đang chạy'));
 const views = el('div', {class: 'view-switch', role: 'group', 'aria-label': 'Kiểu hiển thị'});
 for (const [value, label] of [['grid', 'Grid view'], ['item', 'Item view']]) views.append(el('button', {type: 'button', 'data-view': value, onclick: () => {
   view = value; localStorage.setItem('backlot.libraryView', view); draw();
@@ -79,7 +83,9 @@ function card(p, index = 0) {
   if (p.last_activity) poster.append(el('span', {
     class: 'lp-when', title: new Date(p.last_activity * 1000).toLocaleString(),
   }, fmtAgo(p.last_activity)));
-  if (p.live && p.active_stage) {
+  if (p.is_cleaned) {
+    poster.append(el("span", { class: "lp-cleaned" }, "✓ ĐÃ DỌN"));
+  } else if (p.live && p.active_stage) {
     poster.append(el("span", { class: "lp-live" },
       el("span", { class: "dot" }),
       p.awaiting_human ? "◈ AWAITING YOU" : `LIVE · ${p.active_stage.toUpperCase()}`));
@@ -109,9 +115,10 @@ function projectTable(items) {
     el('thead', {}, el('tr', {}, ...['Project', 'Pipeline', 'Trạng thái', 'Cập nhật'].map((name, i) =>
       el('th', {scope: 'col', class: `column-${i}`}, name)))), body);
   for (const [i, p] of items.entries()) {
+    const isCleaned = Boolean(p.is_cleaned);
     const done = p.stage_states.some(s => s.name === 'publish' && s.status === 'completed');
     const posted = p.stage_states.some(s => s.name === 'posted' && s.status === 'completed');
-    const status = posted ? 'Đã đăng' : done ? 'Sẵn sàng đăng' : p.awaiting_human ? 'Chờ duyệt' : p.active_stage ? p.active_stage : 'Chưa publish';
+    const status = isCleaned ? 'Đã dọn' : posted ? 'Đã đăng' : done ? 'Sẵn sàng đăng' : p.awaiting_human ? 'Chờ duyệt' : p.active_stage ? p.active_stage : 'Chưa publish';
     const staticSuffix = new URLSearchParams(location.search).has('static') ? '?static=1' : '';
     const isLcp = i === 0;
     const poster = p.poster ? el('img', {
@@ -126,7 +133,7 @@ function projectTable(items) {
         poster, el('div', {}, el('strong', {}, p.title || p.project_id),
           el('small', {}, `${p.scene_count || 0} cảnh · ${p.render_count || 0} video`)))),
       el('td', {class: 'column-1'}, p.pipeline_type || 'unknown'),
-      el('td', {class: 'column-2'}, el('span', {class: done ? 'table-published' : ''}, status)),
+      el('td', {class: 'column-2'}, el('span', {class: isCleaned ? 'table-cleaned' : done ? 'table-published' : ''}, status)),
       el('td', {class: 'column-3'}, fmtAgo(p.last_activity) || '—')));
   }
   return table;
@@ -149,7 +156,13 @@ function draw() {
   for (const button of views.children) button.setAttribute('aria-pressed', String(button.dataset.view === view));
   document.getElementById("empty").style.display = projects.length ? "none" : "block";
   const shown = projects.filter(p => (p.title + ' ' + p.project_id).toLowerCase().includes(search.value.toLowerCase()) &&
-    (!filter.value || (filter.value === 'posted' ? p.stage_states.some(s => s.name === 'posted' && s.status === 'completed') : filter.value === 'published' ? p.stage_states.some(s => s.name === 'publish' && s.status === 'completed') : filter.value === 'awaiting' ? p.awaiting_human : p.live)));
+    (!filter.value || (
+      filter.value === 'cleaned' ? p.is_cleaned :
+      filter.value === 'posted' ? p.stage_states.some(s => s.name === 'posted' && s.status === 'completed') :
+      filter.value === 'published' ? p.stage_states.some(s => s.name === 'publish' && s.status === 'completed') :
+      filter.value === 'awaiting' ? p.awaiting_human :
+      p.live
+    )));
   if (view === 'grid' && shown.length) grid.append(projectTable(shown));
   else for (const [i, p] of shown.entries()) grid.append(card(p, i));
   if (!shown.length && projects.length) grid.append(el('p', {class: 'empty-state'}, 'Không có project khớp bộ lọc.'));
