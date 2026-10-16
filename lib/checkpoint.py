@@ -756,7 +756,7 @@ def write_checkpoint(
         gated = False
         human_approval_required = False
         human_approved = False
-        predecessor = read_checkpoint(pipeline_dir, project_id, 'publish')
+        predecessor = read_checkpoint(pipeline_dir, project_id, 'publish', resolve_legacy_artifacts=True)
         if not predecessor or predecessor.get('status') != 'completed':
             raise CheckpointValidationError('PREREQUISITE VIOLATION: posted requires completed publish.')
     if gated:
@@ -861,7 +861,7 @@ def write_checkpoint(
 
 
 def read_checkpoint(
-    pipeline_dir: Path, project_id: str, stage: str
+    pipeline_dir: Path, project_id: str, stage: str, *, resolve_legacy_artifacts: bool = False
 ) -> Optional[dict[str, Any]]:
     """Read a checkpoint file. Returns None if not found."""
     path = _checkpoint_path(_resolve_project_dir(pipeline_dir, project_id), stage)
@@ -869,6 +869,32 @@ def read_checkpoint(
         return None
     with open(path, encoding="utf-8") as f:
         checkpoint = json.load(f)
+    if resolve_legacy_artifacts:
+        # Manual upload confirmations also serve migrated projects. Validate
+        # referenced payloads, never the {path: ...} wrapper, without rewriting
+        # historical checkpoints or conferring any new production approval.
+        checkpoint = dict(checkpoint)
+        artifacts = dict(checkpoint.get('artifacts') or {})
+        for name, value in artifacts.items():
+            if name not in ARTIFACT_NAMES or not isinstance(value, dict) or set(value) != {'path'}:
+                continue
+            raw = value['path']
+            if not isinstance(raw, str) or not raw or Path(raw).is_absolute() or '..' in Path(raw).parts:
+                raise CheckpointValidationError(f'Invalid artifact reference: {name}')
+            target = (path.parent / raw).resolve()
+            if not target.is_relative_to(path.parent.resolve()):
+                raise CheckpointValidationError(f'Artifact reference escapes project: {name}')
+            try:
+                artifacts[name] = json.loads(target.read_text(encoding='utf-8'))
+            except (OSError, ValueError) as exc:
+                raise CheckpointValidationError(f'Cannot read referenced artifact: {name}') from exc
+        checkpoint['artifacts'] = artifacts
+        resolution = checkpoint.get('approval_resolution')
+        if (isinstance(resolution, dict) and resolution.get('type') == 'human_approved'
+                and checkpoint.get('human_approved') is True):
+            # Older writers recorded human resolution here; the current schema
+            # reserves this optional object for auto-authorization evidence.
+            checkpoint.pop('approval_resolution')
     validate_checkpoint(checkpoint)
     return checkpoint
 

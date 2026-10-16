@@ -137,3 +137,31 @@ def test_browser_manual_confirmation_required_links_and_reload(posted_client):
         pw_api.expect(page.locator('.posting-cleanup-hint')).to_have_count(0)
         assert posting_state(project)['status'] == 'awaiting_human'
         browser.close()
+
+
+@pytest.mark.parametrize('reference', ['artifacts/publish_log.json', '../outside.json', 'artifacts/missing.json'])
+def test_legacy_publish_reference_for_manual_posting(posted_client, reference):
+    client, project = posted_client
+    (project/'artifacts').mkdir(exist_ok=True)
+    (project/'artifacts/publish_log.json').write_text(json.dumps({'version':'1.0','entries':[]}),encoding='utf-8')
+    path=project/'checkpoint_publish.json'
+    cp=json.loads(path.read_text(encoding='utf-8'))
+    cp['artifacts']={'publish_log':{'path':reference}}
+    cp['human_approved']=True
+    cp['approval_resolution']={'type':'human_approved','at':cp['timestamp']}
+    path.write_text(json.dumps(cp),encoding='utf-8')
+    original=path.read_bytes()
+    response=save(client,project,'facebook',True,'https://facebook.com/reel/123')
+    assert response.status_code==(200 if reference=='artifacts/publish_log.json' else 409)
+    assert path.read_bytes()==original
+
+
+def test_legacy_publish_reference_still_validates_payload(posted_client):
+    client,project=posted_client
+    (project/'artifacts').mkdir(exist_ok=True)
+    (project/'artifacts/publish_log.json').write_text(json.dumps({'entries':[]}),encoding='utf-8')
+    path=project/'checkpoint_publish.json';cp=json.loads(path.read_text(encoding='utf-8'))
+    cp['artifacts']={'publish_log':{'path':'artifacts/publish_log.json'}}
+    path.write_text(json.dumps(cp),encoding='utf-8')
+    assert save(client,project,'facebook',True,'https://facebook.com/reel/123').status_code==409
+    assert not (project/'checkpoint_posted.json').exists()

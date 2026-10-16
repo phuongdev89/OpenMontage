@@ -44,12 +44,12 @@ export function renderPlayer(s) {
       source();
     },
   }, name(v)));
-  const download = el('a', {class: 'studio-button', download: ''}, 'Tải video');
+  const download = el('a', {class: 'studio-button icon-only', download: '', 'aria-label': 'Tải video', 'data-icon': 'download'});
   const uploadPath = el('input', {readonly: '', 'aria-label': 'Đường dẫn video', onclick: event => event.target.select()});
-  const copyPath = el('button', {type: 'button', onclick: async () => {
-    try { await navigator.clipboard.writeText(uploadPath.value); copyPath.textContent = 'Đã sao chép'; }
-    catch { uploadPath.focus(); uploadPath.select(); copyPath.textContent = 'Đã chọn đường dẫn'; }
-  }}, 'Sao chép đường dẫn');
+  const copyPath = el('button', {type: 'button', 'aria-label': 'Sao chép đường dẫn', 'data-icon': 'copy', onclick: async () => {
+    try { await navigator.clipboard.writeText(uploadPath.value); copyPath.setAttribute('aria-label', 'Đã sao chép'); setTimeout(() => copyPath.setAttribute('aria-label', 'Sao chép đường dẫn'), 2000); }
+    catch { uploadPath.focus(); uploadPath.select(); }
+  }});
   const status = el('p', {role: 'status', class: 'player-status'});
   function source() {
     const file = videos.find(v => v.path === session.path);
@@ -79,9 +79,7 @@ export function renderPlayer(s) {
   }
   if (videos.length > 1) section.append(el('div', {class: 'player-top'}, choice));
   section.append(session.mount,
-    el('div', {class: 'video-upload-path'}, el('label', {for: `video-path-${id}`}, 'Đường dẫn video'),
-      el('div', {class: 'video-upload-actions'}, copyPath, download), uploadPath), status);
-  uploadPath.id = `video-path-${id}`;
+    el('div', {class: 'video-upload-path'}, el('div', {class: 'video-upload-actions'}, uploadPath, copyPath, download)), status);
   // Keep the complete Video.js tree and instance through realtime DOM updates.
   queueMicrotask(() => {
     if (!session.mount.isConnected) return;

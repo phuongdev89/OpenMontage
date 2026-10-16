@@ -52,6 +52,27 @@ def save_video_title(project: Path, title: str, expected_revision: str) -> dict:
     return {'content': title, 'revision': revision(title), 'updated_at': timestamp}
 
 
+def save_manual_copy(project: Path, field: str, content: str, expected_revision: str) -> dict:
+    from backlot.state import load_board_state
+    from backlot.file_manager import atomic_bytes
+    if field not in ('description', 'caption') or len(content) > 50000:
+        raise CopywriterError('Nội dung không hợp lệ hoặc vượt quá 50.000 ký tự.', 422)
+    with _storage_lock(project):
+        package = load_board_state(project).get('publish_package')
+        if not package:
+            raise CopywriterError('Project chưa hoàn tất publish.', 409)
+        if revision(package[field]) != expected_revision:
+            raise CopywriterError('Nội dung đã thay đổi ở cửa sổ khác. Bản đang sửa được giữ lại.', 409)
+        stored = read_copy(project)
+        timestamp = datetime.now(timezone.utc).isoformat()
+        stored.setdefault('fields', {})[field] = content
+        stored.setdefault('history', []).append({'field': field, 'source': 'manual',
+            'before': package[field], 'after': content, 'updated_at': timestamp})
+        stored.update(version='1.0', project_id=project.name, updated_at=timestamp)
+        atomic_bytes(_path(project), json.dumps(stored, ensure_ascii=False, indent=2).encode('utf-8'))
+    return {'content': content, 'revision': revision(content), 'updated_at': timestamp}
+
+
 def revision(text: str) -> str:
     return hashlib.sha256(text.encode('utf-8')).hexdigest()
 

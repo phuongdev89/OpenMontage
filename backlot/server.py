@@ -24,7 +24,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, StrictBool
 from backlot.copywriter import CopywriterError, regenerate
 
-from backlot.state import PROJECTS_DIR, REPO_ROOT, list_projects, load_board_state, summarize_project
+from backlot.state import PROJECTS_DIR, REPO_ROOT, list_projects, load_board_state, summarize_project, project_created_at
 
 UI_DIR = Path(__file__).resolve().parent / "ui"
 THUMB_CACHE_DIR = REPO_ROOT / ".backlot" / "thumbs"
@@ -51,6 +51,12 @@ class CopyRevisionRequest(BaseModel):
 
 class VideoTitleRequest(BaseModel):
     title: str = Field(min_length=1, max_length=300)
+    expected_revision: str = Field(pattern=r'^[a-f0-9]{64}$')
+
+
+class ManualCopyRequest(BaseModel):
+    field: Literal['description', 'caption']
+    content: str = Field(max_length=50000)
     expected_revision: str = Field(pattern=r'^[a-f0-9]{64}$')
 
 
@@ -141,13 +147,14 @@ def _cached_summaries() -> list[dict]:
                     "project_id": entry.name, "title": entry.name,
                     "pipeline_type": "unknown", "has_pipeline_state": False,
                     "poster": None, "live": False, "last_activity": 0,
+                    "created_at": project_created_at(entry),
                     "active_stage": None, "awaiting_human": False,
                     "stage_states": [], "completed_count": 0,
                     "render_count": 0, "scene_count": 0, "error": "unreadable",
                 }
             _summary_cache[entry.name] = cached
         summaries.append(cached)
-    summaries.sort(key=lambda s: (not s["live"], -(s["last_activity"] or 0)))
+    summaries.sort(key=lambda s: (-(s.get('created_at') or 0), s['project_id']))
     return summaries
 
 
@@ -356,6 +363,12 @@ def create_app() -> FastAPI:
         same_origin(request)
         from backlot.copywriter import save_video_title
         return await file_operation(project_id, save_video_title, body.title, body.expected_revision, changed=True)
+
+    @app.post('/api/project/{project_id}/posting-copy/save')
+    async def manual_copy(project_id: str, body: ManualCopyRequest, request: Request):
+        same_origin(request)
+        from backlot.copywriter import save_manual_copy
+        return await file_operation(project_id, save_manual_copy, body.field, body.content, body.expected_revision, changed=True)
 
     @app.post('/api/project/{project_id}/posting-copy/regenerate')
     async def regenerate_posting_copy(project_id: str, body: CopyRevisionRequest, request: Request) -> dict:

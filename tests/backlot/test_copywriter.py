@@ -143,3 +143,33 @@ def test_simultaneous_same_field_cannot_silently_overwrite(setup, monkeypatch):
         results = list(pool.map(run, range(2)))
     assert sum(isinstance(x, dict) for x in results) == 1
     assert 409 in results
+
+
+@pytest.mark.parametrize('field', ['description', 'caption'])
+def test_manual_copy_save_and_conflict(setup, field):
+    projects, board = setup
+    project = projects / 'a'
+    before = board(project)['publish_package']
+    result = copywriter.save_manual_copy(project, field, 'Manual text\nSecond line', before['revisions'][field])
+    assert board(project)['publish_package'][field] == 'Manual text\nSecond line'
+    other = 'caption' if field == 'description' else 'description'
+    assert board(project)['publish_package'][other] == before[other]
+    assert board(projects / 'b')['publish_package'][field] == before[field]
+    with pytest.raises(copywriter.CopywriterError) as exc:
+        copywriter.save_manual_copy(project, field, 'Stale overwrite', before['revisions'][field])
+    assert exc.value.status == 409
+    copywriter.save_manual_copy(project, field, '', result['revision'])
+    assert board(project)['publish_package'][field] == ''
+
+
+@pytest.mark.parametrize('field', ['description', 'caption'])
+def test_manual_copy_api_origin_and_save(setup, field):
+    projects, board = setup
+    before = board(projects / 'a')['publish_package']
+    body = {'field':field, 'content':'Manual content', 'expected_revision':before['revisions'][field]}
+    with TestClient(server.create_app()) as client:
+        assert client.post('/api/project/a/posting-copy/save',json=body,headers={'Origin':'https://other.invalid'}).status_code == 403
+        response=client.post('/api/project/a/posting-copy/save',json=body)
+        assert response.status_code==200
+        assert response.json()['content']=='Manual content'
+        assert client.post('/api/project/a/posting-copy/save',json=body).status_code==409

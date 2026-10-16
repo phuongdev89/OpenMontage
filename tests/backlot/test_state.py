@@ -157,7 +157,7 @@ class TestBoardState:
 
 
 class TestLibrary:
-    def test_list_projects_sorts_live_first(self, projects_root):
+    def test_list_projects_sorts_newest_creation_first(self, projects_root):
         old = _make_project(projects_root, "old-film")
         _write(old / "checkpoint_script.json", {"stage": "script", "status": "completed"})
         # backdate everything in old-film
@@ -167,13 +167,17 @@ class TestLibrary:
             if f.is_file():
                 os.utime(f, (past, past))
 
+        _write(old / "project.json", {"created_at":"2026-01-01T00:00:00Z"})
         fresh = _make_project(projects_root, "fresh-film")
+        _write(fresh / "project.json", {"created_at":"2026-02-01T00:00:00Z"})
         _write(fresh / "checkpoint_script.json", {"stage": "script", "status": "in_progress"})
 
         projects = list_projects(projects_root)
         assert [p["project_id"] for p in projects][0] == "fresh-film"
         assert projects[0]["live"] is True
         assert projects[1]["live"] is False
+        _write(old / "checkpoint_script.json", {"stage":"script","status":"in_progress"})
+        assert [p["project_id"] for p in list_projects(projects_root)] == ["fresh-film","old-film"]
 
     def test_underscore_dirs_skipped(self, projects_root):
         (projects_root / "_analysis").mkdir()

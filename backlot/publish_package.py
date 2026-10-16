@@ -78,28 +78,43 @@ def build_publish_package(project: Path, publish_log: dict, completed: bool) -> 
             package[name] = text(support.get(name))
     recorded_prompt = text(packaging.get('thumbnail_prompt')) or next((text(t.get('prompt')) for t in supplied
                 if isinstance(t, dict) and text(t.get('prompt'))), '')
-    prompt = recorded_prompt or text(support.get('thumbnail_prompt'))
-    package['thumbnail_prompt_source'] = 'recorded' if recorded_prompt else 'prepared' if prompt else 'draft'
-    if not prompt:
-        from backlot.state import REPO_ROOT
-        try:
-            template = (REPO_ROOT / 'skills/pipelines/shared/thumbnail-prompt.txt').read_text(encoding='utf-8')
-        except OSError:
-            template = 'Create a concept-led curiosity scene. {{HOOK_SCENE}}. No answer or completed solution.'
-        topic = package['title'] or project.name
-        prompt = template.replace('{{HOOK_SCENE}}', f'Chủ đề video: {topic}. Chọn nhân vật, đạo cụ và bối cảnh đúng chủ đề; thể hiện một câu hỏi chưa được giải đáp. Không đưa đáp án hoặc phép giải hoàn tất vào ảnh.')
-    package['thumbnail_prompt'] = prompt
+    from backlot.state import REPO_ROOT
+    try:
+        template = (REPO_ROOT / 'skills/pipelines/shared/thumbnail-prompt.txt').read_text(encoding='utf-8').strip()
+    except OSError:
+        template = 'Tạo thumbnail YouTube ngang 16:9 cho kênh “Toán Olympic Cùng Con”.\nÝ TƯỞNG CẢNH: {{HOOK_SCENE}}\nPhong cách hoạt hình sách truyện cao cấp, thân thiện với trẻ em. Không đưa đáp án hoặc phép giải hoàn tất vào ảnh.'
+
+    def wrap_with_template(raw_text: str) -> str:
+        raw = (raw_text or '').strip()
+        if not raw:
+            topic = package['title'] or project.name
+            raw = f'Chủ đề video: {topic}. Chọn nhân vật, đạo cụ và bối cảnh đúng chủ đề; thể hiện một câu hỏi chưa được giải đáp. Không đưa đáp án hoặc phép giải hoàn tất vào ảnh.'
+        if '{{HOOK_SCENE}}' in template:
+            if 'Toán Olympic Cùng Con' in raw and 'Ý TƯỞNG CẢNH:' in raw:
+                return raw
+            return template.replace('{{HOOK_SCENE}}', raw)
+        return raw
+
+    recorded_prompt = text(packaging.get('thumbnail_prompt')) or next((text(t.get('prompt')) for t in supplied
+                if isinstance(t, dict) and text(t.get('prompt'))), '')
+    raw_prompt = recorded_prompt or text(support.get('thumbnail_prompt'))
+    package['thumbnail_prompt_source'] = 'recorded' if recorded_prompt else 'prepared' if raw_prompt else 'draft'
+
     selected = selected_thumbnail(project)
     if selected not in {t['path'] for t in thumbnails}:
         selected = thumbnails[0]['path'] if thumbnails else None
     package['selected_thumbnail'] = selected
-    selected_prompt = next((t.get('prompt') for t in thumbnails if t['path'] == selected and t.get('prompt')), None)
+
+    selected_prompt = next((text(t.get('prompt')) for t in thumbnails if t['path'] == selected and t.get('prompt')), None)
     if selected_prompt:
-        package['thumbnail_prompt'] = selected_prompt
+        raw_prompt = selected_prompt
         package['thumbnail_prompt_source'] = 'recorded'
+
+    package['thumbnail_prompt'] = wrap_with_template(raw_prompt)
+
     for thumb in thumbnails:
         thumb['selected'] = thumb['path'] == selected
-        thumb.setdefault('prompt', prompt)
+        thumb['prompt'] = wrap_with_template(text(thumb.get('prompt')))
     from backlot.copywriter import read_copy, revision, CopywriterError
     try:
         fields = read_copy(project).get('fields') or {}

@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import re
+from datetime import datetime, timezone
 from functools import lru_cache
 from pathlib import Path
 from typing import Any, Optional
@@ -699,6 +700,22 @@ def load_board_state(project_dir: Path) -> dict[str, Any]:
     return state
 
 
+def project_created_at(project_dir: Path) -> float:
+    marker = _read_json(project_dir / 'project.json') or {}
+    raw = marker.get('created_at') if isinstance(marker, dict) else None
+    if isinstance(raw, str):
+        try:
+            parsed = datetime.fromisoformat(raw.replace('Z', '+00:00'))
+            return (parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)).timestamp()
+        except (ValueError, OverflowError):
+            pass
+    try:
+        stat = project_dir.stat()
+        return getattr(stat, 'st_birthtime', stat.st_ctime)
+    except OSError:
+        return 0
+
+
 def summarize_project(project_dir: Path) -> dict[str, Any]:
     """Cheap library-card summary (no full artifact parse of big files)."""
     state = load_board_state(project_dir)
@@ -712,6 +729,7 @@ def summarize_project(project_dir: Path) -> dict[str, Any]:
         "poster": state["poster"],
         "live": state["live"],
         "last_activity": state["last_activity"],
+        "created_at": project_created_at(project_dir),
         "active_stage": active["name"] if active else None,
         "awaiting_human": bool(active and active["status"] == "awaiting_human"),
         "stage_states": [
@@ -725,7 +743,7 @@ def summarize_project(project_dir: Path) -> dict[str, Any]:
 
 
 def list_projects(projects_dir: Optional[Path] = None) -> list[dict[str, Any]]:
-    """Library view: every project directory, live-first then recency."""
+    """Library view: newest-created project first, independent of activity."""
     root = Path(projects_dir) if projects_dir else PROJECTS_DIR
     if not root.is_dir():
         return []
@@ -744,6 +762,7 @@ def list_projects(projects_dir: Optional[Path] = None) -> list[dict[str, Any]]:
                 "poster": None,
                 "live": False,
                 "last_activity": 0,
+                "created_at": project_created_at(entry),
                 "active_stage": None,
                 "awaiting_human": False,
                 "stage_states": [],
@@ -752,5 +771,5 @@ def list_projects(projects_dir: Optional[Path] = None) -> list[dict[str, Any]]:
                 "scene_count": 0,
                 "error": "unreadable",
             })
-    summaries.sort(key=lambda s: (not s["live"], -(s["last_activity"] or 0)))
+    summaries.sort(key=lambda s: (-(s.get('created_at') or 0), s['project_id']))
     return summaries

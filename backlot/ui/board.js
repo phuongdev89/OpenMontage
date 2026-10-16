@@ -1125,10 +1125,14 @@ function render() {
   };
   // Published projects put viewing and handoff before the production history.
   if (done) {
-    const workbench = el('div', {class: 'project-workbench'});
-    app.append(workbench); sectionTarget = workbench;
-    add('player', 'Player', renderPlayer(s), true);
-    add('posting', 'Hỗ trợ đăng video', renderPublishPackage(s, projectId, refresh), true);
+    const playerRow = el('div', {class: 'project-player-row'});
+    app.append(playerRow);
+    const playerBody = renderPlayer(s);
+    if (playerBody) playerRow.append(playerBody);
+    const postingRow = el('div', {class: 'project-posting-row'});
+    app.append(postingRow);
+    const postingBody = renderPublishPackage(s, projectId, refresh);
+    if (postingBody) postingRow.append(postingBody);
     const history = el('div', {class: 'project-history'});
     app.append(history); sectionTarget = history;
   }

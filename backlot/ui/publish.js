@@ -8,6 +8,8 @@ const copyViews = new Map();
 const supportRequests = new Map();
 const postingTabs = new Map();
 const videoTitles = new Map();
+const manualCopies = new Map();
+const postingEdits = new Map();
 
 function videoTitleField(p, projectId) {
   let state = videoTitles.get(projectId);
@@ -59,7 +61,8 @@ function copyField(label, value, regenerate = null) {
       button.textContent = 'Chọn nội dung để sao chép';
     }
   }}, 'Sao chép');
-  const field = el('textarea', {readonly: '', rows: label.includes('path') || label === 'Tiêu đề video' ? '2' : '5', 'aria-label': label}, value || 'Chưa có nội dung');
+  const rows = label.includes('path') || label === 'Tiêu đề video' ? '2' : label.includes('Prompt tạo thumbnail') ? '8' : '5';
+  const field = el('textarea', {readonly: '', rows, 'aria-label': label}, value || 'Chưa có nội dung');
   const actions = el('div', {class: 'posting-actions'}, button);
   if (regenerate?.editable) field.removeAttribute('readonly');
   if (regenerate?.editable && regenerate.projectId) {
@@ -72,25 +75,62 @@ function copyField(label, value, regenerate = null) {
   }
   if (regenerate && !regenerate.editable) {
     const key = `${regenerate.projectId}:${regenerate.field}`;
+    let edit = manualCopies.get(key);
+    if (!edit || (!edit.busy && edit.value === edit.saved && !edit.error)) {
+      edit = {value: value || '', saved: value || '', revision: regenerate.package.revisions[regenerate.field]};
+      manualCopies.set(key, edit);
+    }
+    field.removeAttribute('readonly'); field.maxLength = 50000;
+    field.value = edit.value; field.placeholder = 'Nhập nội dung…';
+    const savedStatus = el('span', {role: 'status', 'aria-live': 'polite'});
+    const paint = () => {
+      savedStatus.textContent = edit.busy ? 'Đang lưu…' : edit.error || (edit.value === edit.saved ? 'Đã lưu' : 'Rời ô để lưu');
+      field.setAttribute('aria-busy', String(!!edit.busy));
+      button.disabled = !field.value;
+      retry.disabled = !!edit.busy || edit.value !== edit.saved || !!copyRequests.get(key)?.busy;
+    };
+    edit.show = paint;
+    field.addEventListener('input', () => { edit.value = field.value; edit.error = ''; edit.show(); });
+    field.addEventListener('blur', async () => {
+      edit.queued = true;
+      if (edit.busy) return;
+      while (edit.queued) {
+        edit.queued = false;
+        const content = edit.value;
+        if (content === edit.saved) continue;
+        edit.busy = true; edit.error = ''; edit.show();
+        try {
+          const result = await requestJSON(`/api/project/${encodeURIComponent(regenerate.projectId)}/posting-copy/save`, {
+            field: regenerate.field, content, expected_revision: edit.revision,
+          });
+          edit.saved = result.content; edit.revision = result.revision;
+          regenerate.package[regenerate.field] = result.content;
+          regenerate.package.revisions[regenerate.field] = result.revision;
+        } catch(error) { edit.error = error.message; edit.queued = false; }
+        finally { edit.busy = false; edit.show(); }
+      }
+    });
     const retry = el('button', {type: 'button', onclick: () => {
       if (!copyRequests.get(key)?.busy) openCopyDialog(regenerate.projectId, regenerate.field, regenerate.package, regenerate.onUpdated);
     }}, regenerate.label);
     const status = el('p', {role: 'alert', hidden: ''});
     const update = (request) => {
-      retry.disabled = !!request?.busy;
+      retry.disabled = !!request?.busy || !!edit.busy || edit.value !== edit.saved;
       retry.setAttribute('aria-busy', String(!!request?.busy));
       retry.classList.toggle('copy-busy', !!request?.busy);
       status.textContent = request?.error || '';
       status.hidden = !request?.error;
-      if (request?.content != null) {
+      if (request?.content != null && !edit.busy && edit.value === edit.saved && !edit.error) {
         field.value = request.content; button.disabled = false;
+        edit.value = request.content; edit.saved = request.content; edit.revision = request.revision;
         regenerate.package[regenerate.field] = request.content;
         regenerate.package.revisions[regenerate.field] = request.revision;
       }
+      edit.show();
     };
     copyViews.set(key, update);
     update(copyRequests.get(key));
-    actions.append(retry, status);
+    actions.append(retry, savedStatus, status);
   }
   return el('div', {class: 'posting-field'}, el('div', {class: 'posting-label'}, el('strong', {}, label), actions), field);
 }
@@ -142,14 +182,12 @@ function openCopyDialog(projectId, field, p, onUpdated) {
 export function renderPublishPackage(s, projectId, onUpdated = null) {
   const p = s.publish_package;
   if (!p || !s.stages.some(stage => stage.name === 'publish' && stage.status === 'completed')) return null;
-  const section = el('section', {class: 'posting-package', 'aria-label': 'Hỗ trợ đăng video'},
-    el('h2', {}, 'Hỗ trợ đăng video'),
-    videoTitleField(p, projectId),
-    copyField('Description · YouTube', p.description, {label: 'Tạo lại description', projectId, field: 'description', package: p, onUpdated}),
-    copyField('Caption · Facebook / TikTok', p.caption, {label: 'Tạo lại caption', projectId, field: 'caption', package: p, onUpdated}));
+
+  const section = el('section', {class: 'posting-package', 'aria-label': 'Hỗ trợ đăng video'});
+
   const pending = supportRequests.get(projectId);
-  const supportStatus = el('p', {role: 'status'}, pending?.error || '');
-  const create = el('button', {type: 'button', disabled: pending?.busy ? '' : null, 'aria-busy': String(!!pending?.busy), onclick: async () => {
+  const supportStatus = el('span', {role: 'status', class: 'posting-support-status'}, pending?.error || '');
+  const create = el('button', {type: 'button', class: 'studio-button', disabled: pending?.busy ? '' : null, 'aria-busy': String(!!pending?.busy), onclick: async () => {
     if (supportRequests.get(projectId)?.busy) return;
     const request = {busy: true}; supportRequests.set(projectId, request);
     create.disabled = true; create.setAttribute('aria-busy', 'true'); create.textContent = 'Đang tạo…';
@@ -160,140 +198,257 @@ export function renderPublishPackage(s, projectId, onUpdated = null) {
     } catch(error) { request.error = error.message; supportStatus.textContent = request.error; }
     finally { request.busy = false; create.disabled = false; create.setAttribute('aria-busy', 'false'); create.textContent = 'Tạo hỗ trợ'; if (onUpdated) await onUpdated(); }
   }}, pending?.busy ? 'Đang tạo…' : 'Tạo hỗ trợ');
-  const download = section.querySelector('a[download]');
-  section.querySelector('h2').after(el('div', {class: 'posting-create'}, create, download), supportStatus);
-  const contentPanel = el('div', {class: 'posting-subpanel', role: 'tabpanel', id: `posting-copy-${projectId}`});
-  for (const field of section.querySelectorAll(':scope > .posting-field')) contentPanel.append(field);
-  const thumbnailPanel = el('div', {class: 'posting-subpanel', role: 'tabpanel', id: `posting-thumb-${projectId}`});
-  const tablist = el('div', {class: 'posting-work-tabs', role: 'tablist', 'aria-label': 'Hỗ trợ đăng'});
-  const panels = {copy: contentPanel, thumb: thumbnailPanel};
+
+  const header = el('div', {class: 'posting-header'},
+    el('h2', {}, 'Hỗ trợ đăng video'),
+    el('div', {class: 'posting-header-actions'}, create, supportStatus)
+  );
+  section.append(header);
+
+  // Tabpanels
+  const youtubePanel = el('div', {class: 'posting-subpanel', role: 'tabpanel', id: `posting-yt-${projectId}`});
+  const facebookPanel = el('div', {class: 'posting-subpanel', role: 'tabpanel', id: `posting-fb-${projectId}`});
+
+  // Tab YouTube fields
+  youtubePanel.append(
+    videoTitleField(p, projectId),
+    copyField('Description · YouTube', p.description, {label: 'Tạo lại description', projectId, field: 'description', package: p, onUpdated}),
+    renderPlatformConfirm('youtube', 'YouTube', s.posting_status, projectId, onUpdated)
+  );
+
+  // Tab Facebook fields
+  facebookPanel.append(
+    copyField('Caption · Facebook / TikTok', p.caption, {label: 'Tạo lại caption', projectId, field: 'caption', package: p, onUpdated}),
+    renderPlatformConfirm('facebook', 'Facebook', s.posting_status, projectId, onUpdated)
+  );
+
+  const thumbnailSection = renderThumbnailsSection(p, projectId, onUpdated);
+
+  const tablist = el('div', {class: 'posting-work-tabs', role: 'tablist', 'aria-label': 'Nền tảng đăng'});
+  const panels = {youtube: youtubePanel, facebook: facebookPanel};
+
   const selectTab = key => {
     postingTabs.set(projectId, key);
-    for (const [name, panel] of Object.entries(panels)) panel.hidden = name !== key;
+    for (const [name, panel] of Object.entries(panels)) {
+      panel.hidden = name !== key;
+    }
+    panels[key].append(thumbnailSection);
     for (const tab of tablist.children) {
       const selected = tab.dataset.tab === key;
-      tab.setAttribute('aria-selected', String(selected)); tab.tabIndex = selected ? 0 : -1;
+      tab.setAttribute('aria-selected', String(selected));
+      tab.tabIndex = selected ? 0 : -1;
     }
   };
-  for (const [key, name] of [['copy', 'Nội dung'], ['thumb', 'Thumbnail']]) {
-    const tab = el('button', {type: 'button', role: 'tab', 'data-tab': key, id: `posting-tab-${key}-${projectId}`, 'aria-controls': panels[key].id, onclick: () => selectTab(key)}, name);
+
+  for (const [key, name, icon] of [['youtube', 'YouTube', 'youtube'], ['facebook', 'Facebook', 'facebook']]) {
+    const tab = el('button', {
+      type: 'button', role: 'tab',
+      'data-tab': key, 'data-icon': icon,
+      id: `posting-tab-${key}-${projectId}`,
+      'aria-controls': panels[key].id,
+      onclick: () => selectTab(key),
+    }, name);
     panels[key].setAttribute('aria-labelledby', tab.id);
     tab.addEventListener('keydown', event => {
       if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
-      event.preventDefault(); const next = key === 'copy' ? 'thumb' : 'copy'; selectTab(next); tablist.querySelector(`[data-tab=${next}]`).focus();
+      event.preventDefault();
+      const next = key === 'youtube' ? 'facebook' : 'youtube';
+      selectTab(next);
+      tablist.querySelector(`[data-tab=${next}]`).focus();
     });
     tablist.append(tab);
   }
-  section.append(tablist, contentPanel, thumbnailPanel);
-  section.append(renderPostingStatus(s.posting_status, projectId, onUpdated));
-  selectTab(postingTabs.get(projectId) || 'copy');
+
+  section.append(tablist, youtubePanel, facebookPanel);
+
+  const currentTab = postingTabs.get(projectId) || 'youtube';
+  selectTab(panels[currentTab] ? currentTab : 'youtube');
+
   if (p.copy_warning) section.append(el('p', {role: 'alert'}, p.copy_warning));
-  const thumbnails = el('div', {class: 'posting-thumbnails'});
-  const dots = el('div', {class: 'thumbnail-dots', 'aria-label': 'Chọn ảnh thumbnail'});
-  const updateDots = () => {
-    const slides = [...thumbnails.children];
-    const active = Math.max(0, slides.findIndex(slide => Math.abs(slide.offsetLeft - thumbnails.offsetLeft - thumbnails.scrollLeft) < thumbnails.clientWidth / 2));
-    [...dots.children].forEach((dot, i) => dot.setAttribute('aria-pressed', String(i === active)));
-  };
-  const syncSlides = () => {
-    const slides = [...thumbnails.children];
-    for (const button of thumbnails.querySelectorAll('.delete-thumbnail')) {
-      button.disabled = slides.length <= 1;
-      button.title = slides.length <= 1 ? 'Không thể xóa thumbnail cuối cùng' : 'Xóa thumbnail';
-    }
-    thumbnails.classList.toggle('thumbnail-carousel', slides.length > 1);
-    dots.hidden = slides.length <= 1;
-    dots.replaceChildren(...slides.map((slide, i) => el('button', {
-      type: 'button', 'aria-label': `Thumbnail ${i + 1}`, 'aria-pressed': String(i === 0),
-      onclick: () => thumbnails.scrollTo({left: slide.offsetLeft - thumbnails.offsetLeft, behavior: 'smooth'}),
-    })));
-    updateDots();
-  };
-  thumbnails.addEventListener('scroll', updateDots, {passive: true});
-  for (const thumb of p.thumbnails || []) {
-    const selectStatus = el('p', {role: 'status'});
-    const choose = thumb.selected ? el('span', {class: 'selected-thumbnail'}, '✓ Thumbnail đang chọn') : el('button', {type: 'button', onclick: async () => {
-      choose.disabled = true;
-      try { await requestJSON(`/api/project/${encodeURIComponent(projectId)}/thumbnail`, {path: thumb.path}); if (onUpdated) await onUpdated(); }
-      catch(error) { selectStatus.textContent = error.message; choose.disabled = false; }
-    }}, 'Chọn làm thumbnail');
+  if (s.posting_status?.status === 'completed') {
+    section.append(el('p', {class: 'posting-cleanup-hint'},
+      '✓ Đã đăng đủ YouTube và Facebook. Có thể xem xét dọn cache và render nháp của project.'));
+  }
+
+  return section;
+}
+
+function renderThumbnailsSection(p, projectId, onUpdated) {
+  const root = el('div', {class: 'posting-thumbnails-section'});
+  const header = el('div', {class: 'thumbnails-header'},
+    el('h3', {}, 'Ảnh Thumbnail')
+  );
+  root.append(header);
+
+  const items = p.thumbnails || [];
+  const thumbnails = el('div', {class: 'posting-thumbnails-compact'});
+
+  for (const thumb of items) {
+    const selectStatus = el('p', {role: 'status', class: 'thumb-status'});
+    const choose = thumb.selected
+      ? el('span', {class: 'selected-thumbnail'}, '✓ Đang chọn')
+      : el('button', {type: 'button', class: 'choose-thumb-btn', onclick: async () => {
+          choose.disabled = true;
+          try {
+            await requestJSON(`/api/project/${encodeURIComponent(projectId)}/thumbnail`, {path: thumb.path});
+            if (onUpdated) await onUpdated();
+          } catch(error) {
+            selectStatus.textContent = error.message;
+            choose.disabled = false;
+          }
+        }}, 'Chọn thumbnail');
+
     const remove = el('button', {type: 'button', class: 'delete-thumbnail', onclick: async () => {
-      if (thumbnails.children.length <= 1) return;
+      if (items.length <= 1) return;
       if (!window.confirm(`Xóa thumbnail này?\n${thumb.path}`)) return;
       remove.disabled = true;
-      choose.disabled = true;
       try {
         const base = `/api/project/${encodeURIComponent(projectId)}`;
         const revision = await getJSON(`${base}/files/revision?path=${encodeURIComponent(thumb.path)}`);
         await requestJSON(`${base}/files/delete`, {path: thumb.path, expected_revision: revision.revision});
-        remove.closest('figure').remove();
-        syncSlides();
         if (onUpdated) await onUpdated();
-      } catch(error) { selectStatus.textContent = error.message; }
-      finally { choose.disabled = false; syncSlides(); }
+      } catch(error) {
+        selectStatus.textContent = error.message;
+        remove.disabled = false;
+      }
     }}, 'Xóa');
-    thumbnails.append(el('figure', {class: `thumbnail-candidate${thumb.selected ? ' is-selected' : ''}`},
-      el('button', {type: 'button', class: 'gallery-thumb', 'aria-label': `Xem ${thumb.label || thumb.path}`, onclick: () => openProjectGallery(projectId, thumb.path)},
-        el('img', {src: mediaURL(projectId, thumb.path), alt: thumb.label || 'Thumbnail', loading: 'lazy'})),
-      thumb.generated ? null : el('p', {class: 'posting-note'}, 'Chưa có metadata tạo ảnh'),
-      el('div', {class: 'posting-actions'}, choose, remove), selectStatus,
-      el('div', {class: 'technical-path'}, copyField('Thumbnail path', thumb.absolute_path))));
+
+    if (items.length <= 1) {
+      remove.disabled = true;
+      remove.title = 'Không thể xóa thumbnail cuối cùng';
+    }
+
+    const card = el('figure', {class: `thumbnail-card${thumb.selected ? ' is-selected' : ''}`},
+      el('button', {
+        type: 'button',
+        class: 'gallery-thumb-btn',
+        'aria-label': `Xem ${thumb.label || thumb.path}`,
+        onclick: () => openProjectGallery(projectId, thumb.path),
+      }, el('img', {src: mediaURL(projectId, thumb.path), alt: thumb.label || 'Thumbnail', loading: 'lazy'})),
+      el('div', {class: 'thumbnail-card-actions'}, choose, remove),
+      selectStatus
+    );
+    thumbnails.append(card);
   }
-  thumbnailPanel.append(
-    copyField('Prompt tạo thumbnail · có thể sửa để gen thủ công', p.thumbnail_prompt || p.thumbnails?.find(t => t.prompt)?.prompt || '', {editable: true, projectId}));
-  if (p.thumbnail_prompt_source === 'draft') thumbnailPanel.append(el('p', {class: 'posting-note'}, 'Prompt nháp · Tạo hỗ trợ để bổ sung cảnh hook theo video.'));
-  if (p.thumbnail_prompt_source === 'prepared') thumbnailPanel.append(el('p', {class: 'posting-note'}, 'Prompt đã chuẩn bị để tạo ảnh thủ công.'));
-  syncSlides();
-  thumbnailPanel.append(thumbnails, dots);
-  if (!p.thumbnails?.length) thumbnailPanel.append(el('p', {}, 'Chưa có thumbnail.'));
-  return section;
+
+  if (items.length) {
+    root.append(thumbnails);
+  } else {
+    root.append(el('p', {class: 'empty-note'}, 'Chưa có thumbnail.'));
+  }
+
+  const promptValue = p.thumbnail_prompt || p.thumbnails?.find(t => t.prompt)?.prompt || '';
+  if (promptValue || p.thumbnail_prompt_source) {
+    const promptField = copyField('Prompt tạo thumbnail (chỉnh sửa để gen thủ công)', promptValue, {editable: true, projectId});
+    root.append(promptField);
+    if (p.thumbnail_prompt_source === 'draft') {
+      root.append(el('p', {class: 'posting-note'}, 'Prompt nháp · Tạo hỗ trợ để bổ sung cảnh hook theo video.'));
+    } else if (p.thumbnail_prompt_source === 'prepared') {
+      root.append(el('p', {class: 'posting-note'}, 'Prompt đã chuẩn bị để tạo ảnh thủ công.'));
+    }
+  }
+
+  return root;
 }
 
-const postingDrafts = new Map();
-function renderPostingStatus(saved, projectId, onUpdated) {
-  const root = el('section', {class: 'posting-confirmations', 'aria-label': 'Đã đăng'},
-    el('h3', {}, 'Đã đăng'),
-    el('p', {}, 'Tự xác nhận sau khi đăng video. Mỗi nền tảng cần đánh dấu và điền link.'));
-  if (saved?.error) return el('p', {role: 'alert'}, saved.error);
-  for (const [platform, label] of [['youtube', 'YouTube'], ['facebook', 'Facebook']]) {
-    const record = saved?.platforms?.[platform];
-    if (!record) continue;
-    const key = `${projectId}:${platform}`;
-    const draft = postingDrafts.get(key);
-    const value = draft || record;
-    const check = el('input', {type: 'checkbox', checked: value.confirmed ? '' : null});
-    const url = el('input', {type: 'url', value: value.url || '', required: value.confirmed ? '' : null,
-      placeholder: `https://… link ${label}`, 'aria-label': `Link ${label}`});
-    const feedback = el('p', {role: 'status'});
-    const button = el('button', {type: 'submit'}, 'Lưu');
-    const form = el('form', {class: 'posting-confirmation'},
-      el('label', {}, check, ` Đã đăng ${label}`), url, button,
-      record.confirmed_at ? el('small', {}, `Đã xác nhận: ${new Date(record.confirmed_at).toLocaleString('vi-VN')}`) : null,
-      feedback);
-    const remember = () => {
-      url.required = check.checked;
-      postingDrafts.set(key, {confirmed: check.checked, url: url.value});
-    };
-    check.addEventListener('change', remember); url.addEventListener('input', remember);
-    form.addEventListener('submit', async event => {
-      event.preventDefault();
-      if (!form.reportValidity() || button.disabled) return;
-      const submitted = {confirmed: check.checked, url: url.value.trim()};
-      button.disabled = true; check.disabled = true; url.disabled = true;
-      try {
-        await requestJSON(`/api/project/${encodeURIComponent(projectId)}/posted`, {
-          platform, ...submitted, expected_revision: record.revision,
-        });
-        postingDrafts.delete(key); feedback.textContent = 'Đã lưu';
-        if (onUpdated) await onUpdated();
-      } catch(error) { feedback.textContent = error.message; }
-      finally { button.disabled = false; check.disabled = false; url.disabled = false; }
-    });
-    root.append(form);
+function renderPlatformConfirm(platform, label, saved, projectId, onUpdated) {
+  const record = saved?.platforms?.[platform] || {};
+  const isConfirmed = Boolean(record.confirmed && record.url);
+  const key = `${projectId}:${platform}`;
+  let edit = postingEdits.get(key);
+  if (!edit || (!edit.busy && edit.value === edit.saved && !edit.error)) {
+    edit = {value: record.url || '', saved: record.url || '', confirmed: isConfirmed, savedConfirmed: isConfirmed, revision: record.revision};
+    postingEdits.set(key, edit);
   }
-  if (saved?.status === 'completed') root.append(el('p', {class: 'posting-cleanup-hint'},
-    '✓ Đã đăng đủ YouTube và Facebook. Có thể xem xét dọn cache và render nháp của project.'));
-  return root;
+
+  const check = el('input', {type: 'checkbox', role: 'switch', checked: edit.confirmed ? '' : null});
+  const slider = el('span', {class: 'switch-slider'});
+  const switchLabel = el('span', {class: 'switch-text'}, 'Đã đăng');
+  const switchWrapper = el('label', {class: 'posting-switch'}, check, slider, switchLabel);
+
+  const url = el('input', {
+    type: 'url',
+    value: edit.value,
+    placeholder: `Nhập link ${label} đã đăng (https://…)`,
+    'aria-label': `Link ${label} đã đăng`,
+    required: isConfirmed ? '' : null,
+  });
+  const button = el('button', {type: 'submit', class: 'studio-button'}, 'Lưu link');
+  const feedback = el('span', {role: 'status', class: 'posting-status-msg'});
+  const confirmedAt = (isConfirmed && record.confirmed_at)
+    ? el('small', {class: 'confirmed-time'}, `Đã xác nhận: ${new Date(record.confirmed_at).toLocaleString('vi-VN')}`)
+    : el('small', {class: 'confirmed-time'});
+
+  const linkRow = el('div', {class: 'posting-link-row'}, url, button);
+  linkRow.hidden = !edit.confirmed;
+
+  const form = el('form', {class: 'posting-platform-confirm'},
+    el('div', {class: 'posting-confirm-top'}, switchWrapper, confirmedAt, feedback),
+    linkRow
+  );
+
+  async function submitStatus(submitted) {
+    if (edit.busy) return;
+    edit.busy = true; edit.error = '';
+    button.disabled = true; check.disabled = true; url.disabled = true;
+    feedback.textContent = 'Đang lưu…';
+    try {
+      const result = await requestJSON(`/api/project/${encodeURIComponent(projectId)}/posted`, {
+        platform, ...submitted, expected_revision: edit.revision,
+      });
+      const updated = result.platforms[platform];
+      edit.saved = updated.url; edit.value = updated.url;
+      edit.confirmed = updated.confirmed; edit.savedConfirmed = updated.confirmed; edit.revision = updated.revision;
+      edit.busy = false;
+      feedback.textContent = submitted.confirmed ? 'Đã lưu' : 'Đã hủy đánh dấu';
+      if (onUpdated) await onUpdated();
+    } catch(error) {
+      edit.error = error.message; feedback.textContent = error.message;
+    } finally {
+      edit.busy = false;
+      button.disabled = false; check.disabled = false; url.disabled = false;
+    }
+  }
+
+  check.addEventListener('change', () => {
+    edit.confirmed = check.checked;
+    if (check.checked) {
+      linkRow.hidden = false;
+      url.required = true;
+      url.focus();
+    } else {
+      linkRow.hidden = true;
+      url.required = false;
+      if (edit.savedConfirmed) {
+        submitStatus({confirmed: false, url: ''});
+      }
+    }
+  });
+
+  const saveLink = async () => {
+    if (!check.checked || edit.busy) return;
+    const link = url.value.trim();
+    if (link === edit.saved && edit.savedConfirmed) return;
+    if (!link) {
+      feedback.textContent = 'Hãy nhập link bài đăng trước khi lưu.';
+      url.focus();
+      return;
+    }
+    if (!form.reportValidity() || button.disabled) return;
+    await submitStatus({confirmed: true, url: link});
+  };
+  url.addEventListener('input', () => { edit.value = url.value; edit.error = ''; feedback.textContent = 'Rời ô để lưu'; });
+  url.addEventListener('blur', event => {
+    if (url.isConnected && event.relatedTarget !== check) saveLink();
+  });
+  feedback.textContent = edit.error || (edit.busy ? 'Đang lưu…' : '');
+  button.disabled = check.disabled = url.disabled = !!edit.busy;
+  form.addEventListener('submit', async event => {
+    event.preventDefault();
+    await saveLink();
+  });
+
+  return form;
 }
 
 const titleEdits = new Map();
@@ -320,6 +475,8 @@ export function renderTitleEditor(s, projectId, onUpdated) {
     const cancel = () => { if (edit.busy) return; titleEdits.delete(projectId); titleMounts.get(projectId)?.(); };
     const save = async () => {
       if (edit.busy) return;
+      if (edit.value === edit.expected) { cancel(); return; }
+      if (!edit.value.trim()) { edit.error = 'Tên project không được để trống.'; titleMounts.get(projectId)?.(); return; }
       edit.busy = true; edit.error = ''; titleMounts.get(projectId)?.();
       try {
         const data = await requestJSON(`/api/project/${encodeURIComponent(projectId)}/title`, {title: edit.value, expected_title: edit.expected});
@@ -329,6 +486,9 @@ export function renderTitleEditor(s, projectId, onUpdated) {
       finally { edit.busy = false; titleMounts.get(projectId)?.(); }
     };
     input.onkeydown = event => { if (event.key === 'Enter') { event.preventDefault(); save(); } if (event.key === 'Escape') { event.preventDefault(); cancel(); } };
+    input.onblur = event => {
+      if (input.isConnected && !root.contains(event.relatedTarget)) save();
+    };
     root.append(el('div', {class: 'title-edit-row'}, input,
       el('button', {type: 'button', disabled: edit.busy ? '' : null, 'aria-busy': String(edit.busy), onclick: save}, edit.busy ? 'Đang lưu…' : 'Lưu tiêu đề'),
       el('button', {type: 'button', disabled: edit.busy ? '' : null, onclick: cancel}, 'Hủy')));

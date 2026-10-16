@@ -78,3 +78,29 @@ def test_schema_allows_every_renderer_overlay_type(overlay_type: str) -> None:
     schema = json.loads(schema_path.read_text(encoding="utf-8"))
     allowed = schema["properties"]["overlays"]["properties"]
     assert overlay_type in allowed
+
+
+@pytest.mark.parametrize('section,field,value', [
+    ('typography','unknown_font_role',{'font':'Caveat'}),
+    ('motion','unknown_motion','anything'),
+    ('overlays','unknown_overlay',{}),
+])
+def test_notebook_schema_still_rejects_unknown_fields(section, field, value):
+    import jsonschema
+    from styles.playbook_loader import validate_playbook
+    playbook=load_playbook('math-notebook')
+    playbook[section][field]=value
+    with pytest.raises(jsonschema.ValidationError):
+        validate_playbook(playbook)
+
+
+def test_notebook_typography_preserved_and_style_enum_checked():
+    import jsonschema
+    from styles.playbook_loader import validate_playbook
+    playbook=load_playbook('math-notebook')
+    assert playbook['typography']['equation']['font']=='KaTeX'
+    assert playbook['typography']['annotation']['style']=='italic'
+    assert playbook['visual_language']['color_palette']['grid_line']=='#C5CAE9'
+    playbook['typography']['annotation']['style']='invalid-style'
+    with pytest.raises(jsonschema.ValidationError):
+        validate_playbook(playbook)

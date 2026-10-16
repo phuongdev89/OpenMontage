@@ -145,6 +145,8 @@ def test_background_copy_regeneration(field):
           window.redraw = () => document.body.replaceChildren(renderPublishPackage({publish_package:packageData, stages:[{name:'publish',status:'completed'}]}, 'project-a'));
           redraw();
         }""")
+        if field == 'caption':
+            page.get_by_role('tab', name='Facebook', exact=True).click()
         button = page.get_by_role('button', name='Tạo lại '+field, exact=True)
         button.click()
         page.locator('#copy-instruction').fill('Viết ngắn hơn')
@@ -194,4 +196,107 @@ def test_title_editor_and_editable_thumbnail_prompt():
         assert page.evaluate('saved.body')=={'title':'New title','expected_title':'Old title'}
         assert page.evaluate('updated') is True
         expect(page.get_by_role('heading',name='New title',exact=True)).to_be_visible()
+        browser.close()
+
+
+@pytest.mark.parametrize('field,label', [('description','Description · YouTube'), ('caption','Caption · Facebook / TikTok')])
+def test_manual_copy_saves_on_blur_and_preserves_draft(field, label):
+    ui = Path(__file__).resolve().parents[2] / 'backlot/ui'
+    with sync_playwright() as pw:
+        browser = pw.chromium.launch()
+        page = browser.new_page()
+        def serve(route):
+            path = route.request.url.split('example.test')[-1]
+            route.fulfill(body=(ui / path.split('/')[-1]).read_text(encoding='utf-8') if path.startswith('/ui/') else '<html><body></body></html>', content_type='text/javascript' if path.startswith('/ui/') else 'text/html')
+        page.route('http://example.test/**', serve)
+        page.goto('http://example.test/')
+        page.evaluate('''async (field) => {
+            const {renderPublishPackage} = await import('/ui/publish.js');
+            window.calls = []; window.fail = false;
+            window.fetch = async (url, options) => {
+                const body = JSON.parse(options.body); calls.push({url, body});
+                return {ok: !fail, json: async()=> fail ? {detail:'Save failed'} : {content:body.content,revision:'new-revision'}};
+            };
+            window.s = {stages:[{name:'publish',status:'completed'}], publish_package:{title:'Old title',revisions:{title:'old-revision', description:'desc-rev', caption:'caption-rev'},thumbnails:[],videos:{}}};
+            window.draw = () => document.body.replaceChildren(renderPublishPackage(s, 'film'));
+            draw();
+        }''', field)
+        if field == 'caption':
+            page.get_by_role('tab', name='Facebook', exact=True).click()
+        title = page.get_by_role('textbox', name=label, exact=True)
+        expect(title).to_be_editable()
+        title.fill('Edited title')
+        assert page.evaluate('calls.length') == 0
+        page.get_by_role('heading', name='Hỗ trợ đăng video', exact=True).click()
+        expect(page.get_by_role('textbox', name=label, exact=True).locator('..').get_by_role('status')).to_have_text('Đã lưu')
+        assert page.evaluate('calls[0].body') == {'field': field, 'content': 'Edited title', 'expected_revision': 'desc-rev' if field == 'description' else 'caption-rev'}
+        page.evaluate('fail = true')
+        title.fill('Keep this draft')
+        page.get_by_role('heading', name='Hỗ trợ đăng video', exact=True).click()
+        expect(page.get_by_role('textbox', name=label, exact=True).locator('..').get_by_role('status')).to_have_text('Save failed')
+        page.evaluate('draw()')
+        expect(page.get_by_role('textbox', name=label, exact=True)).to_have_value('Keep this draft')
+        browser.close()
+
+
+@pytest.mark.parametrize('platform,label,link', [
+    ('youtube','YouTube','https://www.youtube.com/watch?v=abc123'),
+    ('facebook','Facebook','https://www.facebook.com/example/posts/123'),
+])
+def test_posted_link_blur_saves_and_preserves_failed_draft(platform, label, link):
+    ui = Path(__file__).resolve().parents[2] / 'backlot/ui'
+    with sync_playwright() as pw:
+        browser = pw.chromium.launch()
+        page = browser.new_page()
+        def serve(route):
+            path = route.request.url.split('example.test')[-1]
+            route.fulfill(body=(ui / path.split('/')[-1]).read_text(encoding='utf-8') if path.startswith('/ui/') else '<html><body></body></html>', content_type='text/javascript' if path.startswith('/ui/') else 'text/html')
+        page.route('http://example.test/**', serve)
+        page.goto('http://example.test/')
+        page.evaluate("""async ({platform}) => {
+            const {renderPublishPackage}=await import('/ui/publish.js');
+            window.calls=[];window.fail=false;
+            window.s={stages:[{name:'publish',status:'completed'}],posting_status:{platforms:{youtube:{revision:'old',confirmed:false,url:''},facebook:{revision:'old',confirmed:false,url:''}}},publish_package:{title:'Title',description:'Description',caption:'Caption',revisions:{},thumbnails:[],videos:{}}};
+            window.fetch=async(url,options)=>{const body=JSON.parse(options.body);calls.push(body);if(fail)return {ok:false,json:async()=>({detail:'Save failed'})};const record={url:body.url,confirmed:body.confirmed,revision:'new'};s.posting_status.platforms[platform]=record;return {ok:true,json:async()=>({platforms:{[platform]:record}})};};
+            window.draw=()=>document.body.replaceChildren(renderPublishPackage(s,'link-test'));
+            draw();
+        }""", {'platform':platform})
+        page.get_by_role('tab',name=label,exact=True).click()
+        page.locator('.posting-subpanel:not([hidden]) input[role=switch]').check()
+        field=page.get_by_role('textbox',name='Link '+label+' đã đăng',exact=True)
+        field.fill(link)
+        assert page.evaluate('calls.length')==0
+        page.get_by_role('heading',name='Hỗ trợ đăng video',exact=True).click()
+        expect(page.locator('.posting-subpanel:not([hidden]) .posting-status-msg')).to_have_text('Đã lưu')
+        assert page.evaluate('calls[0]')=={'platform':platform,'confirmed':True,'url':link,'expected_revision':'old'}
+        field.focus();page.get_by_role('heading',name='Hỗ trợ đăng video',exact=True).click()
+        assert page.evaluate('calls.length')==1
+        page.evaluate('fail=true')
+        field.fill(link+'4')
+        page.get_by_role('heading',name='Hỗ trợ đăng video',exact=True).click()
+        expect(page.locator('.posting-subpanel:not([hidden]) .posting-status-msg')).to_have_text('Save failed')
+        page.evaluate('draw()')
+        expect(page.get_by_role('textbox',name='Link '+label+' đã đăng',exact=True)).to_have_value(link+'4')
+        browser.close()
+
+
+def test_backlot_title_blur_saves():
+    ui = Path(__file__).resolve().parents[2] / 'backlot/ui'
+    with sync_playwright() as pw:
+        browser=pw.chromium.launch();page=browser.new_page()
+        def serve(route):
+            path=route.request.url.split('example.test')[-1]
+            route.fulfill(body=(ui/path.split('/')[-1]).read_text(encoding='utf-8') if path.startswith('/ui/') else '<html><body><button id="outside">Outside</button><main></main></body></html>',content_type='text/javascript' if path.startswith('/ui/') else 'text/html')
+        page.route('http://example.test/**',serve);page.goto('http://example.test/')
+        page.evaluate("""async()=>{
+            const {renderTitleEditor}=await import('/ui/publish.js');window.calls=[];
+            window.fetch=async(url,options)=>{const body=JSON.parse(options.body);calls.push(body);return {ok:true,json:async()=>({title:body.title})};};
+            document.querySelector('main').append(renderTitleEditor({title:'Original',stages:[{name:'publish',status:'completed'}]},'title-blur'));
+        }""")
+        page.get_by_role('heading',name='Original',exact=True).dblclick()
+        page.get_by_role('textbox',name='Tên project trên Backlot').fill('Changed on blur')
+        assert page.evaluate('calls.length')==0
+        page.locator('#outside').click()
+        expect(page.get_by_role('heading',name='Changed on blur',exact=True)).to_be_visible()
+        assert page.evaluate('calls')==[{'title':'Changed on blur','expected_title':'Original'}]
         browser.close()
