@@ -267,6 +267,8 @@ export function renderPublishPackage(s, projectId, onUpdated = null) {
 
   if (p.copy_warning) section.append(el('p', {role: 'alert'}, p.copy_warning));
 
+  section.append(renderCalendarSyncSection(s, projectId, onUpdated));
+
   if (s.is_cleaned) {
     const manifest = s.completed_record?.cleanup_manifest || {};
     const freedMb = (manifest.bytes_freed ? manifest.bytes_freed / 1048576 : 0).toFixed(1);
@@ -296,6 +298,251 @@ export function renderPublishPackage(s, projectId, onUpdated = null) {
   }
 
   return section;
+}
+
+function renderCalendarSyncSection(s, projectId, onUpdated) {
+  const container = el('div', {class: 'calendar-sync-box', id: `calendar-sync-${projectId}`});
+  const textCol = el('div');
+  const title = el('strong', {}, '📅 Lịch đăng (Script Calendar Management)');
+  const desc = el('p', {style: 'margin-top:4px;font-size:13px;color:var(--color-ink-2)'}, 'Đang tải thông tin lịch đăng…');
+  textCol.append(title, desc);
+
+  const actions = el('div', {class: 'calendar-sync-actions'});
+  container.append(textCol, actions);
+
+  getJSON(`/api/project/${encodeURIComponent(projectId)}/calendar-sync/info`).then(info => {
+    const sync = info.sync_state || {};
+    const status = sync.status || 'IDLE';
+
+    actions.innerHTML = '';
+    if (status === 'DONE') {
+      title.innerHTML = '✓ Đã chuyển sang lịch đăng thành công';
+      desc.textContent = `Campaign ID: ${sync.campaign_id || 'N/A'} · Ngày lên lịch: ${sync.scheduled_date || 'N/A'}`;
+      container.classList.add('calendar-sync-done');
+      const resyncBtn = el('button', {
+        type: 'button',
+        class: 'studio-button',
+        onclick: () => openCalendarSyncDialog(s, projectId, info, onUpdated),
+      }, 'Đồng bộ lại…');
+      actions.append(resyncBtn);
+    } else if (status === 'UNKNOWN') {
+      title.innerHTML = '⚠ Hết thời gian chờ tạo Campaign (POST timeout)';
+      desc.textContent = 'Trạng thái UNKNOWN: Chưa xác định server đã tạo campaign hay chưa. Vui lòng bấm Đối soát để kiểm tra tránh tạo trùng.';
+      container.classList.add('calendar-sync-warning');
+      const reconcileBtn = el('button', {
+        type: 'button',
+        class: 'studio-button studio-button-primary',
+        onclick: async () => {
+          reconcileBtn.disabled = true;
+          reconcileBtn.textContent = 'Đang đối soát…';
+          try {
+            const res = await requestJSON(`/api/project/${encodeURIComponent(projectId)}/calendar-sync/reconcile`, {calendar_url: info.calendar_url});
+            alert(res.message);
+            if (onUpdated) await onUpdated();
+          } catch (e) {
+            alert('Lỗi đối soát: ' + e.message);
+          } finally {
+            reconcileBtn.disabled = false;
+            reconcileBtn.textContent = 'Đối soát danh sách';
+          }
+        }
+      }, 'Đối soát danh sách');
+      actions.append(reconcileBtn);
+    } else if (status === 'CONFLICT_409') {
+      title.innerHTML = '⚠ Xung đột kịch bản (Revision 409)';
+      desc.textContent = 'Kịch bản trên server đã có thay đổi khác với bản của Backlot. Cần chọn ghi đè hoặc giữ bản server.';
+      container.classList.add('calendar-sync-error');
+      const conflictBtn = el('button', {
+        type: 'button',
+        class: 'studio-button studio-button-primary',
+        onclick: () => openConflictDialog(projectId, sync, info.calendar_url, onUpdated),
+      }, 'Xử lý xung đột…');
+      actions.append(conflictBtn);
+    } else if (status === 'ERROR') {
+      title.innerHTML = '✕ Lỗi đồng bộ lịch đăng';
+      desc.textContent = sync.error || 'Đồng bộ gặp lỗi. Bấm để thử lại.';
+      container.classList.add('calendar-sync-error');
+      const retryBtn = el('button', {
+        type: 'button',
+        class: 'studio-button',
+        onclick: () => openCalendarSyncDialog(s, projectId, info, onUpdated),
+      }, 'Thử lại…');
+      actions.append(retryBtn);
+    } else if (status === 'CAMPAIGN_CREATED' || status === 'SCRIPT_SAVED') {
+      title.innerHTML = '⏳ Đang đồng bộ dở dang';
+      desc.textContent = `Campaign: ${sync.campaign_id} (Mốc hiện tại: ${status}). Bấm để tiếp tục hoàn tất.`;
+      const resumeBtn = el('button', {
+        type: 'button',
+        class: 'studio-button studio-button-primary',
+        onclick: () => openCalendarSyncDialog(s, projectId, info, onUpdated),
+      }, 'Tiếp tục đồng bộ…');
+      actions.append(resumeBtn);
+    } else {
+      title.innerHTML = '📅 Chuyển project sang lịch đăng';
+      desc.textContent = 'Tạo chiến dịch, lưu kịch bản và caption lên Script Calendar Management.';
+      const syncBtn = el('button', {
+        type: 'button',
+        class: 'studio-button studio-button-primary',
+        onclick: () => openCalendarSyncDialog(s, projectId, info, onUpdated),
+      }, 'Chuyển project sang lịch đăng…');
+      actions.append(syncBtn);
+    }
+  }).catch(() => {
+    desc.textContent = 'Chưa kết nối được với thông tin lịch đăng.';
+  });
+
+  return container;
+}
+
+function openCalendarSyncDialog(s, projectId, info, onUpdated) {
+  const sync = info.sync_state || {};
+  const dialog = el('dialog', {class: 'cleanup-dialog calendar-sync-dialog', 'aria-labelledby': 'cal-sync-title'});
+  const title = el('h2', {id: 'cal-sync-title'}, `Chuyển project sang lịch đăng · ${s.title}`);
+  const intro = el('p', {style: 'margin: 6px 0 16px; color: var(--color-ink-2); font-size: 13px;'},
+    'Kiểm tra và xác nhận thông tin trước khi tạo Campaign và đẩy kịch bản/caption lên Script Calendar.');
+
+  const form = el('form', {class: 'calendar-sync-form', onsubmit: e => e.preventDefault()});
+
+  const hasCampaign = Boolean(sync.campaign_id);
+  const titleInput = el('input', {
+    type: 'text', maxLength: 180, required: '',
+    value: sync.title || info.title || s.title,
+    style: 'width: 100%;',
+    disabled: hasCampaign ? '' : null,
+  });
+  const titleRow = el('div', {class: 'cal-field-row'},
+    el('label', {}, 'Tiêu đề chiến dịch * (tối đa 180 ký tự)' + (hasCampaign ? ' (cố định theo campaign):' : ':')),
+    titleInput
+  );
+
+  const dateInput = el('input', {
+    type: 'date', required: '',
+    value: sync.scheduled_date || info.scheduled_date || new Date().toISOString().split('T')[0],
+    disabled: hasCampaign ? '' : null,
+  });
+  const dateRow = el('div', {class: 'cal-field-row'},
+    el('label', {}, 'Ngày lên lịch đăng * (YYYY-MM-DD)' + (hasCampaign ? ' (cố định theo campaign):' : ':')),
+    dateInput
+  );
+
+  const kocInput = el('input', {type: 'text', placeholder: 'Ví dụ: Trang Linh', value: sync.koc || info.koc || ''});
+  const kocRow = el('div', {class: 'cal-field-row'}, el('label', {}, 'KOC phụ trách:'), kocInput);
+
+  const ideaInput = el('input', {type: 'text', placeholder: 'Ý tưởng, góc quay hoặc bối cảnh', value: sync.idea || info.idea || ''});
+  const ideaRow = el('div', {class: 'cal-field-row'}, el('label', {}, 'Ý tưởng / Bối cảnh:'), ideaInput);
+
+  const productInput = el('input', {type: 'url', placeholder: 'https://shopee.vn/...', value: sync.product_url || info.product_url || ''});
+  const productRow = el('div', {class: 'cal-field-row'}, el('label', {}, 'Link sản phẩm (Affiliate):'), productInput);
+
+  const outfitInput = el('input', {type: 'number', min: 1, max: 20, value: sync.planned_outfit_count || 1, style: 'width: 80px;'});
+  const outfitRow = el('div', {class: 'cal-field-row'}, el('label', {}, 'Số lượng trang phục dự kiến:'), outfitInput);
+
+  const urlInput = el('input', {type: 'text', value: info.calendar_url || 'http://127.0.0.1:55484', style: 'width: 100%; font-family: var(--font-meta); font-size: 12px;'});
+  const urlRow = el('div', {class: 'cal-field-row'}, el('label', {}, 'Script Calendar Base URL:'), urlInput);
+
+  const scriptDetails = el('details', {style: 'margin-top: 10px;'},
+    el('summary', {style: 'cursor: pointer; font-size: 13px; font-weight: 500; color: var(--color-ink-2);'}, 'Xem trước kịch bản Markdown sẽ chuyển…'),
+    el('textarea', {readonly: '', rows: '6', style: 'width: 100%; margin-top: 6px; font-family: var(--font-meta); font-size: 12px;'}, info.script || 'Chưa có kịch bản')
+  );
+
+  const captionDetails = el('details', {style: 'margin-top: 8px;'},
+    el('summary', {style: 'cursor: pointer; font-size: 13px; font-weight: 500; color: var(--color-ink-2);'}, 'Xem trước caption sẽ chuyển…'),
+    el('textarea', {readonly: '', rows: '4', style: 'width: 100%; margin-top: 6px; font-family: var(--font-meta); font-size: 12px;'}, info.caption || 'Chưa có caption')
+  );
+
+  form.append(titleRow, dateRow, kocRow, ideaRow, productRow, outfitRow, urlRow, scriptDetails, captionDetails);
+
+  const errorMsg = el('p', {role: 'alert', style: 'margin-top: 12px; color: #f85149; font-size: 13px; display: none;'});
+
+  const cancelBtn = el('button', {type: 'button', class: 'studio-button', onclick: () => { dialog.close(); dialog.remove(); }}, 'Hủy');
+  const submitBtn = el('button', {type: 'button', class: 'studio-button studio-button-primary', onclick: async () => {
+    const tVal = titleInput.value.trim();
+    const dVal = dateInput.value.trim();
+    if (!tVal || !dVal) {
+      errorMsg.textContent = 'Vui lòng điền đủ Tiêu đề và Ngày lên lịch.';
+      errorMsg.style.display = 'block';
+      return;
+    }
+    submitBtn.disabled = true;
+    cancelBtn.disabled = true;
+    submitBtn.textContent = 'Đang chuyển sang lịch đăng…';
+    errorMsg.style.display = 'none';
+
+    try {
+      const payload = {
+        title: tVal,
+        scheduled_date: dVal,
+        koc: kocInput.value.trim(),
+        idea: ideaInput.value.trim(),
+        product_url: productInput.value.trim(),
+        planned_outfit_count: parseInt(outfitInput.value, 10) || 1,
+        calendar_url: urlInput.value.trim(),
+        script: info.script,
+        caption: info.caption,
+      };
+      await requestJSON(`/api/project/${encodeURIComponent(projectId)}/calendar-sync/start`, payload);
+      dialog.close();
+      dialog.remove();
+      if (onUpdated) await onUpdated();
+    } catch (err) {
+      errorMsg.textContent = err.message || 'Lỗi khi đồng bộ lịch đăng.';
+      errorMsg.style.display = 'block';
+      submitBtn.disabled = false;
+      cancelBtn.disabled = false;
+      submitBtn.textContent = 'Thử lại';
+      if (onUpdated) await onUpdated();
+    }
+  }}, sync.campaign_id ? 'Tiếp tục đồng bộ' : 'Xác nhận & Chuyển');
+
+  const actions = el('div', {class: 'cleanup-dialog-actions', style: 'margin-top: 20px; display: flex; justify-content: flex-end; gap: 8px;'}, cancelBtn, submitBtn);
+
+  dialog.append(title, intro, form, errorMsg, actions);
+  document.body.append(dialog);
+  dialog.showModal();
+}
+
+function openConflictDialog(projectId, syncState, calendarUrl, onUpdated) {
+  const dialog = el('dialog', {class: 'cleanup-dialog calendar-sync-dialog', 'aria-labelledby': 'conflict-title'});
+  const title = el('h2', {id: 'conflict-title'}, 'Xung đột kịch bản (Revision 409)');
+  const desc = el('p', {style: 'margin: 6px 0 16px; color: var(--color-ink-2); font-size: 13px;'},
+    'Kịch bản trên Script Calendar đã có người chỉnh sửa hoặc khác revision với bản local.');
+
+  const detail = syncState.conflict_detail || {};
+  const grid = el('div', {style: 'display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px;'});
+  const localCol = el('div', {},
+    el('strong', {style: 'font-size: 13px;'}, 'Bản local (Backlot):'),
+    el('textarea', {readonly: '', rows: '10', style: 'width: 100%; margin-top: 6px; font-family: var(--font-meta); font-size: 12px;'}, detail.local_content || '')
+  );
+  const remoteCol = el('div', {},
+    el('strong', {style: 'font-size: 13px;'}, `Bản server (Revision: ${(detail.remote_revision || '').slice(0, 8)}…):`),
+    el('textarea', {readonly: '', rows: '10', style: 'width: 100%; margin-top: 6px; font-family: var(--font-meta); font-size: 12px;'}, detail.remote_content || '')
+  );
+  grid.append(localCol, remoteCol);
+
+  const cancelBtn = el('button', {type: 'button', class: 'studio-button', onclick: () => { dialog.close(); dialog.remove(); }}, 'Đóng');
+  const keepRemoteBtn = el('button', {type: 'button', class: 'studio-button', onclick: async () => {
+    keepRemoteBtn.disabled = true;
+    try {
+      await requestJSON(`/api/project/${encodeURIComponent(projectId)}/calendar-sync/resolve-conflict`, {action: 'keep_remote', calendar_url: calendarUrl});
+      dialog.close(); dialog.remove();
+      if (onUpdated) await onUpdated();
+    } catch (e) { alert(e.message); keepRemoteBtn.disabled = false; }
+  }}, 'Giữ bản kịch bản trên server');
+
+  const overwriteBtn = el('button', {type: 'button', class: 'studio-button studio-button-primary', onclick: async () => {
+    overwriteBtn.disabled = true;
+    try {
+      await requestJSON(`/api/project/${encodeURIComponent(projectId)}/calendar-sync/resolve-conflict`, {action: 'overwrite', calendar_url: calendarUrl});
+      dialog.close(); dialog.remove();
+      if (onUpdated) await onUpdated();
+    } catch (e) { alert(e.message); overwriteBtn.disabled = false; }
+  }}, 'Ghi đè bằng bản Backlot');
+
+  const actions = el('div', {class: 'cleanup-dialog-actions', style: 'display: flex; justify-content: flex-end; gap: 8px;'}, cancelBtn, keepRemoteBtn, overwriteBtn);
+
+  dialog.append(title, desc, grid, actions);
+  document.body.append(dialog);
+  dialog.showModal();
 }
 
 function openCleanupDialog(s, projectId, onUpdated) {
