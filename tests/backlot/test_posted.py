@@ -62,6 +62,19 @@ def test_checked_requires_correct_platform_link(posted_client, url):
     assert not (project / 'checkpoint_posted.json').exists()
 
 
+def test_youtube_link_persists_for_math_news_project(posted_client):
+    client, project = posted_client
+    (project / 'project.json').write_text(json.dumps({
+        'pipeline_type': 'animation', 'style_playbook': 'math-news',
+    }), encoding='utf-8')
+    response = save(client, project, 'youtube', True, 'https://youtu.be/video-id')
+    assert response.status_code == 200, response.text
+    state = posting_state(project)
+    assert state['platforms']['youtube']['url'] == 'https://youtu.be/video-id'
+    assert state['platforms']['youtube']['confirmed'] is True
+    assert state['platforms']['facebook']['confirmed'] is False
+
+
 def test_requires_publish_and_rejects_stale_and_cross_origin(posted_client):
     client, project = posted_client
     old_revision = posting_state(project)['platforms']['youtube']['revision']

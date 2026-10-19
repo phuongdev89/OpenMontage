@@ -40,6 +40,7 @@
             "muted": { "type": "string" },
             "background_alt": { "type": "string" },
             "equation_highlight": { "type": "string" },
+            "equation_bg": { "type": "string" },
             "grid_line": { "type": "string" },
             "margin_line": { "type": "string" },
             "sticker_bg": { "type": "string" },
