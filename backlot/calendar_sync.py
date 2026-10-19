@@ -5,6 +5,9 @@ import contextlib
 import json
 import logging
 import os
+import shutil
+import subprocess
+import sys
 from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Any, Optional
@@ -17,7 +20,42 @@ from lib.env_loader import get_env, load_env
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_CALENDAR_URL = "http://127.0.0.1:55484"
+DEFAULT_CALENDAR_URL = "http://127.0.0.1:8766"
+DEFAULT_KOC = "Toán Olympic Cùng Con"
+
+
+def normalize_koc_name(name: Optional[str]) -> str:
+    if not name:
+        return ""
+    import unicodedata
+    normalized = unicodedata.normalize("NFKD", name.strip().lower().replace("_", " "))
+    return "".join(c for c in normalized if not unicodedata.combining(c))
+
+
+def is_same_koc(koc_a: Optional[str], koc_b: Optional[str]) -> bool:
+    if not koc_a or not koc_b:
+        return False
+    return normalize_koc_name(koc_a) == normalize_koc_name(koc_b)
+
+
+def get_calendar_management_dir() -> Optional[Path]:
+    load_env()
+    dir_str = get_env("SCRIPT_CALENDAR_MANAGEMENT_DIR")
+    if dir_str and dir_str.strip():
+        p = Path(dir_str.strip())
+        if p.is_dir() and (p / "cli.py").is_file():
+            return p
+    return None
+
+
+def get_python_exe(calendar_dir: Path) -> Path:
+    venv_py = calendar_dir / ".venv" / "Scripts" / "python.exe"
+    if venv_py.is_file():
+        return venv_py
+    venv_py_posix = calendar_dir / ".venv" / "bin" / "python"
+    if venv_py_posix.is_file():
+        return venv_py_posix
+    return Path(sys.executable)
 
 
 class CalendarSyncError(CopywriterError):
@@ -46,7 +84,11 @@ def get_calendar_base_url(override_url: Optional[str] = None) -> str:
     if override_url and override_url.strip():
         return override_url.strip().rstrip("/")
     load_env()
-    env_url = get_env("SCRIPT_CALENDAR_URL") or get_env("CALENDAR_URL")
+    env_url = (
+        get_env("CALENDAR_API_BASE")
+        or get_env("SCRIPT_CALENDAR_URL")
+        or get_env("CALENDAR_URL")
+    )
     if env_url and env_url.strip():
         return env_url.strip().rstrip("/")
     return DEFAULT_CALENDAR_URL
@@ -182,17 +224,107 @@ def format_script_markdown(script_data: Optional[dict], title: str = "") -> str:
     return "\n".join(lines).strip()
 
 
+def extract_project_posting_content(project: Path, state_data: Optional[dict] = None) -> dict:
+    from backlot.state import load_board_state
+    state = state_data or load_board_state(project)
+    package = state.get("publish_package") or {}
+
+    title = (package.get("title") or state.get("title") or project.name).strip()
+    disp_file = project / "display_title.json"
+    if disp_file.is_file():
+        try:
+            t = json.loads(disp_file.read_text(encoding="utf-8")).get("title")
+            if t and t.strip():
+                title = t.strip()
+        except Exception:
+            pass
+    proj_file = project / "project.json"
+    if proj_file.is_file():
+        try:
+            t = json.loads(proj_file.read_text(encoding="utf-8")).get("title")
+            if t and t.strip():
+                title = t.strip()
+        except Exception:
+            pass
+
+    yt_title = title
+    yt_desc = ""
+    fb_cap = ""
+    copy_file = project / "artifacts" / "posting_copy.json"
+    if copy_file.is_file():
+        try:
+            cdata = json.loads(copy_file.read_text(encoding="utf-8")).get("fields", {})
+            yt_desc = cdata.get("description", "") or cdata.get("youtube_description", "")
+            fb_cap = cdata.get("caption", "") or cdata.get("facebook_caption", "")
+            if cdata.get("title"):
+                yt_title = cdata.get("title")
+        except Exception:
+            pass
+
+    if not yt_desc and (project / "exports" / "description.txt").is_file():
+        try:
+            yt_desc = (project / "exports" / "description.txt").read_text(encoding="utf-8")
+        except Exception:
+            pass
+    if not yt_desc and (package.get("description") or package.get("caption")):
+        yt_desc = (package.get("description") or package.get("caption") or "").strip()
+
+    if not fb_cap and (project / "exports" / "caption.txt").is_file():
+        try:
+            fb_cap = (project / "exports" / "caption.txt").read_text(encoding="utf-8")
+        except Exception:
+            pass
+    if not fb_cap and (package.get("caption") or package.get("description")):
+        fb_cap = (package.get("caption") or package.get("description") or "").strip()
+
+    return {
+        "title": title,
+        "youtube_title": yt_title,
+        "youtube_description": yt_desc,
+        "facebook_caption": fb_cap,
+    }
+
+
+def extract_published_links(project: Path) -> list[dict]:
+    links = []
+    pub_log_file = project / "artifacts" / "publish_log.json"
+    if pub_log_file.is_file():
+        try:
+            pdata = json.loads(pub_log_file.read_text(encoding="utf-8"))
+            for entry in pdata.get("entries", []):
+                platform = entry.get("platform")
+                url = entry.get("url") or entry.get("link")
+                if platform and url:
+                    links.append({"platform": platform.lower(), "url": url})
+        except Exception:
+            pass
+    posted_cp = project / "checkpoint_posted.json"
+    if posted_cp.is_file():
+        try:
+            cp_data = json.loads(posted_cp.read_text(encoding="utf-8"))
+            platforms = cp_data.get("platforms") or {}
+            for p, pinfo in platforms.items():
+                if isinstance(pinfo, dict) and pinfo.get("url"):
+                    links.append({"platform": p.lower(), "url": pinfo["url"]})
+                elif isinstance(pinfo, str) and pinfo.startswith("http"):
+                    links.append({"platform": p.lower(), "url": pinfo})
+        except Exception:
+            pass
+    return links
+
+
 def get_default_sync_info(project: Path) -> dict:
     from backlot.state import load_board_state
     state = load_board_state(project)
     package = state.get("publish_package") or {}
     artifacts = state.get("artifacts") or {}
 
-    title = (package.get("title") or state.get("title") or project.name).strip()
+    content_info = extract_project_posting_content(project, state)
+    title = content_info["title"]
     if len(title) > 180:
         title = title[:177] + "..."
 
-    caption = (package.get("caption") or package.get("description") or "").strip()
+    caption = content_info["facebook_caption"] or content_info["youtube_description"] or (package.get("caption") or package.get("description") or "").strip()
     script_data = artifacts.get("script")
     script_md = format_script_markdown(script_data, title=title)
 
@@ -200,26 +332,130 @@ def get_default_sync_info(project: Path) -> dict:
     today = date.today().isoformat()
     published = is_project_published(project)
     active_url = resolve_calendar_url(sync_state)
+    cal_dir = get_calendar_management_dir()
+    client = CalendarClient(active_url)
+
+    is_added = False
+    koc_schedule = []
+
+    if sync_state.get("status") == "DONE" and sync_state.get("campaign_id"):
+        is_added = True
+
+    try:
+        raw_campaigns = client.list_campaigns(koc=DEFAULT_KOC, limit=300)
+        if not raw_campaigns:
+            raw_campaigns = client.list_campaigns(koc="Toan_Olympic_Cung_Con", limit=300)
+        koc_schedule = [c for c in raw_campaigns if isinstance(c, dict)] if isinstance(raw_campaigns, list) else []
+        target_title = title.strip().lower()
+        camp_id = sync_state.get("campaign_id")
+
+        for c in koc_schedule:
+            cid = c.get("id")
+            c_title = (c.get("title") or "").strip().lower()
+            c_folder = (c.get("folder_path") or c.get("folder_name") or "")
+
+            if (camp_id and cid == camp_id) or (target_title and c_title == target_title) or (project.name in c_folder):
+                is_added = True
+                if sync_state.get("status") != "DONE":
+                    sync_state.update({
+                        "status": "DONE",
+                        "campaign_id": cid,
+                        "title": c.get("title") or title,
+                        "scheduled_date": c.get("scheduled_date") or c.get("date"),
+                        "scheduled_time": c.get("scheduled_time") or "11:30",
+                        "koc": DEFAULT_KOC,
+                    })
+                    write_sync_state(project, sync_state)
+                break
+    except Exception as e:
+        logger.warning("Lỗi quét lịch đăng KOC %s: %s", DEFAULT_KOC, e)
+
+    # Smart default for idea
+    idea = sync_state.get("idea") or ""
+    if not idea:
+        proposal_data = artifacts.get("proposal") or artifacts.get("idea")
+        if isinstance(proposal_data, dict):
+            packet = proposal_data.get("proposal_packet") or proposal_data
+            concepts = packet.get("concept_options") or []
+            if concepts and isinstance(concepts[0], dict):
+                c0 = concepts[0]
+                idea = c0.get("hook") or c0.get("visual_approach") or c0.get("title") or ""
+            if not idea:
+                idea = proposal_data.get("summary") or proposal_data.get("hook") or ""
+        if not idea and caption:
+            idea = caption.split("\n")[0].strip()
+    if len(idea) > 300:
+        idea = idea[:297] + "..."
+
+    koc = sync_state.get("koc") or state.get("koc") or DEFAULT_KOC
+    product_url = sync_state.get("product_url") or state.get("product_url") or ""
+
+    today_weekday = date.today().weekday()
+    golden_hours = ["09:00", "15:00", "20:00"] if today_weekday in (5, 6) else ["11:45", "19:30", "20:30"]
+    suggested_time = "20:00" if today_weekday in (5, 6) else "19:30"
+    if sync_state.get("campaign_id"):
+        with contextlib.suppress(Exception):
+            sugg = client.get_schedule_suggestion(sync_state["campaign_id"], koc=koc)
+            if sugg.get("suggested_time"):
+                suggested_time = sugg["suggested_time"]
+            if sugg.get("golden_hours"):
+                golden_hours = sugg["golden_hours"]
+
+    scheduled_time = sync_state.get("scheduled_time") or suggested_time
+
+    workflow = client.get_workflow(koc)
 
     return {
         "title": title,
-        "scheduled_date": today,
-        "koc": "",
-        "idea": "",
-        "product_url": "",
+        "scheduled_date": sync_state.get("scheduled_date") or today,
+        "scheduled_time": scheduled_time,
+        "suggested_time": suggested_time,
+        "golden_hours": golden_hours,
+        "workflow": workflow,
+        "koc": koc,
+        "idea": idea,
+        "product_url": product_url,
         "caption": caption,
         "script": script_md,
         "sync_state": sync_state,
         "has_published_checkpoint": published,
         "calendar_url": active_url,
+        "calendar_dir": str(cal_dir) if cal_dir else None,
+        "calendar_mode": "cli" if cal_dir else "http",
+        "is_added": is_added,
+        "koc_schedule": koc_schedule,
     }
 
 
 class CalendarClient:
-    def __init__(self, base_url: str):
-        self.base_url = base_url.rstrip("/")
+    def __init__(self, base_url: str = DEFAULT_CALENDAR_URL, calendar_dir: Optional[Any] = None):
+        self.base_url = (base_url or DEFAULT_CALENDAR_URL).rstrip("/")
+        if calendar_dir is False:
+            self.calendar_dir = None
+        else:
+            self.calendar_dir = calendar_dir if calendar_dir is not None else get_calendar_management_dir()
+
+    def _find_campaign_dir(self, identifier: str) -> Optional[Path]:
+        if not self.calendar_dir:
+            return None
+        load_env()
+        c_root = get_env("CONTENT_ROOT") or "D:/Affiliate/02_Content_Production"
+        cand1 = Path(c_root) / identifier
+        if cand1.is_dir():
+            return cand1
+        root_path = Path(c_root)
+        if root_path.is_dir():
+            with contextlib.suppress(OSError):
+                for child in root_path.iterdir():
+                    if child.is_dir() and (child / identifier).is_dir():
+                        return child / identifier
+        return None
 
     def check_health(self) -> dict:
+        if self.calendar_dir:
+            if (self.calendar_dir / "cli.py").is_file():
+                return {"status": "ok", "mode": "cli", "dir": str(self.calendar_dir)}
+            raise CalendarSyncError("Thư mục SCRIPT_CALENDAR_MANAGEMENT_DIR không chứa cli.py.", 502)
         try:
             res = requests.get(f"{self.base_url}/health", timeout=(3, 5))
             if res.ok:
@@ -230,9 +466,34 @@ class CalendarClient:
         except requests.RequestException as e:
             raise CalendarSyncError(f"Không thể kết nối Script Calendar: {e}", 503)
 
-    def list_campaigns(self) -> list[dict]:
+    def list_campaigns(self, koc: Optional[str] = None, limit: int = 200) -> list[dict]:
+        if self.calendar_dir:
+            python_exe = get_python_exe(self.calendar_dir)
+            cmd = [str(python_exe), "cli.py", "list", "--limit", str(limit), "--json"]
+            if koc:
+                cmd.extend(["--koc", koc])
+            try:
+                proc = subprocess.run(
+                    cmd,
+                    cwd=str(self.calendar_dir),
+                    capture_output=True,
+                    text=True,
+                    encoding="utf-8",
+                    timeout=15,
+                )
+                if proc.returncode == 0 and proc.stdout.strip():
+                    data = json.loads(proc.stdout)
+                    return data if isinstance(data, list) else []
+            except Exception as e:
+                logger.warning("Lỗi list_campaigns CLI: %s", e)
+            return []
         try:
-            res = requests.get(f"{self.base_url}/api/campaigns", timeout=(5, 10))
+            params = {}
+            if koc:
+                params["koc"] = koc
+            if limit:
+                params["limit"] = str(limit)
+            res = requests.get(f"{self.base_url}/api/campaigns", params=params, timeout=(5, 10))
             if res.ok:
                 data = res.json()
                 return data if isinstance(data, list) else []
@@ -247,6 +508,12 @@ class CalendarClient:
         return [c["id"] for c in campaigns if isinstance(c, dict) and c.get("id")]
 
     def get_campaign(self, identifier: str) -> dict:
+        if self.calendar_dir:
+            folder = self._find_campaign_dir(identifier)
+            if folder and (folder / "calendar.json").is_file():
+                with contextlib.suppress(Exception):
+                    return json.loads((folder / "calendar.json").read_text(encoding="utf-8"))
+            raise CalendarSyncError(f"Campaign {identifier} không tồn tại.", 404)
         try:
             res = requests.get(f"{self.base_url}/api/campaigns/{identifier}", timeout=(5, 10))
             if res.ok:
@@ -257,7 +524,143 @@ class CalendarClient:
         except requests.RequestException as e:
             raise CalendarSyncError(f"Lỗi kết nối khi đọc campaign: {e}", 503)
 
+    def get_workflow(self, koc_name: str = DEFAULT_KOC) -> dict:
+        """Lấy cấu hình workflow của KOC (video_format, outfit_mode, task_kind, ...)."""
+        if self.calendar_dir:
+            return {
+                "key": "toan_olympic",
+                "outfit_mode": "none",
+                "task_kind": "animation",
+                "default_look_count": 0,
+                "video_format": "landscape",
+                "multiple_outfits": False,
+            }
+        try:
+            res = requests.get(f"{self.base_url}/api/koc-workflows/{koc_name}", timeout=(5, 10))
+            if res.ok:
+                return res.json()
+        except Exception as e:
+            logger.warning("Không thể lấy workflow cho KOC %s: %s", koc_name, e)
+        return {
+            "key": "toan_olympic",
+            "outfit_mode": "none",
+            "task_kind": "animation",
+            "default_look_count": 0,
+            "video_format": "landscape",
+            "multiple_outfits": False,
+        }
+
+    def get_schedule_suggestion(self, campaign_id: str, koc_name: str = DEFAULT_KOC) -> dict:
+        """Gợi ý khung giờ vàng đăng bài cho chiến dịch."""
+        if self.calendar_dir:
+            # Quy tắc: T2-T6 gợi ý 19:30, T7-CN gợi ý 20:00
+            today_weekday = date.today().weekday()
+            is_weekend = today_weekday in (5, 6)
+            golden = ["09:00", "15:00", "20:00"] if is_weekend else ["11:45", "19:30", "20:30"]
+            return {
+                "campaign_id": campaign_id,
+                "koc": koc_name,
+                "suggested_time": "20:00" if is_weekend else "19:30",
+                "golden_hours": golden,
+            }
+        try:
+            res = requests.get(
+                f"{self.base_url}/api/campaigns/{campaign_id}/schedule-suggestion",
+                params={"koc": koc_name},
+                timeout=(5, 10),
+            )
+            if res.ok:
+                return res.json()
+        except Exception as e:
+            logger.warning("Không thể lấy gợi ý khung giờ cho %s: %s", campaign_id, e)
+
+        today_weekday = date.today().weekday()
+        is_weekend = today_weekday in (5, 6)
+        golden = ["09:00", "15:00", "20:00"] if is_weekend else ["11:45", "19:30", "20:30"]
+        return {
+            "campaign_id": campaign_id,
+            "koc": koc_name,
+            "suggested_time": "20:00" if is_weekend else "19:30",
+            "golden_hours": golden,
+        }
+
+    def get_today_check(self, koc_name: str = DEFAULT_KOC) -> dict:
+        """Kiểm tra các bài cần đăng trong ngày hôm nay."""
+        if self.calendar_dir:
+            return {"date": date.today().isoformat(), "total_today": 0, "by_status": {}, "campaigns": []}
+        try:
+            res = requests.get(
+                f"{self.base_url}/api/campaigns/today-check",
+                params={"koc": koc_name},
+                timeout=(5, 10),
+            )
+            if res.ok:
+                return res.json()
+        except Exception as e:
+            logger.warning("Lỗi get_today_check: %s", e)
+        return {"date": date.today().isoformat(), "total_today": 0, "by_status": {}, "campaigns": []}
+
+    def get_koc_thumbnail(self, koc_name: str = DEFAULT_KOC) -> Optional[bytes]:
+        """Lấy avatar / logo của KOC."""
+        try:
+            res = requests.get(f"{self.base_url}/api/koc-thumbnail/{koc_name}", timeout=(5, 10))
+            if res.ok:
+                return res.content
+        except Exception as e:
+            logger.warning("Lỗi get_koc_thumbnail: %s", e)
+        return None
+
     def create_campaign(self, payload: dict) -> dict:
+        if self.calendar_dir:
+            python_exe = get_python_exe(self.calendar_dir)
+            title = (payload.get("title") or "").strip()
+            date_str = (payload.get("scheduled_date") or payload.get("date") or "").strip()
+            koc = (payload.get("koc") or DEFAULT_KOC).strip() or DEFAULT_KOC
+            idea = (payload.get("idea") or "").strip()
+            product_url = (payload.get("product_url") or "").strip()
+            scheduled_time = (payload.get("scheduled_time") or "").strip()
+
+            cmd = [
+                str(python_exe),
+                "cli.py",
+                "create",
+                "--title", title,
+                "--date", date_str,
+            ]
+            if koc:
+                cmd.extend(["--koc", koc])
+            if idea:
+                cmd.extend(["--idea", idea])
+            if product_url:
+                cmd.extend(["--product-url", product_url])
+            if scheduled_time:
+                cmd.extend(["--scheduled-time", scheduled_time])
+            cmd.append("--json")
+
+            try:
+                proc = subprocess.run(
+                    cmd,
+                    cwd=str(self.calendar_dir),
+                    capture_output=True,
+                    text=True,
+                    encoding="utf-8",
+                    timeout=30,
+                )
+            except subprocess.TimeoutExpired:
+                raise CalendarTimeoutError("Hết thời gian chờ lệnh tạo task trên CLI.")
+            except Exception as e:
+                raise CalendarSyncError(f"Lỗi khi thực thi CLI: {e}", 500)
+
+            if proc.returncode != 0:
+                err = proc.stderr.strip() or proc.stdout.strip() or f"Exit code {proc.returncode}"
+                raise CalendarSyncError(f"Lỗi CLI Script Calendar: {err}", 500)
+
+            try:
+                data = json.loads(proc.stdout)
+                return data if isinstance(data, dict) else {"id": str(data)}
+            except Exception as e:
+                raise CalendarSyncError(f"Lỗi phân tích JSON từ CLI: {e}", 502)
+
         try:
             res = requests.post(
                 f"{self.base_url}/api/campaigns",
@@ -278,6 +681,12 @@ class CalendarClient:
         raise CalendarSyncError(f"Tạo campaign thất bại ({res.status_code}): {detail}", res.status_code)
 
     def get_script(self, identifier: str) -> dict:
+        if self.calendar_dir:
+            folder = self._find_campaign_dir(identifier)
+            if folder and (folder / "01_scripts/master_script.md").is_file():
+                content = (folder / "01_scripts/master_script.md").read_text(encoding="utf-8")
+                return {"content": content, "revision": "cli_rev_1"}
+            return {"content": "", "revision": ""}
         try:
             res = requests.get(f"{self.base_url}/api/campaigns/{identifier}/script", timeout=(5, 10))
         except requests.Timeout:
@@ -290,6 +699,14 @@ class CalendarClient:
         raise CalendarSyncError(f"Đọc kịch bản thất bại ({res.status_code}): {res.text}", res.status_code)
 
     def save_script(self, identifier: str, content: str, revision: str) -> dict:
+        if self.calendar_dir:
+            folder = self._find_campaign_dir(identifier)
+            if folder:
+                s_file = folder / "01_scripts" / "master_script.md"
+                s_file.parent.mkdir(parents=True, exist_ok=True)
+                atomic_bytes(s_file, content.encode("utf-8"))
+            return {"ok": True, "revision": revision or "cli_rev_1"}
+
         try:
             res = requests.put(
                 f"{self.base_url}/api/campaigns/{identifier}/script",
@@ -316,6 +733,12 @@ class CalendarClient:
         raise CalendarSyncError(f"Lưu kịch bản thất bại ({res.status_code}): {res.text}", res.status_code)
 
     def get_caption(self, identifier: str) -> dict:
+        if self.calendar_dir:
+            folder = self._find_campaign_dir(identifier)
+            if folder and (folder / "01_scripts/post.md").is_file():
+                content = (folder / "01_scripts/post.md").read_text(encoding="utf-8")
+                return {"content": content}
+            return {"content": ""}
         try:
             res = requests.get(f"{self.base_url}/api/campaigns/{identifier}/caption", timeout=(5, 10))
         except requests.Timeout:
@@ -328,6 +751,16 @@ class CalendarClient:
         raise CalendarSyncError(f"Đọc caption thất bại ({res.status_code}): {res.text}", res.status_code)
 
     def save_caption(self, identifier: str, content: str) -> dict:
+        if self.calendar_dir:
+            folder = self._find_campaign_dir(identifier)
+            if folder:
+                c_file1 = folder / "01_scripts" / "post.md"
+                c_file1.parent.mkdir(parents=True, exist_ok=True)
+                atomic_bytes(c_file1, content.encode("utf-8"))
+                if (folder / "04_output").is_dir():
+                    c_file2 = folder / "04_output" / "post.md"
+                    atomic_bytes(c_file2, content.encode("utf-8"))
+            return {"ok": True, "campaign_id": identifier}
         try:
             res = requests.put(
                 f"{self.base_url}/api/campaigns/{identifier}/caption",
@@ -345,6 +778,20 @@ class CalendarClient:
         raise CalendarSyncError(f"Lưu caption thất bại ({res.status_code}): {res.text}", res.status_code)
 
     def delete_campaign(self, identifier: str) -> dict:
+        if self.calendar_dir:
+            python_exe = get_python_exe(self.calendar_dir)
+            with contextlib.suppress(Exception):
+                subprocess.run(
+                    [str(python_exe), "cli.py", "delete", "--yes", identifier],
+                    cwd=str(self.calendar_dir),
+                    capture_output=True,
+                    timeout=15,
+                )
+            folder = self._find_campaign_dir(identifier)
+            if folder and folder.is_dir():
+                with contextlib.suppress(Exception):
+                    shutil.rmtree(folder)
+            return {"ok": True}
         try:
             res = requests.delete(f"{self.base_url}/api/campaigns/{identifier}", timeout=(5, 10))
             if res.ok:
@@ -354,6 +801,75 @@ class CalendarClient:
             raise CalendarTimeoutError("Hết thời gian chờ xóa campaign.")
         except requests.RequestException as e:
             raise CalendarSyncError(f"Lỗi mạng khi xóa campaign: {e}", 503)
+
+    def update_content(self, identifier: str, content: dict) -> dict:
+        """Bước 2: Đồng bộ nội dung bài đăng đa nền tảng (youtube_title, youtube_description, facebook_caption)."""
+        if self.calendar_dir:
+            folder = self._find_campaign_dir(identifier)
+            if folder:
+                fb_cap = content.get("facebook_caption") or content.get("caption") or ""
+                if fb_cap:
+                    c_file = folder / "01_scripts" / "post.md"
+                    c_file.parent.mkdir(parents=True, exist_ok=True)
+                    atomic_bytes(c_file, fb_cap.encode("utf-8"))
+            return {"ok": True, "campaign_id": identifier}
+        try:
+            res = requests.post(
+                f"{self.base_url}/api/campaigns/{identifier}/content",
+                json=content,
+                headers={"Content-Type": "application/json"},
+                timeout=(5, 15),
+            )
+        except requests.Timeout:
+            raise CalendarTimeoutError("Hết thời gian chờ cập nhật nội dung đa nền tảng.")
+        except requests.RequestException as e:
+            raise CalendarSyncError(f"Lỗi mạng khi cập nhật nội dung đa nền tảng: {e}", 503)
+
+        if res.ok:
+            return res.json()
+        raise CalendarSyncError(f"Cập nhật nội dung thất bại ({res.status_code}): {res.text}", res.status_code)
+
+    def update_status(self, identifier: str, status: str = "CAPTIONED") -> dict:
+        """Bước 3: Cập nhật trạng thái sản xuất (PLANNED -> PRODUCED -> CAPTIONED -> PUBLISHED)."""
+        if self.calendar_dir:
+            return {"ok": True, "status": status}
+        try:
+            res = requests.post(
+                f"{self.base_url}/api/campaigns/{identifier}/status",
+                json={"status": status},
+                headers={"Content-Type": "application/json"},
+                timeout=(5, 10),
+            )
+        except requests.Timeout:
+            raise CalendarTimeoutError("Hết thời gian chờ cập nhật trạng thái.")
+        except requests.RequestException as e:
+            raise CalendarSyncError(f"Lỗi mạng khi cập nhật trạng thái: {e}", 503)
+
+        if res.ok:
+            return res.json()
+        raise CalendarSyncError(f"Cập nhật trạng thái thất bại ({res.status_code}): {res.text}", res.status_code)
+
+    def update_published_links(self, identifier: str, links: list[dict]) -> dict:
+        """Bước 4: Đồng bộ link khi đã xuất bản lên mạng xã hội."""
+        if not links:
+            return {"ok": True, "links": []}
+        if self.calendar_dir:
+            return {"ok": True, "links": links}
+        try:
+            res = requests.post(
+                f"{self.base_url}/api/campaigns/{identifier}/published-links",
+                json={"links": links},
+                headers={"Content-Type": "application/json"},
+                timeout=(5, 10),
+            )
+        except requests.Timeout:
+            raise CalendarTimeoutError("Hết thời gian chờ cập nhật link xuất bản.")
+        except requests.RequestException as e:
+            raise CalendarSyncError(f"Lỗi mạng khi cập nhật link xuất bản: {e}", 503)
+
+        if res.ok:
+            return res.json()
+        raise CalendarSyncError(f"Cập nhật link xuất bản thất bại ({res.status_code}): {res.text}", res.status_code)
 
 
 def sync_project_to_calendar(
@@ -399,7 +915,8 @@ def sync_project_to_calendar(
         if not scheduled_date:
             raise CalendarSyncError("Ngày lên lịch (YYYY-MM-DD) là bắt buộc.", 422)
 
-        koc = (params.get("koc") if params.get("koc") is not None else state.get("koc", "")).strip()
+        scheduled_time = (params.get("scheduled_time") or state.get("scheduled_time") or "11:30").strip()
+        koc = (params.get("koc") if params.get("koc") is not None else state.get("koc", DEFAULT_KOC)).strip() or DEFAULT_KOC
         idea = (params.get("idea") if params.get("idea") is not None else state.get("idea", "")).strip()
         product_url = (params.get("product_url") if params.get("product_url") is not None else state.get("product_url", "")).strip()
         planned_outfit_count = params.get("planned_outfit_count") or state.get("planned_outfit_count")
@@ -421,6 +938,7 @@ def sync_project_to_calendar(
         state.update({
             "title": title,
             "scheduled_date": scheduled_date,
+            "scheduled_time": scheduled_time,
             "koc": koc,
             "idea": idea,
             "product_url": product_url,
@@ -429,6 +947,27 @@ def sync_project_to_calendar(
             "caption_snapshot": caption_content,
             "calendar_url": base_url,
         })
+
+        # CLI execution when SCRIPT_CALENDAR_MANAGEMENT_DIR is configured and no explicit mock client is injected
+        cal_dir = get_calendar_management_dir()
+        if client is None and cal_dir is not None:
+            return sync_via_cli(
+                project=project,
+                calendar_dir=cal_dir,
+                params=params,
+                state=state,
+                title=title,
+                scheduled_date=scheduled_date,
+                scheduled_time=scheduled_time,
+                koc=koc,
+                idea=idea,
+                product_url=product_url,
+                script_content=script_content,
+                caption_content=caption_content,
+            )
+
+        if client is None:
+            client = CalendarClient(base_url)
 
         # Handle Re-sync when already DONE: reset update milestones to ensure fresh script & caption sync
         if state.get("status") == "DONE" and campaign_id:
@@ -465,10 +1004,14 @@ def sync_project_to_calendar(
                 "scheduled_date": scheduled_date,
                 "koc": koc,
                 "idea": idea,
-                "product_url": product_url,
+                "planned_outfit_count": 0 if planned_outfit_count is None else int(planned_outfit_count),
+                "share_affiliate": False,
+                "affiliate_in_caption": False,
+                "link_placement": "none",
+                "folder_name": project.name,
             }
-            if planned_outfit_count is not None:
-                create_payload["planned_outfit_count"] = int(planned_outfit_count)
+            if product_url:
+                create_payload["product_url"] = product_url
 
             try:
                 created = client.create_campaign(create_payload)
@@ -583,6 +1126,72 @@ def sync_project_to_calendar(
 
         # Step D: Complete when all steps are satisfied
         if {"CAMPAIGN_CREATED", "SCRIPT_SAVED", "CAPTION_SAVED"}.issubset(milestones):
+            content_info = extract_project_posting_content(project)
+            yt_title = params.get("youtube_title") or content_info.get("youtube_title") or title
+            yt_desc = params.get("youtube_description") or content_info.get("youtube_description") or caption_content
+            fb_cap = params.get("facebook_caption") or content_info.get("facebook_caption") or caption_content
+
+            content_payload = {
+                "youtube_title": yt_title,
+                "youtube_description": yt_desc,
+                "facebook_caption": fb_cap,
+            }
+            if hasattr(client, "update_content"):
+                with contextlib.suppress(Exception):
+                    client.update_content(campaign_id, content_payload)
+
+            if hasattr(client, "update_status"):
+                with contextlib.suppress(Exception):
+                    client.update_status(campaign_id, "CAPTIONED")
+
+            pub_links = extract_published_links(project)
+            if pub_links and hasattr(client, "update_published_links"):
+                with contextlib.suppress(Exception):
+                    client.update_published_links(campaign_id, pub_links)
+            if getattr(client, "calendar_dir", None):
+                folder_path = None
+                if hasattr(client, "_find_campaign_dir"):
+                    folder_path = client._find_campaign_dir(campaign_id)
+                if folder_path and folder_path.is_dir():
+                    state["folder_path"] = str(folder_path)
+                    video_candidates = list((project / "exports" / "video").glob("*.mp4"))
+                    if not video_candidates:
+                        video_candidates = list((project / "renders").glob("*.mp4"))
+                    if video_candidates:
+                        best_video = video_candidates[0]
+                        for v in video_candidates:
+                            if "landscape" in v.name:
+                                best_video = v
+                                break
+                        dest_video = folder_path / "04_output" / "video.mp4"
+                        dest_video.parent.mkdir(parents=True, exist_ok=True)
+                        if not dest_video.is_file() or dest_video.stat().st_size != best_video.stat().st_size:
+                            with contextlib.suppress(OSError):
+                                shutil.copy2(best_video, dest_video)
+
+                    thumb_candidates = list((project / "exports" / "thumbnails").glob("*.*"))
+                    if thumb_candidates:
+                        best_thumb = thumb_candidates[0]
+                        dest_cover = folder_path / "04_output" / "cover.jpg"
+                        dest_cover.parent.mkdir(parents=True, exist_ok=True)
+                        try:
+                            from PIL import Image
+                            with Image.open(best_thumb) as img:
+                                rgb = img.convert("RGB")
+                                rgb.save(dest_cover, "JPEG", quality=92)
+                        except Exception:
+                            with contextlib.suppress(OSError):
+                                shutil.copy2(best_thumb, dest_cover)
+
+                    with contextlib.suppress(Exception):
+                        python_exe = get_python_exe(client.calendar_dir)
+                        subprocess.run(
+                            [str(python_exe), "cli.py", "sync"],
+                            cwd=str(client.calendar_dir),
+                            capture_output=True,
+                            timeout=15,
+                        )
+
             state.update({
                 "status": "DONE",
                 "error": None,
@@ -630,7 +1239,7 @@ def reconcile_unknown_sync(
                 continue
             if target_date and c_date != target_date:
                 continue
-            if target_koc and c_koc != target_koc:
+            if target_koc and c_koc and not is_same_koc(target_koc, c_koc):
                 continue
 
             matched_candidates.append(c)

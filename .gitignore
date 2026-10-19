@@ -112,3 +112,4 @@ projects_work/
 .env-*
 prompt_chat/data/
 .hallmark/
+data/

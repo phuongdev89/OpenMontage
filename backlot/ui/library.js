@@ -93,9 +93,12 @@ function card(p, index = 0) {
     poster.append(el("span", { class: "lp-live" }, "◈ AWAITING YOU"));
   }
 
+  const isPublished = p.stage_states.some(s => s.name === 'publish' && s.status === 'completed');
+  const isPosted = p.stage_states.some(s => s.name === 'posted' && s.status === 'completed');
   const meta = el("div", { class: "lb-meta" },
     el("span", { class: "chip" }, p.pipeline_type || "unknown"),
     p.scene_count ? el("span", { class: "chip" }, `${p.scene_count} scenes`) : null,
+    isPublished && !isPosted ? el("span", { class: "chip", style: "color: #58a6ff; border-color: rgba(56, 139, 253, 0.4);" }, "📅 Thêm vào lịch đăng") : null,
   );
 
   const staticSuffix = new URLSearchParams(location.search).has("static") ? "?static=1" : "";
@@ -133,7 +136,15 @@ function projectTable(items) {
         poster, el('div', {}, el('strong', {}, p.title || p.project_id),
           el('small', {}, `${p.scene_count || 0} cảnh · ${p.render_count || 0} video`)))),
       el('td', {class: 'column-1'}, p.pipeline_type || 'unknown'),
-      el('td', {class: 'column-2'}, el('span', {class: isCleaned ? 'table-cleaned' : done ? 'table-published' : ''}, status)),
+      el('td', {class: 'column-2'},
+        el('span', {class: isCleaned ? 'table-cleaned' : done ? 'table-published' : ''}, status),
+        done && !posted ? el('a', {
+          class: 'table-cal-link',
+          href: `/p/${encodeURIComponent(p.project_id)}${staticSuffix}#calendar-sync`,
+          title: 'Thêm vào lịch đăng',
+          style: 'margin-left: 8px; font-size: 11px; padding: 2px 6px; background: rgba(56, 139, 253, 0.15); color: #58a6ff; border: 1px solid rgba(56, 139, 253, 0.3); border-radius: 4px; text-decoration: none; font-weight: 500;'
+        }, '📅 Thêm vào lịch đăng') : null
+      ),
       el('td', {class: 'column-3'}, fmtAgo(p.last_activity) || '—')));
   }
   return table;

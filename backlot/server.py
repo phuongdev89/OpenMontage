@@ -86,6 +86,7 @@ class CleanupExecuteRequest(BaseModel):
 class CalendarSyncStartRequest(BaseModel):
     title: Optional[str] = Field(default=None, max_length=180)
     scheduled_date: Optional[str] = Field(default=None, max_length=20)
+    scheduled_time: Optional[str] = Field(default=None, max_length=20)
     koc: Optional[str] = Field(default=None, max_length=100)
     idea: Optional[str] = Field(default=None, max_length=1000)
     product_url: Optional[str] = Field(default=None, max_length=2000)

@@ -18,6 +18,7 @@ from backlot.calendar_sync import (
     CalendarSyncError,
     CalendarTimeoutError,
     format_script_markdown,
+    get_default_sync_info,
     project_sync_lock,
     read_sync_state,
     reconcile_unknown_sync,
@@ -616,15 +617,36 @@ def test_unpublished_project_blocked(projects_root):
         sync_project_to_calendar(proj, {"title": "Test", "scheduled_date": "2026-10-28"})
 
 
+def test_koc_fixed_default_toan_olympic_cung_con(projects_root):
+    """KOC must always default to 'Toán Olympic Cùng Con'."""
+    proj = _make_sample_project(projects_root, "proj_koc_test")
+    info = get_default_sync_info(proj)
+    assert info["koc"] == "Toán Olympic Cùng Con"
+
+    mock_client = MagicMock(spec=CalendarClient)
+    mock_client.create_campaign.return_value = {"id": "camp_koc_123"}
+    mock_client.save_script.return_value = {"ok": True, "revision": "rev1"}
+    mock_client.save_caption.return_value = {"ok": True}
+
+    res = sync_project_to_calendar(proj, {"title": "Test KOC", "scheduled_date": "2026-10-30"}, client=mock_client)
+    assert res["status"] == "DONE"
+    state = read_sync_state(proj)
+    assert state["koc"] == "Toán Olympic Cùng Con"
+    mock_client.create_campaign.assert_called_once()
+    payload = mock_client.create_campaign.call_args[0][0]
+    assert payload["koc"] == "Toán Olympic Cùng Con"
+
+
 def test_live_crud_cycle_against_server():
-    """Live verification against http://127.0.0.1:55484: create -> read -> script -> caption -> delete."""
-    client = CalendarClient("http://127.0.0.1:55484")
+    """Live verification against http://127.0.0.1:8766 (or 55484): create -> read -> script -> caption -> delete."""
+    port = cal_mod.get_calendar_base_url()
+    client = CalendarClient(port)
     try:
         health = client.check_health()
         if health.get("status") != "ok":
-            pytest.skip("Server at 55484 is not healthy")
+            pytest.skip(f"Server at {port} is not healthy")
     except Exception:
-        pytest.skip("Server at 55484 is not reachable")
+        pytest.skip(f"Server at {port} is not reachable")
 
     test_title = f"_test_backlot_sync_{int(__import__('time').time())}"
     test_date = "2026-10-29"
@@ -723,29 +745,281 @@ def test_browser_calendar_sync_ui(client, projects_root, monkeypatch):
         }""")
 
         # Verify Calendar Sync card is rendered
-        btn = page.get_by_role("button", name="Chuyển project sang lịch đăng…", exact=True)
+        btn = page.get_by_role("button", name="Thêm vào lịch đăng…", exact=True)
         pw_api.expect(btn).to_be_visible()
 
         # Click to open dialog
         btn.click()
         dialog = page.locator(".calendar-sync-dialog")
         pw_api.expect(dialog).to_be_visible()
+        assert page.locator(".calendar-sync-dialog").count() == 1
+
+        # Test backdrop click closes dialog and removes it from DOM
+        page.mouse.click(10, 10)
+        pw_api.expect(dialog).not_to_be_visible()
+        assert page.locator(".calendar-sync-dialog").count() == 0
+
+        # Reopen dialog to continue test - must still be exactly 1 dialog in DOM
+        btn.click()
+        pw_api.expect(dialog).to_be_visible()
+        assert page.locator(".calendar-sync-dialog").count() == 1
 
         # Verify default title is populated
         title_input = dialog.locator("input[type=text]").first
         pw_api.expect(title_input).to_have_value("Chiếc Đầm Mùa Thu Xinh Xắn")
 
         # Submit form
-        submit_btn = dialog.get_by_role("button", name="Xác nhận & Chuyển", exact=True)
+        submit_btn = dialog.get_by_role("button", name="Thêm vào lịch đăng", exact=True)
         submit_btn.click()
 
-        # Dialog closes upon success
+        # Dialog closes upon success and removes from DOM
         pw_api.expect(dialog).not_to_be_visible()
+        assert page.locator(".calendar-sync-dialog").count() == 0
 
         # Verify card updates to DONE
         success_title = page.locator(".calendar-sync-box strong")
-        pw_api.expect(success_title).to_contain_text("Đã chuyển sang lịch đăng thành công")
+        pw_api.expect(success_title).to_contain_text("Đã thêm vào lịch đăng thành công")
 
         browser.close()
+
+
+def test_browser_already_added_button_disabled(client, projects_root, monkeypatch):
+    """When a project is already added to the calendar, the button must be disabled with text 'Đã thêm vào lịch đăng'."""
+    pw_api = pytest.importorskip("playwright.sync_api")
+    proj = _make_sample_project(projects_root, "proj_already_added")
+    write_sync_state(proj, {
+        "status": "DONE",
+        "campaign_id": "existing_camp_888",
+        "scheduled_date": "2026-10-25",
+        "koc": "Toan_Olympic_Cung_Con",
+    })
+    ui = Path(__file__).resolve().parents[2] / "backlot/ui"
+
+    mock_cal_client = MagicMock(spec=CalendarClient)
+    mock_cal_client.list_campaign_ids.return_value = ["existing_camp_888"]
+    mock_cal_client.list_campaigns.return_value = [
+        {"id": "existing_camp_888", "title": "Chiếc Đầm Mùa Thu Xinh Xắn", "scheduled_date": "2026-10-25", "koc": "Toan_Olympic_Cung_Con"}
+    ]
+    monkeypatch.setattr(cal_mod, "CalendarClient", lambda base_url: mock_cal_client)
+
+    with pw_api.sync_playwright() as pw:
+        browser = pw.chromium.launch()
+        page = browser.new_page()
+
+        def serve(route):
+            path = route.request.url.split("example.test")[-1]
+            if path.startswith("/ui/"):
+                file_name = path.split("/")[-1].split("?")[0]
+                route.fulfill(body=(ui / file_name).read_text(encoding="utf-8"), content_type="text/javascript")
+            elif path.startswith("/api/"):
+                response = client.request(
+                    route.request.method,
+                    path,
+                    content=route.request.post_data,
+                    headers={"Content-Type": "application/json"},
+                )
+                route.fulfill(status=response.status_code, body=response.text, content_type="application/json")
+            else:
+                route.fulfill(body="<html><body></body></html>", content_type="text/html")
+
+        page.route("http://example.test/**", serve)
+        page.goto("http://example.test/")
+        page.evaluate("""async () => {
+            const {renderPublishPackage} = await import('/ui/publish.js');
+            const s = await (await fetch('/api/project/proj_already_added/state')).json();
+            document.body.replaceChildren(renderPublishPackage(s, 'proj_already_added'));
+        }""")
+
+        header_btn = page.get_by_role("button", name="Đã thêm vào lịch đăng", exact=True)
+        pw_api.expect(header_btn).to_be_visible()
+        pw_api.expect(header_btn).to_be_disabled()
+
+        browser.close()
+
+
+def test_calendar_sync_calls_content_and_status(projects_root):
+    """Step 2 and 3: CalendarClient must invoke update_content and update_status."""
+    proj = _make_sample_project(projects_root, "proj_content_status")
+
+    mock_client = MagicMock(spec=CalendarClient)
+    mock_client.create_campaign.return_value = {"id": "camp_content_001"}
+    mock_client.get_script.return_value = {"content": "", "revision": "rev1"}
+    mock_client.save_script.return_value = {"ok": True, "revision": "rev2"}
+    mock_client.save_caption.return_value = {"ok": True}
+    mock_client.update_content.return_value = {"ok": True}
+    mock_client.update_status.return_value = {"ok": True}
+
+    params = {
+        "title": "AMO 2022 Grade 2 Question 16",
+        "scheduled_date": "2026-10-20",
+        "koc": "Toán Olympic Cùng Con",
+        "idea": "Bài toán dãy số nhân đôi",
+    }
+    result = sync_project_to_calendar(proj, params, client=mock_client)
+
+    assert result["status"] == "DONE"
+    mock_client.create_campaign.assert_called_once()
+    create_args = mock_client.create_campaign.call_args[0][0]
+    assert create_args["planned_outfit_count"] == 0
+    assert create_args["share_affiliate"] is False
+    assert create_args["folder_name"] == "proj_content_status"
+
+    mock_client.update_content.assert_called_once()
+    content_args = mock_client.update_content.call_args[0][1]
+    assert "youtube_title" in content_args
+    assert "youtube_description" in content_args
+    assert "facebook_caption" in content_args
+
+    mock_client.update_status.assert_called_once_with("camp_content_001", "CAPTIONED")
+
+
+def test_calendar_sync_published_links_when_present(projects_root):
+    """Step 4: If checkpoint_posted exists, sync published links."""
+    proj = _make_sample_project(projects_root, "proj_posted_links")
+    posted_data = {
+        "platforms": {
+            "youtube": {"url": "https://youtu.be/TEST_VID_ID"},
+            "facebook": {"url": "https://facebook.com/watch/?v=TEST_FB_ID"},
+        }
+    }
+    (proj / "checkpoint_posted.json").write_text(json.dumps(posted_data), encoding="utf-8")
+
+    mock_client = MagicMock(spec=CalendarClient)
+    mock_client.create_campaign.return_value = {"id": "camp_posted_002"}
+    mock_client.get_script.return_value = {"content": "", "revision": "rev1"}
+    mock_client.save_script.return_value = {"ok": True}
+    mock_client.save_caption.return_value = {"ok": True}
+    mock_client.update_content.return_value = {"ok": True}
+    mock_client.update_status.return_value = {"ok": True}
+    mock_client.update_published_links.return_value = {"ok": True}
+
+    params = {
+        "title": "AMO 2022 Question 16",
+        "scheduled_date": "2026-10-22",
+    }
+    sync_project_to_calendar(proj, params, client=mock_client)
+
+    mock_client.update_published_links.assert_called_once()
+    links = mock_client.update_published_links.call_args[0][1]
+    assert any(l["platform"] == "youtube" and "TEST_VID_ID" in l["url"] for l in links)
+    assert any(l["platform"] == "facebook" and "TEST_FB_ID" in l["url"] for l in links)
+
+
+def test_openmontage_calendar_sync_client(projects_root, monkeypatch):
+    """Verify openmontage.integrations.calendar_sync.CalendarSyncClient executes all 4 steps."""
+    from openmontage.integrations.calendar_sync import CalendarSyncClient
+    proj = _make_sample_project(projects_root, "proj_standalone_client")
+
+    posted_data = {
+        "platforms": {
+            "youtube": {"url": "https://youtu.be/ABC123XYZ"}
+        }
+    }
+    (proj / "checkpoint_posted.json").write_text(json.dumps(posted_data), encoding="utf-8")
+
+    recorded_calls = []
+
+    def fake_post(url, json=None, headers=None, timeout=None):
+        recorded_calls.append({"url": url, "payload": json})
+        resp = MagicMock()
+        resp.ok = True
+        resp.status_code = 200
+        if "/api/campaigns" in url and not url.endswith(("/content", "/status", "/published-links")):
+            resp.json.return_value = {"id": "proj_standalone_client"}
+        else:
+            resp.json.return_value = {"ok": True}
+        return resp
+
+    monkeypatch.setattr("requests.post", fake_post)
+
+    client = CalendarSyncClient(base_url="http://127.0.0.1:8766")
+    res = client.sync_project(proj, scheduled_date="2026-10-20")
+
+    assert res["status"] == "CAPTIONED"
+    assert res["campaign_id"] == "proj_standalone_client"
+
+    # Verify all 4 endpoint URLs were called
+    urls = [c["url"] for c in recorded_calls]
+    assert "http://127.0.0.1:8766/api/campaigns" in urls
+    assert "http://127.0.0.1:8766/api/campaigns/proj_standalone_client/content" in urls
+    assert "http://127.0.0.1:8766/api/campaigns/proj_standalone_client/status" in urls
+    assert "http://127.0.0.1:8766/api/campaigns/proj_standalone_client/published-links" in urls
+
+
+def test_calendar_get_query_apis(monkeypatch):
+    """Verify CalendarClient and CalendarSyncClient query GET endpoints."""
+    from openmontage.integrations.calendar_sync import CalendarSyncClient
+
+    def fake_get(url, params=None, timeout=None):
+        resp = MagicMock()
+        resp.ok = True
+        resp.status_code = 200
+        if "/api/koc-workflows/" in url:
+            resp.json.return_value = {
+                "key": "toan_olympic",
+                "outfit_mode": "none",
+                "task_kind": "animation",
+                "video_format": "landscape",
+                "default_look_count": 0,
+            }
+        elif "/schedule-suggestion" in url:
+            resp.json.return_value = {
+                "campaign_id": "test_camp",
+                "suggested_time": "19:30",
+                "golden_hours": ["11:45", "19:30", "20:30"],
+            }
+        elif "/today-check" in url:
+            resp.json.return_value = {
+                "date": "2026-10-19",
+                "total_today": 1,
+                "by_status": {"CAPTIONED": 1},
+                "campaigns": [{"id": "test_camp", "title": "Test", "status": "CAPTIONED"}],
+            }
+        elif "/koc-thumbnail/" in url:
+            resp.content = b"FAKE_IMAGE_BYTES"
+        elif "/api/campaigns" in url:
+            resp.json.return_value = [
+                {"id": "camp_1", "koc": "Toán Olympic Cùng Con", "title": "Math 1"},
+                {"id": "camp_2", "koc": "Other_KOC", "title": "Fashion 1"},
+            ]
+        return resp
+
+    monkeypatch.setattr("requests.get", fake_get)
+
+    # 1. Test CalendarClient GET methods
+    cal_client = CalendarClient("http://127.0.0.1:8766", calendar_dir=False)
+    wf = cal_client.get_workflow("Toán Olympic Cùng Con")
+    assert wf["video_format"] == "landscape"
+    assert wf["outfit_mode"] == "none"
+
+    sugg = cal_client.get_schedule_suggestion("test_camp", "Toán Olympic Cùng Con")
+    assert sugg["suggested_time"] == "19:30"
+    assert "19:30" in sugg["golden_hours"]
+
+    today = cal_client.get_today_check("Toán Olympic Cùng Con")
+    assert today["total_today"] == 1
+
+    thumb = cal_client.get_koc_thumbnail("Toán Olympic Cùng Con")
+    assert thumb == b"FAKE_IMAGE_BYTES"
+
+    # 2. Test CalendarSyncClient GET methods
+    sync_client = CalendarSyncClient(base_url="http://127.0.0.1:8766")
+    wf2 = sync_client.get_workflow("Toán Olympic Cùng Con")
+    assert wf2["task_kind"] == "animation"
+
+    koc_camps = sync_client.list_koc_campaigns("Toán Olympic Cùng Con")
+    assert len(koc_camps) == 1
+    assert koc_camps[0]["id"] == "camp_1"
+
+    sugg2 = sync_client.get_schedule_suggestion("test_camp", "Toán Olympic Cùng Con")
+    assert "golden_hours" in sugg2
+
+    today2 = sync_client.get_today_check("Toán Olympic Cùng Con")
+    assert today2["date"] == "2026-10-19"
+
+    thumb2 = sync_client.get_koc_thumbnail("Toán Olympic Cùng Con")
+    assert thumb2 == b"FAKE_IMAGE_BYTES"
+
+
 
 
