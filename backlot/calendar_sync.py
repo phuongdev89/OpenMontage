@@ -117,12 +117,137 @@ def project_artifact_sync_path(project: Path) -> Path:
     return project / "artifacts" / "calendar_sync.json"
 
 
+def read_project_calendar(project: Path) -> dict[str, Any]:
+    """Read calendar.json in project directory to determine scheduling, posting and link status.
+
+    Returns structured calendar data:
+    - has_calendar (bool): True if calendar.json exists and is valid, False otherwise.
+    - scheduled_date (str | None): Date string (e.g. YYYY-MM-DD).
+    - scheduled_time (str | None): Time string (e.g. HH:MM).
+    - is_posted (bool): True if status is PUBLISHED/POSTED, published_at is set, or links exist.
+    - has_links (bool): True if published_links or published_url are present.
+    - published_links (list[dict]): Extracted links [{'platform': str, 'url': str}].
+    - published_url (str): Single URL if present.
+    - status (str | None): Raw status from calendar.json.
+    - campaign_id (str | None): Campaign id.
+    - koc (str | None): KOC channel name.
+    - title (str | None): Title in calendar.json.
+    - raw (dict | None): Raw calendar.json dictionary.
+    """
+    cal_file = Path(project) / "calendar.json"
+    if not cal_file.is_file():
+        return {
+            "has_calendar": False,
+            "scheduled_date": None,
+            "scheduled_time": None,
+            "is_posted": False,
+            "has_links": False,
+            "published_links": [],
+            "published_url": "",
+            "status": None,
+            "campaign_id": None,
+            "koc": None,
+            "title": None,
+            "raw": None,
+        }
+
+    try:
+        data = json.loads(cal_file.read_text(encoding="utf-8"))
+        if not isinstance(data, dict):
+            return {
+                "has_calendar": False,
+                "scheduled_date": None,
+                "scheduled_time": None,
+                "is_posted": False,
+                "has_links": False,
+                "published_links": [],
+                "published_url": "",
+                "status": None,
+                "campaign_id": None,
+                "koc": None,
+                "title": None,
+                "raw": None,
+            }
+    except (OSError, ValueError):
+        return {
+            "has_calendar": False,
+            "scheduled_date": None,
+            "scheduled_time": None,
+            "is_posted": False,
+            "has_links": False,
+            "published_links": [],
+            "published_url": "",
+            "status": None,
+            "campaign_id": None,
+            "koc": None,
+            "title": None,
+            "raw": None,
+        }
+
+    scheduled_date = (data.get("scheduled_date") or data.get("date") or "").strip() or None
+    scheduled_time = (data.get("scheduled_time") or data.get("time") or "").strip() or None
+    raw_status = (data.get("status") or "").strip() or None
+    status_upper = (raw_status or "").upper()
+    published_at = data.get("published_at")
+
+    published_links: list[dict[str, str]] = []
+    raw_links = data.get("published_links")
+    if isinstance(raw_links, list):
+        for item in raw_links:
+            if isinstance(item, dict) and item.get("url"):
+                platform = (item.get("platform") or "web").lower().strip()
+                url = item.get("url", "").strip()
+                if url and not any(l.get("url") == url for l in published_links):
+                    published_links.append({"platform": platform, "url": url})
+            elif isinstance(item, str) and item.strip().startswith("http"):
+                url = item.strip()
+                platform = "youtube" if ("youtube" in url or "youtu.be" in url) else ("facebook" if "facebook" in url else "web")
+                if not any(l.get("url") == url for l in published_links):
+                    published_links.append({"platform": platform, "url": url})
+
+    published_url = (data.get("published_url") or "").strip()
+    if published_url and not any(l.get("url") == published_url for l in published_links):
+        platform = "youtube" if ("youtube" in published_url or "youtu.be" in published_url) else ("facebook" if "facebook" in published_url else "web")
+        published_links.append({"platform": platform, "url": published_url})
+
+    has_links = bool(published_links or published_url)
+    is_posted = bool(
+        status_upper in ("PUBLISHED", "POSTED", "DONE")
+        or (published_at and bool(str(published_at).strip()))
+        or has_links
+    )
+
+    return {
+        "has_calendar": True,
+        "scheduled_date": scheduled_date,
+        "scheduled_time": scheduled_time,
+        "is_posted": is_posted,
+        "has_links": has_links,
+        "published_links": published_links,
+        "published_url": published_url,
+        "status": raw_status,
+        "campaign_id": data.get("id") or (data.get("metadata") or {}).get("id") or Path(project).name,
+        "koc": data.get("koc"),
+        "title": data.get("title") or data.get("youtube_title"),
+        "raw": data,
+    }
+
+
 def read_sync_state(project: Path) -> dict:
     primary = sync_state_path(project)
     fallback = project_artifact_sync_path(project)
     target = primary if primary.is_file() else (fallback if fallback.is_file() else None)
-    if not target:
-        return {
+    data = None
+    if target:
+        try:
+            parsed = json.loads(target.read_text(encoding="utf-8"))
+            if isinstance(parsed, dict):
+                data = parsed
+        except (OSError, ValueError):
+            pass
+
+    if data is None:
+        data = {
             "project_id": project.name,
             "status": "IDLE",
             "campaign_id": None,
@@ -131,23 +256,50 @@ def read_sync_state(project: Path) -> dict:
             "updated_at": None,
             "history": [],
         }
-    try:
-        data = json.loads(target.read_text(encoding="utf-8"))
-        if isinstance(data, dict):
-            if "milestones" not in data:
-                data["milestones"] = []
-            return data
-    except (OSError, ValueError):
-        pass
-    return {
-        "project_id": project.name,
-        "status": "IDLE",
-        "campaign_id": None,
-        "last_step": None,
-        "milestones": [],
-        "updated_at": None,
-        "history": [],
-    }
+
+    if "milestones" not in data:
+        data["milestones"] = []
+
+    cal_info = read_project_calendar(project)
+    has_calendar = bool(cal_info["has_calendar"])
+    data["has_calendar"] = has_calendar
+    data["calendar"] = cal_info
+
+    if has_calendar:
+        if cal_info["scheduled_date"]:
+            data["scheduled_date"] = cal_info["scheduled_date"]
+        if cal_info["scheduled_time"]:
+            data["scheduled_time"] = cal_info["scheduled_time"]
+        if cal_info["campaign_id"]:
+            data["campaign_id"] = cal_info["campaign_id"]
+        data["is_posted"] = cal_info["is_posted"]
+        data["has_links"] = cal_info["has_links"]
+        data["published_links"] = cal_info["published_links"]
+        data["published_url"] = cal_info["published_url"]
+        if cal_info["title"]:
+            data["title"] = cal_info["title"]
+        if cal_info["koc"]:
+            data["koc"] = cal_info["koc"]
+        if cal_info["status"]:
+            data["calendar_status"] = cal_info["status"]
+
+        if data.get("status") in ("IDLE", None):
+            data["status"] = "DONE"
+            milestones = set(data.get("milestones") or [])
+            milestones.update(["CAMPAIGN_CREATED", "SCRIPT_SAVED", "CAPTION_SAVED"])
+            data["milestones"] = list(milestones)
+            data["last_step"] = "DONE"
+    else:
+        # Nếu calendar.json chưa tồn tại:
+        # Đồng nghĩa với việc chưa thêm vào lịch đăng (nếu trước đó là DONE thì reset về IDLE)
+        if data.get("status") == "DONE":
+            data["status"] = "IDLE"
+            data["campaign_id"] = None
+            data["scheduled_date"] = None
+            data["scheduled_time"] = None
+            data["milestones"] = []
+
+    return data
 
 
 def write_sync_state(project: Path, state: dict) -> None:
@@ -159,6 +311,20 @@ def write_sync_state(project: Path, state: dict) -> None:
     with contextlib.suppress(OSError):
         project_artifact_sync_path(project).parent.mkdir(parents=True, exist_ok=True)
         atomic_bytes(project_artifact_sync_path(project), raw)
+
+    if state.get("status") == "DONE" and state.get("scheduled_date"):
+        cal_file = project / "calendar.json"
+        if not cal_file.is_file():
+            cal_payload = {
+                "id": state.get("campaign_id") or project.name,
+                "title": state.get("title") or project.name,
+                "scheduled_date": state.get("scheduled_date"),
+                "scheduled_time": state.get("scheduled_time") or "11:30",
+                "koc": state.get("koc") or DEFAULT_KOC,
+                "status": "PLANNED",
+            }
+            with contextlib.suppress(Exception):
+                atomic_bytes(cal_file, json.dumps(cal_payload, ensure_ascii=False, indent=2).encode("utf-8"))
 
 
 @contextlib.contextmanager
@@ -277,6 +443,19 @@ def extract_project_posting_content(project: Path, state_data: Optional[dict] = 
     if not fb_cap and (package.get("caption") or package.get("description")):
         fb_cap = (package.get("caption") or package.get("description") or "").strip()
 
+    cal_file = project / "calendar.json"
+    if cal_file.is_file():
+        try:
+            cdata = json.loads(cal_file.read_text(encoding="utf-8"))
+            if not yt_desc and cdata.get("youtube_description"):
+                yt_desc = cdata["youtube_description"]
+            if not fb_cap and cdata.get("facebook_caption"):
+                fb_cap = cdata["facebook_caption"]
+            if not yt_title and cdata.get("youtube_title"):
+                yt_title = cdata["youtube_title"]
+        except Exception:
+            pass
+
     return {
         "title": title,
         "youtube_title": yt_title,
@@ -310,6 +489,22 @@ def extract_published_links(project: Path) -> list[dict]:
                     links.append({"platform": p.lower(), "url": pinfo})
         except Exception:
             pass
+    cal_file = project / "calendar.json"
+    if cal_file.is_file():
+        try:
+            cdata = json.loads(cal_file.read_text(encoding="utf-8"))
+            for item in cdata.get("published_links") or []:
+                if isinstance(item, dict) and item.get("url"):
+                    p = (item.get("platform") or "web").lower()
+                    u = item["url"].strip()
+                    if u and not any(l.get("url") == u for l in links):
+                        links.append({"platform": p, "url": u})
+            pub_url = (cdata.get("published_url") or "").strip()
+            if pub_url and not any(l.get("url") == pub_url for l in links):
+                p = "youtube" if ("youtube" in pub_url or "youtu.be" in pub_url) else ("facebook" if "facebook" in pub_url else "web")
+                links.append({"platform": p, "url": pub_url})
+        except Exception:
+            pass
     return links
 
 
@@ -335,38 +530,31 @@ def get_default_sync_info(project: Path) -> dict:
     cal_dir = get_calendar_management_dir()
     client = CalendarClient(active_url)
 
-    is_added = False
+    cal_info = read_project_calendar(project)
+    is_added = bool(cal_info["has_calendar"])
     koc_schedule = []
 
-    if sync_state.get("status") == "DONE" and sync_state.get("campaign_id"):
-        is_added = True
+    if cal_info["has_calendar"]:
+        if sync_state.get("status") != "DONE":
+            sync_state.update({
+                "status": "DONE",
+                "campaign_id": cal_info["campaign_id"] or project.name,
+                "title": cal_info["title"] or title,
+                "scheduled_date": cal_info["scheduled_date"] or sync_state.get("scheduled_date") or today,
+                "scheduled_time": cal_info["scheduled_time"] or sync_state.get("scheduled_time") or "11:30",
+                "koc": cal_info["koc"] or sync_state.get("koc") or DEFAULT_KOC,
+                "is_posted": cal_info["is_posted"],
+                "has_links": cal_info["has_links"],
+                "published_links": cal_info["published_links"],
+                "published_url": cal_info["published_url"],
+            })
+            write_sync_state(project, sync_state)
 
     try:
         raw_campaigns = client.list_campaigns(koc=DEFAULT_KOC, limit=300)
         if not raw_campaigns:
             raw_campaigns = client.list_campaigns(koc="Toan_Olympic_Cung_Con", limit=300)
         koc_schedule = [c for c in raw_campaigns if isinstance(c, dict)] if isinstance(raw_campaigns, list) else []
-        target_title = title.strip().lower()
-        camp_id = sync_state.get("campaign_id")
-
-        for c in koc_schedule:
-            cid = c.get("id")
-            c_title = (c.get("title") or "").strip().lower()
-            c_folder = (c.get("folder_path") or c.get("folder_name") or "")
-
-            if (camp_id and cid == camp_id) or (target_title and c_title == target_title) or (project.name in c_folder):
-                is_added = True
-                if sync_state.get("status") != "DONE":
-                    sync_state.update({
-                        "status": "DONE",
-                        "campaign_id": cid,
-                        "title": c.get("title") or title,
-                        "scheduled_date": c.get("scheduled_date") or c.get("date"),
-                        "scheduled_time": c.get("scheduled_time") or "11:30",
-                        "koc": DEFAULT_KOC,
-                    })
-                    write_sync_state(project, sync_state)
-                break
     except Exception as e:
         logger.warning("Lỗi quét lịch đăng KOC %s: %s", DEFAULT_KOC, e)
 
@@ -401,13 +589,13 @@ def get_default_sync_info(project: Path) -> dict:
             if sugg.get("golden_hours"):
                 golden_hours = sugg["golden_hours"]
 
-    scheduled_time = sync_state.get("scheduled_time") or suggested_time
+    scheduled_time = cal_info["scheduled_time"] or sync_state.get("scheduled_time") or suggested_time
 
     workflow = client.get_workflow(koc)
 
     return {
         "title": title,
-        "scheduled_date": sync_state.get("scheduled_date") or today,
+        "scheduled_date": cal_info["scheduled_date"] or sync_state.get("scheduled_date") or today,
         "scheduled_time": scheduled_time,
         "suggested_time": suggested_time,
         "golden_hours": golden_hours,
@@ -423,6 +611,8 @@ def get_default_sync_info(project: Path) -> dict:
         "calendar_dir": str(cal_dir) if cal_dir else None,
         "calendar_mode": "cli" if cal_dir else "http",
         "is_added": is_added,
+        "has_calendar": is_added,
+        "calendar": cal_info,
         "koc_schedule": koc_schedule,
     }
 
@@ -1192,10 +1382,35 @@ def sync_project_to_calendar(
                             timeout=15,
                         )
 
+            # Create or update calendar.json in the project directory
+            cal_file = project / "calendar.json"
+            cal_payload = {}
+            if cal_file.is_file():
+                with contextlib.suppress(Exception):
+                    cal_payload = json.loads(cal_file.read_text(encoding="utf-8"))
+            cal_payload.update({
+                "id": campaign_id,
+                "title": title,
+                "scheduled_date": scheduled_date,
+                "scheduled_time": scheduled_time,
+                "koc": koc,
+                "idea": idea,
+                "product_url": product_url,
+                "status": cal_payload.get("status") or "PLANNED",
+                "published_links": cal_payload.get("published_links") or pub_links,
+                "published_url": cal_payload.get("published_url") or "",
+                "youtube_title": yt_title,
+                "youtube_description": yt_desc,
+                "facebook_caption": fb_cap,
+            })
+            with contextlib.suppress(Exception):
+                atomic_bytes(cal_file, json.dumps(cal_payload, ensure_ascii=False, indent=2).encode("utf-8"))
+
             state.update({
                 "status": "DONE",
                 "error": None,
                 "last_step": "DONE",
+                "has_calendar": True,
             })
             history.append({"step": "DONE", "timestamp": datetime.now(timezone.utc).isoformat()})
             state["history"] = history

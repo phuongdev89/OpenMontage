@@ -221,11 +221,13 @@ export function renderPublishPackage(s, projectId, onUpdated = null) {
   }, '📅 Thêm vào lịch đăng');
 
   getJSON(`/api/project/${encodeURIComponent(projectId)}/calendar-sync/info`).then(info => {
-    if (info.is_added || info.sync_state?.status === 'DONE') {
+    const hasCal = Boolean(info.has_calendar || info.is_added);
+    const scheduledDate = info.calendar?.scheduled_date || info.scheduled_date || info.sync_state?.scheduled_date || '';
+    if (hasCal) {
       addToCalHeaderBtn.disabled = true;
       addToCalHeaderBtn.className = 'studio-button';
       addToCalHeaderBtn.textContent = 'Đã thêm vào lịch đăng';
-      addToCalHeaderBtn.title = `Đã lên lịch đăng ngày ${info.sync_state?.scheduled_date || ''}`;
+      addToCalHeaderBtn.title = scheduledDate ? `Đã lên lịch đăng ngày ${scheduledDate}` : 'Đã thêm vào lịch đăng';
       addToCalHeaderBtn.style.opacity = '0.7';
       addToCalHeaderBtn.style.cursor = 'not-allowed';
     } else {
@@ -350,13 +352,16 @@ function renderCalendarSyncSection(s, projectId, onUpdated) {
   container.append(textCol, actions);
 
   getJSON(`/api/project/${encodeURIComponent(projectId)}/calendar-sync/info`).then(info => {
+    const hasCal = Boolean(info.has_calendar || info.is_added);
     const sync = info.sync_state || {};
-    const status = sync.status || 'IDLE';
+    const scheduledDate = info.calendar?.scheduled_date || info.scheduled_date || sync.scheduled_date || '';
+    const scheduledTime = info.calendar?.scheduled_time || info.scheduled_time || sync.scheduled_time || '';
+    const status = hasCal ? 'DONE' : (sync.status || 'IDLE');
 
     actions.innerHTML = '';
-    if (status === 'DONE') {
+    if (status === 'DONE' || hasCal) {
       title.innerHTML = '✓ Đã thêm vào lịch đăng thành công';
-      desc.textContent = `Campaign ID: ${sync.campaign_id || 'N/A'} · Ngày lên lịch: ${sync.scheduled_date || 'N/A'}${sync.scheduled_time ? ' · Giờ đăng: ' + sync.scheduled_time : ''}`;
+      desc.textContent = `Campaign ID: ${sync.campaign_id || info.calendar?.campaign_id || 'N/A'} · Ngày lên lịch: ${scheduledDate || 'N/A'}${scheduledTime ? ' · Giờ đăng: ' + scheduledTime : ''}`;
       container.classList.add('calendar-sync-done');
       const resyncBtn = el('button', {
         type: 'button',
@@ -617,10 +622,15 @@ export function openCalendarSyncDialog(s, projectId, info, onUpdated) {
       if (hasEvents) {
         const eventsContainer = el('div', {class: 'cal-day-events'});
         for (const ev of events.slice(0, 2)) {
+          const rawTitle = (ev.title || '').trim();
+          const words = rawTitle.split(/\s+/).filter(Boolean);
+          const shortTitle = words.length > 3 ? words.slice(0, 3).join(' ') + '…' : rawTitle;
+          const displayTitle = shortTitle.length > 18 ? shortTitle.slice(0, 16).trim() + '…' : shortTitle;
+          const timePrefix = ev.scheduled_time ? `${ev.scheduled_time} ` : '';
           const pill = el('div', {
             class: 'cal-event-pill',
-            title: `${ev.scheduled_time ? ev.scheduled_time + ' · ' : ''}${ev.title}`
-          }, `${ev.scheduled_time ? ev.scheduled_time + ' ' : ''}${ev.title}`);
+            title: `${ev.scheduled_time ? ev.scheduled_time + ' · ' : ''}${rawTitle}`
+          }, `${timePrefix}${displayTitle}`);
           eventsContainer.append(pill);
         }
         if (events.length > 2) {

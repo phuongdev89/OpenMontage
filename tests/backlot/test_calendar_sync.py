@@ -20,6 +20,7 @@ from backlot.calendar_sync import (
     format_script_markdown,
     get_default_sync_info,
     project_sync_lock,
+    read_project_calendar,
     read_sync_state,
     reconcile_unknown_sync,
     resolve_sync_conflict,
@@ -1019,6 +1020,201 @@ def test_calendar_get_query_apis(monkeypatch):
 
     thumb2 = sync_client.get_koc_thumbnail("Toán Olympic Cùng Con")
     assert thumb2 == b"FAKE_IMAGE_BYTES"
+
+
+def test_read_project_calendar_when_absent(projects_root):
+    proj = _make_sample_project(projects_root, "proj_no_cal")
+    cal = read_project_calendar(proj)
+    assert cal["has_calendar"] is False
+    assert cal["scheduled_date"] is None
+    assert cal["is_posted"] is False
+    assert cal["has_links"] is False
+    assert cal["published_links"] == []
+
+
+def test_read_project_calendar_when_present(projects_root):
+    proj = _make_sample_project(projects_root, "proj_with_cal")
+    cal_data = {
+        "id": "2026-10-25_math-q1",
+        "title": "Bí quyết giải toán nhanh",
+        "scheduled_date": "2026-10-25",
+        "scheduled_time": "19:30",
+        "status": "PUBLISHED",
+        "published_at": "2026-10-25T12:30:00Z",
+        "published_url": "https://youtu.be/sample123",
+        "published_links": [
+            {"platform": "youtube", "url": "https://youtu.be/sample123"},
+            {"platform": "facebook", "url": "https://facebook.com/watch/sample456"},
+        ],
+        "koc": "Toán Olympic Cùng Con",
+    }
+    (proj / "calendar.json").write_text(json.dumps(cal_data), encoding="utf-8")
+
+    cal = read_project_calendar(proj)
+    assert cal["has_calendar"] is True
+    assert cal["scheduled_date"] == "2026-10-25"
+    assert cal["scheduled_time"] == "19:30"
+    assert cal["is_posted"] is True
+    assert cal["has_links"] is True
+    assert len(cal["published_links"]) == 2
+    assert cal["campaign_id"] == "2026-10-25_math-q1"
+
+
+def test_read_sync_state_with_and_without_calendar_json(projects_root):
+    proj = _make_sample_project(projects_root, "proj_sync_test")
+
+    # 1. When absent: has_calendar is False
+    state1 = read_sync_state(proj)
+    assert state1["has_calendar"] is False
+    assert state1["status"] == "IDLE"
+
+    # 2. When calendar.json is added: updates sync state to DONE and has_calendar is True
+    cal_data = {
+        "id": "camp_abc",
+        "title": "Video Sample",
+        "scheduled_date": "2026-10-28",
+        "scheduled_time": "20:00",
+        "status": "CAPTIONED",
+    }
+    (proj / "calendar.json").write_text(json.dumps(cal_data), encoding="utf-8")
+
+    state2 = read_sync_state(proj)
+    assert state2["has_calendar"] is True
+    assert state2["scheduled_date"] == "2026-10-28"
+    assert state2["scheduled_time"] == "20:00"
+    assert state2["campaign_id"] == "camp_abc"
+    assert state2["status"] == "DONE"
+
+    # 3. When calendar.json is deleted: resets to IDLE ("Nếu tệp này chưa tồn tại đồng nghĩa với việc chưa thêm vào lịch đăng")
+    (proj / "calendar.json").unlink()
+    state3 = read_sync_state(proj)
+    assert state3["has_calendar"] is False
+    assert state3["status"] == "IDLE"
+    assert state3["campaign_id"] is None
+
+
+def test_get_default_sync_info_reflects_calendar_json(projects_root, monkeypatch):
+    proj = _make_sample_project(projects_root, "proj_info_test")
+    monkeypatch.setattr(cal_mod, "get_calendar_management_dir", lambda: None)
+
+    # Without calendar.json
+    info1 = get_default_sync_info(proj)
+    assert info1["is_added"] is False
+    assert info1["has_calendar"] is False
+
+    # With calendar.json
+    cal_data = {
+        "id": "camp_info",
+        "title": "Video Info",
+        "scheduled_date": "2026-10-30",
+        "scheduled_time": "11:30",
+    }
+    (proj / "calendar.json").write_text(json.dumps(cal_data), encoding="utf-8")
+
+    info2 = get_default_sync_info(proj)
+    assert info2["is_added"] is True
+    assert info2["has_calendar"] is True
+    assert info2["scheduled_date"] == "2026-10-30"
+    assert info2["scheduled_time"] == "11:30"
+
+
+def test_board_state_and_summary_include_calendar_badge_data(projects_root):
+    proj_a = _make_sample_project(projects_root, "proj_a_with_cal")
+    proj_b = _make_sample_project(projects_root, "proj_b_no_cal")
+
+    (proj_a / "calendar.json").write_text(json.dumps({
+        "id": "camp_a",
+        "title": "Title A",
+        "scheduled_date": "2026-10-26",
+    }), encoding="utf-8")
+
+    state_a = state_mod.load_board_state(proj_a)
+    assert state_a["has_calendar"] is True
+    assert state_a["calendar"]["scheduled_date"] == "2026-10-26"
+
+    state_b = state_mod.load_board_state(proj_b)
+    assert state_b["has_calendar"] is False
+    assert state_b["calendar"]["has_calendar"] is False
+
+    sum_a = state_mod.summarize_project(proj_a)
+    assert sum_a["has_calendar"] is True
+    assert sum_a["calendar"]["scheduled_date"] == "2026-10-26"
+
+    sum_b = state_mod.summarize_project(proj_b)
+    assert sum_b["has_calendar"] is False
+    assert sum_b["calendar"]["has_calendar"] is False
+
+
+def test_api_projects_returns_has_calendar_badge_data(client, projects_root):
+    proj_1 = _make_sample_project(projects_root, "proj_1_cal")
+    proj_2 = _make_sample_project(projects_root, "proj_2_nocal")
+
+    (proj_1 / "calendar.json").write_text(json.dumps({
+        "id": "camp_1",
+        "title": "Project 1 With Calendar",
+        "scheduled_date": "2026-10-27",
+    }), encoding="utf-8")
+
+    server_mod._invalidate_summary(proj_1.name)
+    server_mod._invalidate_summary(proj_2.name)
+
+    resp = client.get("/api/projects")
+    assert resp.status_code == 200
+    items = resp.json()
+
+    item_1 = next((p for p in items if p["project_id"] == "proj_1_cal"), None)
+    item_2 = next((p for p in items if p["project_id"] == "proj_2_nocal"), None)
+
+    assert item_1 is not None
+    assert item_1["has_calendar"] is True
+    assert item_1["calendar"]["scheduled_date"] == "2026-10-27"
+
+    assert item_2 is not None
+    assert item_2["has_calendar"] is False
+
+
+def test_calendar_json_absence_strictly_means_not_added(projects_root):
+    """Absence of calendar.json in project strictly means not added, even if prior sync state had DONE."""
+    proj = _make_sample_project(projects_root, "proj_strict_test")
+    write_sync_state(proj, {
+        "status": "DONE",
+        "campaign_id": "ghost_campaign",
+        "scheduled_date": "2026-11-01",
+    })
+    cal_file = proj / "calendar.json"
+    if cal_file.is_file():
+        cal_file.unlink()
+
+    cal = read_project_calendar(proj)
+    assert cal["has_calendar"] is False
+    assert cal["scheduled_date"] is None
+
+    state = read_sync_state(proj)
+    assert state["has_calendar"] is False
+    assert state["status"] == "IDLE"
+    assert state["campaign_id"] is None
+    assert state["scheduled_date"] is None
+
+    info = get_default_sync_info(proj)
+    assert info["is_added"] is False
+    assert info["has_calendar"] is False
+
+    cal_file.write_text(json.dumps({
+        "id": "real_campaign",
+        "scheduled_date": "2026-11-05",
+        "scheduled_time": "19:30",
+    }), encoding="utf-8")
+
+    cal = read_project_calendar(proj)
+    assert cal["has_calendar"] is True
+    assert cal["scheduled_date"] == "2026-11-05"
+    assert cal["scheduled_time"] == "19:30"
+
+    info = get_default_sync_info(proj)
+    assert info["is_added"] is True
+    assert info["has_calendar"] is True
+    assert info["scheduled_date"] == "2026-11-05"
+
 
 
 
