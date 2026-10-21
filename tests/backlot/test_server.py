@@ -20,6 +20,34 @@ from backlot import server as server_mod
 from backlot import state as state_mod
 
 
+def test_video_thumbnail_hides_console_and_coalesces_requests(tmp_path, monkeypatch):
+    import subprocess
+    import sys
+    from concurrent.futures import ThreadPoolExecutor
+    from types import SimpleNamespace
+
+    monkeypatch.setattr(server_mod, "THUMB_CACHE_DIR", tmp_path / "thumbs")
+    video = tmp_path / "final.mp4"
+    video.write_bytes(b"video fixture")
+    calls = []
+
+    def extract(command, **kwargs):
+        calls.append(kwargs)
+        time.sleep(0.05)
+        Path(command[-1]).write_bytes(b"poster fixture")
+        return SimpleNamespace(returncode=0)
+
+    monkeypatch.setattr(subprocess, "run", extract)
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        results = list(pool.map(lambda _: server_mod._thumbnail_for(video, 320), range(8)))
+    assert len(calls) == 1
+    assert calls[0]["creationflags"] == (
+        subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
+    )
+    assert all(result == results[0] for result in results)
+    assert results[0].read_bytes() == b"poster fixture"
+
+
 @pytest.fixture
 def projects_root(tmp_path, monkeypatch):
     root = tmp_path / "projects"

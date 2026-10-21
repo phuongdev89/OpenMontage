@@ -1219,3 +1219,24 @@ def test_calendar_json_absence_strictly_means_not_added(projects_root):
 
 
 
+def test_calendar_list_cli_hides_console(tmp_path, monkeypatch):
+    import subprocess
+    import sys
+    from types import SimpleNamespace
+    from backlot import calendar_sync
+
+    calls = []
+    monkeypatch.setattr(calendar_sync, "get_python_exe", lambda _: sys.executable)
+
+    def run(command, **kwargs):
+        calls.append((command, kwargs))
+        return SimpleNamespace(returncode=0, stdout='[{"id":"existing"}]')
+
+    monkeypatch.setattr(subprocess, "run", run)
+    result = calendar_sync.CalendarClient(calendar_dir=tmp_path).list_campaigns(koc="KOC")
+    assert result == [{"id": "existing"}]
+    assert calls[0][0][2] == "list"
+    assert calls[0][1]["creationflags"] == (
+        subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
+    )
+

@@ -113,3 +113,4 @@ projects_work/
 prompt_chat/data/
 .hallmark/
 data/
+tmp/

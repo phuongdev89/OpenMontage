@@ -670,6 +670,7 @@ class CalendarClient:
                     text=True,
                     encoding="utf-8",
                     timeout=15,
+                    creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0,
                 )
                 if proc.returncode == 0 and proc.stdout.strip():
                     data = json.loads(proc.stdout)
@@ -835,6 +836,7 @@ class CalendarClient:
                     text=True,
                     encoding="utf-8",
                     timeout=30,
+                    creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0,
                 )
             except subprocess.TimeoutExpired:
                 raise CalendarTimeoutError("Hết thời gian chờ lệnh tạo task trên CLI.")
@@ -976,6 +978,7 @@ class CalendarClient:
                     cwd=str(self.calendar_dir),
                     capture_output=True,
                     timeout=15,
+                    creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0,
                 )
             folder = self._find_campaign_dir(identifier)
             if folder and folder.is_dir():
@@ -1380,6 +1383,7 @@ def sync_project_to_calendar(
                             cwd=str(client.calendar_dir),
                             capture_output=True,
                             timeout=15,
+                            creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0,
                         )
 
             # Create or update calendar.json in the project directory

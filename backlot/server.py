@@ -12,6 +12,8 @@ import asyncio
 import errno
 import json
 import logging
+import sys
+import threading
 import time
 from contextlib import asynccontextmanager, suppress
 from pathlib import Path
@@ -29,6 +31,8 @@ from backlot.state import PROJECTS_DIR, REPO_ROOT, list_projects, load_board_sta
 UI_DIR = Path(__file__).resolve().parent / "ui"
 THUMB_CACHE_DIR = REPO_ROOT / ".backlot" / "thumbs"
 THUMB_WIDTHS = (320, 640, 960)
+# Bounded locks keep concurrent requests from extracting the same poster twice.
+_THUMB_LOCKS = tuple(threading.Lock() for _ in range(64))
 
 # Paths inside a project whose changes are pure noise for the board.
 _IGNORE_PARTS = {"node_modules", ".git", "__pycache__", ".cache", ".backlot-trash"}
@@ -625,6 +629,11 @@ def _sse(payload: dict) -> str:
 
 
 def _thumbnail_for(source: Path, width: int) -> Optional[Path]:
+    with _THUMB_LOCKS[hash((str(source.resolve()), width)) % len(_THUMB_LOCKS)]:
+        return _thumbnail_for_locked(source, width)
+
+
+def _thumbnail_for_locked(source: Path, width: int) -> Optional[Path]:
     """Downscale an image (or extract a video poster frame) to a cached JPEG."""
     suffix = source.suffix.lower()
     is_image = suffix in {".png", ".jpg", ".jpeg", ".webp", ".gif"}
@@ -652,6 +661,7 @@ def _thumbnail_for(source: Path, width: int) -> Optional[Path]:
                  "-i", str(source), "-frames:v", "1",
                  "-vf", f"scale={width}:-2", str(tmp)],
                 capture_output=True, timeout=30,
+                creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0,
             )
             if result.returncode != 0 or not tmp.is_file():
                 return None
