@@ -33,19 +33,26 @@ posting package in `publish_log.metadata.posting_package` for Backlot.
 
 ## Thumbnail generation
 
-`AI_IMAGE_URL`, `AI_IMAGE_KEY`, `AI_IMAGE_MODEL` and the image protocol options
-configure the image-generate API fallback. `AI_CHAT_URL`, `AI_CHAT_KEY` and
-`AI_CHAT_MODEL` are separate and used only for text. Backlot's user-triggered
-caption/description revisions are saved in `artifacts/posting_copy.json`; use
-these field overrides when reading the latest posting copy. Such edits do not
-advance the production pipeline or change published media/checkpoints.
+`AI_IMAGE_PROVIDER` in `.env` selects the thumbnail route; `AI_CHAT_URL`,
+`AI_CHAT_KEY` and `AI_CHAT_MODEL` are separate and used only for text.
+Backlot's user-triggered caption/description revisions are saved in
+`artifacts/posting_copy.json`; use these field overrides when reading the
+latest posting copy. Such edits do not advance the production pipeline or
+change published media/checkpoints.
 
-Use the installed **image-generate** skill. Classify this as new image creation.
-Try the agent's built-in image generation first; record the actual exposed tool
-and provider, without inventing a model name. If unavailable or service-blocked,
-follow the skill's configured API fallback and record the exact reason. Do not
-use image_selector as a replacement for this routing. Never extract a video frame
-or use a screenshot as the posting thumbnail.
+- `AI_IMAGE_PROVIDER=museai` → the installed **muse-image** skill
+  (`MUSEAI_IMAGE_ENDPOINT_URL`, `MUSEAI_IMAGE_API_KEY`). Preferred route.
+- `AI_IMAGE_PROVIDER=zpro`, unset or any other value → the installed
+  **image-generate** skill (`AI_IMAGE_URL`, `AI_IMAGE_KEY`, `AI_IMAGE_MODEL`
+  and the image protocol options).
+
+Classify this as new image creation. If the museai route fails (gateway
+unreachable, timeout, HTTP error), record the exact reason and fall back
+one-way to image-generate (zpro) with the same resolved prompt; do not switch
+back in the same generation. Record the actual tool and provider used, without
+inventing a model name. Do not use image_selector as a replacement for this
+routing. Never extract a video frame or use a screenshot as the posting
+thumbnail.
 
 Use the two 2026-10-12 refreshed thumbnails as quality references:
 - Q21: Louis holding a rope coil in a sunlit wooden garden shed, expressive face,
@@ -105,7 +112,7 @@ Example:
   "description": "A complete YouTube description with accurate chapters",
   "caption": "A distinct social challenge and comment invitation",
   "thumbnails": [{"path": "exports/thumbnails/thumbnail.png",
-    "label": "Thumbnail", "method": "image-generate", "provider": "built-in",
+    "label": "Thumbnail", "method": "image-generate", "provider": "muse-image",
     "prompt": "The exact generation prompt", "review": {"hook": "PASS",
     "readability": "PASS", "factual_accuracy": "PASS", "no_answer_leak": "PASS"}}]
 }}

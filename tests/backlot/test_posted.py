@@ -178,3 +178,26 @@ def test_legacy_publish_reference_still_validates_payload(posted_client):
     path.write_text(json.dumps(cp),encoding='utf-8')
     assert save(client,project,'facebook',True,'https://facebook.com/reel/123').status_code==409
     assert not (project/'checkpoint_posted.json').exists()
+
+def test_sync_posted_from_calendar_updates_posted_checkpoint(posted_client):
+    from backlot.posted import sync_posted_from_calendar, posting_state
+    client, project = posted_client
+
+    # Write a calendar.json with both facebook and youtube published links
+    cal_data = {
+        "id": project.name,
+        "published_links": [
+            {"platform": "youtube", "url": "https://youtu.be/sample12345"},
+            {"platform": "facebook", "url": "https://www.facebook.com/reel/1672010641260956"},
+        ],
+        "published_at": "2026-10-18T16:45:28.371357+00:00",
+    }
+    (project / "calendar.json").write_text(json.dumps(cal_data), encoding="utf-8")
+
+    # Calling posting_state automatically triggers sync_posted_from_calendar
+    state = posting_state(project)
+    assert state["status"] == "completed"
+    assert state["platforms"]["youtube"]["confirmed"] is True
+    assert state["platforms"]["youtube"]["url"] == "https://youtu.be/sample12345"
+    assert state["platforms"]["facebook"]["confirmed"] is True
+    assert state["platforms"]["facebook"]["url"] == "https://www.facebook.com/watch/?v=1672010641260956"

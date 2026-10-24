@@ -737,11 +737,6 @@ def load_board_state(project_dir: Path) -> dict[str, Any]:
     except Exception as exc:
         state['posting_status'] = {'status': 'invalid', 'platforms': {}, 'error': str(exc)}
 
-    from backlot.calendar_sync import read_project_calendar
-    cal_info = read_project_calendar(project_dir)
-    state["calendar"] = cal_info
-    state["has_calendar"] = cal_info["has_calendar"]
-
     # Completed experience archive metadata & embeds
     state["is_cleaned"] = is_cleaned
     state["completed_record"] = completed_record
@@ -782,7 +777,6 @@ def summarize_project(project_dir: Path) -> dict[str, Any]:
     state = load_board_state(project_dir)
     active = next((s for s in state["stages"] if s["status"] in ("in_progress", "awaiting_human")), None)
     done = [s for s in state["stages"] if s["status"] == "completed"]
-    cal = state.get("calendar") or {}
     return {
         "project_id": state["project_id"],
         "title": state["title"],
@@ -804,8 +798,6 @@ def summarize_project(project_dir: Path) -> dict[str, Any]:
         "is_cleaned": bool(state.get("is_cleaned")),
         "bytes_freed": (state.get("completed_record") or {}).get("cleanup_manifest", {}).get("bytes_freed"),
         "cleaned_at": (state.get("completed_record") or {}).get("cleaned_at"),
-        "calendar": cal,
-        "has_calendar": bool(cal.get("has_calendar")),
     }
 
 
@@ -836,8 +828,6 @@ def list_projects(projects_dir: Optional[Path] = None) -> list[dict[str, Any]]:
                 "completed_count": 0,
                 "render_count": 0,
                 "scene_count": 0,
-                "calendar": {"has_calendar": False},
-                "has_calendar": False,
                 "error": "unreadable",
             })
     summaries.sort(key=lambda s: (-(s.get('created_at') or 0), s['project_id']))

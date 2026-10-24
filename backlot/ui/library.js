@@ -8,7 +8,6 @@ let projects = [];
 const search = el('input', {type: 'search', placeholder: 'Tìm project…', 'aria-label': 'Tìm project'});
 const filter = el('select', {'aria-label': 'Lọc trạng thái'},
   el('option', {value: ''}, 'Tất cả'),
-  el('option', {value: 'scheduled'}, 'Đã có lịch'),
   el('option', {value: 'cleaned'}, 'Đã dọn'),
   el('option', {value: 'posted'}, 'Đã đăng'),
   el('option', {value: 'published'}, 'Sẵn sàng đăng'),
@@ -93,28 +92,9 @@ function card(p, index = 0) {
   } else if (p.awaiting_human) {
     poster.append(el("span", { class: "lp-live" }, "◈ AWAITING YOU"));
   }
-  if (p.has_calendar) {
-    poster.append(el("span", {
-      class: "lp-scheduled",
-      title: p.calendar?.scheduled_date ? `Lịch đăng: ${p.calendar.scheduled_date}` : 'Đã có lịch đăng',
-    }, "ĐÃ CÓ LỊCH"));
-  }
-
-  const isPublished = p.stage_states.some(s => s.name === 'publish' && s.status === 'completed');
-  const isPosted = p.stage_states.some(s => s.name === 'posted' && s.status === 'completed');
-  const calBadge = p.has_calendar ? el("span", {
-    class: "chip chip-scheduled",
-    style: "color: #58a6ff; border-color: rgba(56, 139, 253, 0.4); background: rgba(56, 139, 253, 0.12);",
-    title: p.calendar?.scheduled_date ? `Lịch đăng: ${p.calendar.scheduled_date}${p.calendar.scheduled_time ? ' ' + p.calendar.scheduled_time : ''}` : 'Đã có lịch',
-  }, p.calendar?.scheduled_date ? `📅 Đã có lịch (${p.calendar.scheduled_date})` : "📅 Đã có lịch") : (isPublished && !isPosted ? el("span", {
-    class: "chip",
-    style: "color: #58a6ff; border-color: rgba(56, 139, 253, 0.4);"
-  }, "📅 Thêm vào lịch đăng") : null);
-
   const meta = el("div", { class: "lb-meta" },
     el("span", { class: "chip" }, p.pipeline_type || "unknown"),
     p.scene_count ? el("span", { class: "chip" }, `${p.scene_count} scenes`) : null,
-    calBadge,
   );
 
   const staticSuffix = new URLSearchParams(location.search).has("static") ? "?static=1" : "";
@@ -150,25 +130,10 @@ function projectTable(items) {
     body.append(el('tr', {'data-project': p.project_id},
       el('td', {class: 'column-0'}, el('a', {class: 'table-project', href: `/p/${encodeURIComponent(p.project_id)}${staticSuffix}`},
         poster, el('div', {}, el('strong', {}, p.title || p.project_id),
-          el('small', {}, `${p.scene_count || 0} cảnh · ${p.render_count || 0} video`),
-          p.has_calendar ? el('span', {
-            class: 'chip chip-scheduled',
-            style: 'margin-left: 6px; font-size: 10px; padding: 1px 5px; color: #58a6ff; border: 1px solid rgba(56, 139, 253, 0.4); border-radius: 3px; display: inline-block;',
-            title: p.calendar?.scheduled_date ? `Lịch đăng: ${p.calendar.scheduled_date}` : 'Đã có lịch',
-          }, 'Đã có lịch') : null))),
+          el('small', {}, `${p.scene_count || 0} cảnh · ${p.render_count || 0} video`)))),
       el('td', {class: 'column-1'}, p.pipeline_type || 'unknown'),
       el('td', {class: 'column-2'},
-        el('span', {class: isCleaned ? 'table-cleaned' : done ? 'table-published' : ''}, status),
-        p.has_calendar ? el('span', {
-          class: 'badge-scheduled table-cal-link',
-          title: p.calendar?.scheduled_date ? `Lịch đăng: ${p.calendar.scheduled_date}` : 'Đã có lịch',
-          style: 'margin-left: 8px; font-size: 11px; padding: 2px 6px; background: rgba(56, 139, 253, 0.15); color: #58a6ff; border: 1px solid rgba(56, 139, 253, 0.3); border-radius: 4px; font-weight: 500;'
-        }, p.calendar?.scheduled_date ? `📅 Đã có lịch (${p.calendar.scheduled_date})` : '📅 Đã có lịch') : (done && !posted ? el('a', {
-          class: 'table-cal-link',
-          href: `/p/${encodeURIComponent(p.project_id)}${staticSuffix}#calendar-sync`,
-          title: 'Thêm vào lịch đăng',
-          style: 'margin-left: 8px; font-size: 11px; padding: 2px 6px; background: rgba(56, 139, 253, 0.15); color: #58a6ff; border: 1px solid rgba(56, 139, 253, 0.3); border-radius: 4px; text-decoration: none; font-weight: 500;'
-        }, '📅 Thêm vào lịch đăng') : null)
+        el('span', {class: isCleaned ? 'table-cleaned' : done ? 'table-published' : ''}, status)
       ),
       el('td', {class: 'column-3'}, fmtAgo(p.last_activity) || '—')));
   }
@@ -193,7 +158,6 @@ function draw() {
   document.getElementById("empty").style.display = projects.length ? "none" : "block";
   const shown = projects.filter(p => (p.title + ' ' + p.project_id).toLowerCase().includes(search.value.toLowerCase()) &&
     (!filter.value || (
-      filter.value === 'scheduled' ? p.has_calendar :
       filter.value === 'cleaned' ? p.is_cleaned :
       filter.value === 'posted' ? p.stage_states.some(s => s.name === 'posted' && s.status === 'completed') :
       filter.value === 'published' ? p.stage_states.some(s => s.name === 'publish' && s.status === 'completed') :

@@ -87,27 +87,6 @@ class CleanupExecuteRequest(BaseModel):
     expected_revision: str = Field(pattern=r'^[a-f0-9]{64}$')
 
 
-class CalendarSyncStartRequest(BaseModel):
-    title: Optional[str] = Field(default=None, max_length=180)
-    scheduled_date: Optional[str] = Field(default=None, max_length=20)
-    scheduled_time: Optional[str] = Field(default=None, max_length=20)
-    koc: Optional[str] = Field(default=None, max_length=100)
-    idea: Optional[str] = Field(default=None, max_length=1000)
-    product_url: Optional[str] = Field(default=None, max_length=2000)
-    script: Optional[str] = None
-    caption: Optional[str] = None
-    planned_outfit_count: Optional[int] = Field(default=None, ge=1, le=20)
-    calendar_url: Optional[str] = None
-
-
-class CalendarConflictResolveRequest(BaseModel):
-    action: Literal['overwrite', 'keep_remote']
-    calendar_url: Optional[str] = None
-
-
-class CalendarReconcileRequest(BaseModel):
-    calendar_url: Optional[str] = None
-
 
 def _ui_html(name: str, assets: tuple[str, ...]) -> HTMLResponse:
     html = (UI_DIR / name).read_text(encoding="utf-8")
@@ -384,54 +363,6 @@ def create_app() -> FastAPI:
         same_origin(request)
         from backlot.cleanup import execute_cleanup
         return await file_operation(project_id, execute_cleanup, body.expected_revision, changed=True)
-
-    @app.get('/api/project/{project_id}/calendar-sync/info')
-    async def calendar_sync_info(project_id: str):
-        from backlot.calendar_sync import get_default_sync_info, get_calendar_base_url
-        project_dir = _safe_project_dir(project_id)
-        info = await asyncio.to_thread(get_default_sync_info, project_dir)
-        info['calendar_url'] = get_calendar_base_url()
-        return info
-
-    @app.post('/api/project/{project_id}/calendar-sync/start')
-    async def calendar_sync_start(project_id: str, body: CalendarSyncStartRequest, request: Request):
-        same_origin(request)
-        from backlot.calendar_sync import sync_project_to_calendar
-        project_dir = _safe_project_dir(project_id)
-        params = body.model_dump()
-        try:
-            res = await asyncio.to_thread(sync_project_to_calendar, project_dir, params)
-            _invalidate_summary(project_id)
-            hub.publish(project_id)
-            return res
-        except CopywriterError as exc:
-            raise HTTPException(status_code=exc.status, detail=str(exc))
-
-    @app.post('/api/project/{project_id}/calendar-sync/reconcile')
-    async def calendar_sync_reconcile(project_id: str, body: CalendarReconcileRequest, request: Request):
-        same_origin(request)
-        from backlot.calendar_sync import reconcile_unknown_sync
-        project_dir = _safe_project_dir(project_id)
-        try:
-            res = await asyncio.to_thread(reconcile_unknown_sync, project_dir, body.calendar_url)
-            _invalidate_summary(project_id)
-            hub.publish(project_id)
-            return res
-        except CopywriterError as exc:
-            raise HTTPException(status_code=exc.status, detail=str(exc))
-
-    @app.post('/api/project/{project_id}/calendar-sync/resolve-conflict')
-    async def calendar_sync_resolve_conflict(project_id: str, body: CalendarConflictResolveRequest, request: Request):
-        same_origin(request)
-        from backlot.calendar_sync import resolve_sync_conflict
-        project_dir = _safe_project_dir(project_id)
-        try:
-            res = await asyncio.to_thread(resolve_sync_conflict, project_dir, body.action, body.calendar_url)
-            _invalidate_summary(project_id)
-            hub.publish(project_id)
-            return res
-        except CopywriterError as exc:
-            raise HTTPException(status_code=exc.status, detail=str(exc))
 
     @app.post('/api/project/{project_id}/title')
     async def edit_project_title(project_id: str, body: TitleRevisionRequest, request: Request) -> dict:

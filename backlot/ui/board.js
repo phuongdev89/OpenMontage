@@ -1175,10 +1175,6 @@ function render() {
     if (selection && replacement?.tagName === 'TEXTAREA') replacement.setSelectionRange(...selection);
   }
   window.scrollTo({top: scrollTop, behavior: 'instant'});
-  if (location.hash === '#calendar-sync') {
-    const box = document.getElementById(`calendar-sync-${projectId}`);
-    if (box) box.scrollIntoView({behavior: 'smooth'});
-  }
 }
 
 // Defensive normalization (F-02): the server contract guarantees these

@@ -214,6 +214,17 @@ def _resolve_project_dir(pipeline_dir: Path, project_id: str) -> Path:
     legacy (non-timestamped) directories and for callers that pass a fully
     resolved path as ``project_id``.
     """
+    # Direct match: pipeline_dir is already the project directory.
+    marker_file = pipeline_dir / PROJECT_MARKER_FILENAME
+    if marker_file.exists():
+        try:
+            with open(marker_file, encoding="utf-8") as mf:
+                marker = json.load(mf)
+            if isinstance(marker, dict) and marker.get("project_id") == project_id:
+                return pipeline_dir
+        except (OSError, json.JSONDecodeError):
+            pass
+
     # Fast path: exact match (legacy layout or already resolved).
     exact = pipeline_dir / project_id
     if exact.exists():

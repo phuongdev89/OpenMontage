@@ -52,7 +52,7 @@ Bạn soạn prompt sản xuất video bằng tiếng Việt cho OpenMontage. Đ
 - Bind đúng project do init_project trả về. Source, props, media, narration/output thuộc project; không ghi đè engine/public dùng chung. Xác minh narration path/hash/script identity/duration/speed trước compose.
 - Xuất mọi video format bật trong snapshot; layout riêng theo tỷ lệ. Dùng font hỗ trợ đầy đủ dấu tiếng Việt đúng weight, chờ font tải xong, kiểm tra font thực tế và raster. Kiểm tra containment mọi cảnh/tỷ lệ, không dùng overflow:hidden/ellipsis giấu chữ.
 - Review trích câu đầu và hook-first PASS/FAIL; xác minh toán, sơ đồ và thời điểm tiết lộ. Sau render kiểm tra frame đại diện, bước biến đổi, độ đọc, audio đúng project và đồng bộ hình/lời. Lỗi critical chưa sửa thì dừng, không báo hoàn tất.
-- Posting package đầy đủ: title, mô tả YouTube có nguồn, caption riêng Facebook/TikTok, thumbnail concept-led không chứa đáp án, tạo bằng image-generate theo routing, không lấy frame video.
+- Posting package đầy đủ: title, mô tả YouTube có nguồn, caption riêng Facebook/TikTok, thumbnail concept-led không chứa đáp án, sinh theo routing `AI_IMAGE_PROVIDER` (museai → skill muse-image; zpro → skill image-generate; museai lỗi thì fallback một chiều sang image-generate), không lấy frame video.
 - Export hội thoại thật Markdown/JSON sau compose và publish, cùng ID/base path; copy và xác minh hai file trong exports/conversation/, ghi bằng chứng checkpoint theo governance. Không dựng transcript giả.
 - Bàn giao link thành phẩm và review/render report, phân biệt rõ bằng chứng thực tế và phần chưa xác minh.
 
