@@ -139,6 +139,7 @@ def staged_backlot_server():
     port = 4897
     env = dict(os.environ)
     env["OPENMONTAGE_PROJECTS_DIR"] = str(backlot_screenshot_stage.STAGE_DIR)
+    env["BACKLOT_TRAY"] = "0"  # UI tests do not need a tray icon
     server = subprocess.Popen(
         [sys.executable, "-m", "backlot", "serve", "--port", str(port)],
         cwd=backlot_screenshot_stage.REPO_ROOT,

@@ -281,7 +281,7 @@ Infrastructure files:
 Every production run creates a project workspace under `projects/`. This directory is gitignored — all generated assets are regenerable.
 
 ```
-projects/YYYY-MM-DD_HH-MM-SS_<project-name>/
+projects/YYYY-MM-DD_<project-name>/
 ├── artifacts/          # JSON artifacts from each stage (research_brief, script, scene_plan, etc.)
 ├── assets/
 │   ├── images/         # Generated images (PNG)
@@ -293,16 +293,16 @@ projects/YYYY-MM-DD_HH-MM-SS_<project-name>/
     └── final.mp4       # Final rendered video (the deliverable)
 ```
 
-**Naming convention**: `YYYY-MM-DD_HH-MM-SS_<kebab-title>` — timestamp prefix (local time, hyphens as separators) followed by kebab-case title (e.g., `2026-10-10_14-30-00_hidden-math-of-nature`).
+**Naming convention**: `YYYY-MM-DD_<kebab-title>` — local-date prefix followed by kebab-case title (e.g., `2026-10-10_hidden-math-of-nature`); no time-of-day component. When the same date+title name is taken by a different project, `init_project` appends `-2`, `-3`… to the slug.
 
 At pipeline initialization, before any stage runs:
 
-1. **Initialize the workspace**: `python -c "from lib.checkpoint import init_project; init_project('<project-id>', title='<Title>', pipeline_type='<pipeline>')"` — `init_project` prepends `YYYY-MM-DD_HH-MM-SS_` automatically; creates the layout above and writes `project.json` (the marker the Backlot board reads).
+1. **Initialize the workspace**: `python -c "from lib.checkpoint import init_project; init_project('<project-id>', title='<Title>', pipeline_type='<pipeline>')"` — `init_project` prepends `YYYY-MM-DD_` automatically; creates the layout above and writes `project.json` (the marker the Backlot board reads).
 2. **Open the board immediately**: run `python -m backlot open <project-id>` and verify that the Backlot server is listening before entering the first stage. This starts the Backlot server if needed and opens the user's browser at the project's live board. Do this for every production run; do not wait for the user to ask for a progress link. If the command fails, report the exact URL/startup error immediately and continue the production — the board is an observer, never a blocker. This is the agent's ONLY board duty; the board derives everything else from disk.
 
-All tools and agents must write outputs to these paths — **always pass an explicit `output_path` under `projects/YYYY-MM-DD_HH-MM-SS_<project-id>/`**. Assets written to the repo root, cwd, or temp dirs are invisible to the user's board and violate the workspace contract.
+All tools and agents must write outputs to these paths — **always pass an explicit `output_path` under `projects/YYYY-MM-DD_<project-id>/`**. Assets written to the repo root, cwd, or temp dirs are invisible to the user's board and violate the workspace contract.
 
-**This applies to atelier and HyperFrames-skill runs too**: hand-authored compositions still write the canonical artifacts they have (script or beats-plan, scene_plan-equivalent, asset manifest) plus checkpoints into `projects/YYYY-MM-DD_HH-MM-SS_<project-id>/`. The board is runtime-agnostic; only runs that skip the artifacts get a degraded board.
+**This applies to atelier and HyperFrames-skill runs too**: hand-authored compositions still write the canonical artifacts they have (script or beats-plan, scene_plan-equivalent, asset manifest) plus checkpoints into `projects/YYYY-MM-DD_<project-id>/`. The board is runtime-agnostic; only runs that skip the artifacts get a degraded board.
 
 ## Music Library
 
@@ -694,12 +694,12 @@ Primary files:
 
 Checkpoint rules:
 
-- Checkpoints live at `projects/YYYY-MM-DD_HH-MM-SS_<project_id>/checkpoint_<stage>.json` (the project workspace — this is what the Backlot board watches).
+- Checkpoints live at `projects/YYYY-MM-DD_<project_id>/checkpoint_<stage>.json` (the project workspace — this is what the Backlot board watches).
 - `status` may be `completed`, `failed`, `awaiting_human`, or `in_progress`.
 - Write an `in_progress` checkpoint on entering each stage; during `assets`/`compose`, refresh `metadata.partial_progress` after each completed scene/asset unit — this powers live progress on the board.
 - `completed` and `awaiting_human` checkpoints must include the canonical artifact.
 - A gated stage (`human_approval_default: true`) can be written `completed` with either an actual human approval (`human_approved=True`) or valid project auto-authorization (`approval_resolution.type: "auto_authorized"`); the latter keeps `human_approved=False` and records its source instruction.
-- Superseded checkpoints are archived automatically to `projects/YYYY-MM-DD_HH-MM-SS_<project_id>/history/` — stage re-runs never destroy run history.
+- Superseded checkpoints are archived automatically to `projects/YYYY-MM-DD_<project_id>/history/` — stage re-runs never destroy run history.
 - Invalid checkpoints or invalid canonical artifacts are contract violations and should fail fast.
 
 Pipeline manifest rules:

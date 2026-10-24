@@ -75,6 +75,17 @@ python -m backlot open                # library view (all projects)
 python -m backlot serve --port 4750   # run the server in the foreground
 ```
 
+## Tray icon (Windows)
+
+While the server runs on Windows it keeps a tray icon for as long as it lives
+(set `BACKLOT_TRAY=0` to disable). Left-click opens the board in the browser;
+right-click offers **Mở Backlot** / **Restart** / **Thoát**. Restart spawns a
+replacement `serve` process first and then shuts the current one down; the
+replacement waits for the port to be released before binding, so a browser
+holding an SSE stream during restart cannot wedge the port. Any tray failure
+(safe mode, missing shell, CI session) degrades to "no icon" and never takes
+the server down.
+
 ## How it stays live
 
 No agent involvement. A `watchfiles` watcher on the configured projects root publishes change

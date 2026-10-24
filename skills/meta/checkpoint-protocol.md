@@ -88,7 +88,7 @@ The checkpoint utility will:
 - Write the checkpoint JSON to disk
 - Include timestamp and stage metadata
 
-Canonical location: `projects/YYYY-MM-DD_HH-MM-SS_<project_id>/checkpoint_<stage>.json` — always
+Canonical location: `projects/YYYY-MM-DD_<project_id>/checkpoint_<stage>.json` — always
 pass the repo's `projects/` directory as `pipeline_dir` (or use
 `lib.checkpoint.PROJECTS_DIR`). Always pass `pipeline_type` — gate enforcement
 reads the manifest through it.
@@ -97,7 +97,7 @@ At pipeline initialization (before any stage), call `init_project()`:
 
 ```python
 from lib.checkpoint import init_project
-init_project("my-project", title="My Project", pipeline_type="cinematic")  # dir created as YYYY-MM-DD_HH-MM-SS_my-project
+init_project("my-project", title="My Project", pipeline_type="cinematic")  # dir created as YYYY-MM-DD_my-project
 ```
 
 This creates the canonical directory layout and writes `project.json` — the

@@ -229,15 +229,35 @@ def _resolve_project_dir(pipeline_dir: Path, project_id: str) -> Path:
     exact = pipeline_dir / project_id
     if exact.exists():
         return exact
-    # Glob for timestamped layout: YYYY-MM-DD_HH-MM-SS_<project_id>
-    matches = sorted(pipeline_dir.glob(f"*_{project_id}"))
-    if matches:
-        return matches[-1]  # Latest timestamp wins if multiple exist.
+    # Glob for date-prefixed layout: YYYY-MM-DD_<project_id> (a colliding
+    # duplicate gets "-2", "-3"... appended). Prefer the newest directory whose
+    # marker actually records this project_id, then fall back to the legacy
+    # suffix match (latest wins if multiple exist).
+    candidates = sorted(pipeline_dir.glob(f"*_{project_id}*"))
+    for candidate in reversed(candidates):
+        if _marker_project_id(candidate) == project_id:
+            return candidate
+    suffix_matches = [c for c in candidates if c.name.endswith(f"_{project_id}")]
+    if suffix_matches:
+        return suffix_matches[-1]
     return exact  # Will not exist yet; callers handle mkdir.
 
 
 def _checkpoint_path(project_dir: Path, stage: str) -> Path:
     return project_dir / f"checkpoint_{stage}.json"
+
+
+def _marker_project_id(project_dir: Path) -> Optional[str]:
+    """project_id recorded in a directory's marker, or None when absent/unreadable."""
+    marker_file = project_dir / PROJECT_MARKER_FILENAME
+    if not marker_file.is_file():
+        return None
+    try:
+        with marker_file.open(encoding="utf-8") as mf:
+            marker = json.load(mf)
+    except (OSError, json.JSONDecodeError):
+        return None
+    return marker.get("project_id") if isinstance(marker, dict) else None
 
 
 def init_project(
@@ -250,10 +270,11 @@ def init_project(
 ) -> Path:
     """Initialize a project workspace with the canonical layout + marker file.
 
-    Creates projects/YYYY-MM-DD_HH-MM-SS_<project_id>/ with the standard
+    Creates projects/YYYY-MM-DD_<project_id>/ with the standard
     subdirectories and writes project.json — the marker the Backlot board uses
     to render a project's identity and stage rail before the first checkpoint
-    exists.
+    exists. No time-of-day component; when the date-prefixed name is already
+    taken by a different project, "-2", "-3"... are appended to the slug.
 
     Idempotent: re-running preserves the original created_at and merges fields.
     Returns the project directory.
@@ -265,8 +286,12 @@ def init_project(
     configured_policy = configured_stage_approvals(pipeline_type)
     configured_policy["authorized_at"] = datetime.now(timezone.utc).isoformat()
     base = pipeline_dir or PROJECTS_DIR
-    ts = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-    project_dir = base / f"{ts}_{project_id}"
+    date_prefix = datetime.now().strftime("%Y-%m-%d")
+    project_dir = base / f"{date_prefix}_{project_id}"
+    suffix = 2
+    while project_dir.exists() and _marker_project_id(project_dir) != project_id:
+        project_dir = base / f"{date_prefix}_{project_id}-{suffix}"
+        suffix += 1
     for sub in (
         "artifacts",
         "assets/images",
